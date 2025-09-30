@@ -5,22 +5,42 @@ useSeoMeta({
   title: t('cv.title'),
   description: t('cv.description')
 })
+
+const scrollProgress = ref(0)
+
+onMounted(() => {
+  const handleScroll = () => {
+    // Calculate scroll progress (0 to 1) based on viewport height
+    const maxScroll = window.innerHeight
+    const currentScroll = window.scrollY
+    scrollProgress.value = Math.min(currentScroll / maxScroll, 1)
+  }
+  
+  window.addEventListener('scroll', handleScroll)
+  handleScroll() // Initial call
+  
+  onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll)
+  })
+})
 </script>
 
 <template>
-  <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
-    <!-- Hero Section -->
-    <CvHero />
+  <div class="cv-page">
+    <!-- Hero Section - Full page height initially -->
+    <CvHero :scroll-progress="scrollProgress" />
     
     <!-- Main Content with Sidebar Layout -->
-    <div class="cv-container">
-      <!-- Sidebar - transitions from hero -->
+    <div class="cv-container" :style="{ marginTop: scrollProgress < 1 ? '100vh' : '0' }">
+      <!-- Sidebar - where hero transitions to -->
       <aside 
         class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto"
       >
         <div class="p-6 space-y-8">
-          <!-- Profile with Picture -->
-          <CvProfile />
+          <!-- Profile with Picture (hidden until hero transitions) -->
+          <div :style="{ opacity: scrollProgress }">
+            <CvProfile />
+          </div>
           
           <!-- Personal Details -->
           <CvDetails />
@@ -51,9 +71,19 @@ useSeoMeta({
 </template>
 
 <style scoped>
+.cv-page {
+  min-h-screen;
+  background: white;
+}
+
+.cv-page.dark {
+  background: rgb(17 24 39);
+}
+
 .cv-container {
   display: grid;
   grid-template-columns: 1fr;
+  transition: margin-top 0.3s ease-out;
 }
 
 @media (min-width: 1024px) {
@@ -65,6 +95,7 @@ useSeoMeta({
 @media print {
   .cv-container {
     grid-template-columns: 300px 1fr;
+    margin-top: 0 !important;
   }
   
   .sidebar {

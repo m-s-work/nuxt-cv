@@ -1,28 +1,56 @@
 <script setup lang="ts">
 const { t } = useI18n()
+
+const props = defineProps<{
+  scrollProgress: number
+}>()
+
+// Calculate transform values based on scroll progress
+const heroScale = computed(() => {
+  // Scale from 1 to 0.4 as we scroll
+  return 1 - (props.scrollProgress * 0.6)
+})
+
+const heroOpacity = computed(() => {
+  // Fade out as we scroll
+  return 1 - props.scrollProgress
+})
+
+const heroTransform = computed(() => {
+  // Move hero to sidebar position
+  const translateX = props.scrollProgress * -35 // Move left
+  const translateY = props.scrollProgress * 0 // Keep vertical position
+  return `translate(${translateX}%, ${translateY}%) scale(${heroScale.value})`
+})
 </script>
 
 <template>
   <div class="hero-wrapper">
-    <!-- Hero Section - Full width when at top -->
+    <!-- Hero Section - Full page height initially, then transitions to sidebar -->
     <div 
-      class="hero-section min-h-[60vh] flex items-center justify-center bg-blue-600 dark:bg-blue-700 print:hidden"
+      class="hero-section"
+      :style="{
+        transform: heroTransform,
+        opacity: heroOpacity,
+        height: scrollProgress < 1 ? '100vh' : '0',
+        pointerEvents: scrollProgress >= 1 ? 'none' : 'auto'
+      }"
     >
-      <div class="text-center text-white px-4">
+      <div class="hero-content">
         <div class="mb-8">
           <img 
             src="https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo" 
             alt="Profile"
-            class="w-48 h-56 object-cover rounded-lg shadow-2xl mx-auto border-4 border-white"
+            class="profile-img"
           />
         </div>
-        <h1 class="text-5xl md:text-6xl font-bold mb-4">
+        <h1 class="hero-title">
           Max Mustermann
         </h1>
-        <p class="text-2xl md:text-3xl mb-8 text-blue-100">
+        <p class="hero-subtitle">
           Software Architect
         </p>
-        <div class="scroll-indicator">
+        <div class="scroll-indicator" :style="{ opacity: 1 - scrollProgress }">
           <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
           </svg>
@@ -34,19 +62,68 @@ const { t } = useI18n()
 
 <style scoped>
 .hero-wrapper {
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  pointer-events: none;
 }
 
 .hero-section {
-  position: sticky;
-  top: 0;
-  z-index: 0;
-  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgb(37 99 235) 0%, rgb(29 78 216) 100%);
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out, height 0.3s ease-out;
+  transform-origin: center center;
+  pointer-events: auto;
 }
 
-/* Hide hero when scrolled past it */
-.hero-wrapper:not(:hover) .hero-section {
-  pointer-events: none;
+@media (prefers-color-scheme: dark) {
+  .hero-section {
+    background: linear-gradient(135deg, rgb(29 78 216) 0%, rgb(30 64 175) 100%);
+  }
+}
+
+.hero-content {
+  text-align: center;
+  color: white;
+  padding: 0 1rem;
+}
+
+.profile-img {
+  width: 12rem;
+  height: 14rem;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  margin: 0 auto;
+  border: 4px solid white;
+}
+
+.hero-title {
+  font-size: 3.75rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .hero-title {
+    font-size: 4.5rem;
+  }
+}
+
+.hero-subtitle {
+  font-size: 1.5rem;
+  margin-bottom: 2rem;
+  color: rgb(191 219 254);
+}
+
+@media (min-width: 768px) {
+  .hero-subtitle {
+    font-size: 1.875rem;
+  }
 }
 
 @keyframes bounce {
@@ -60,6 +137,13 @@ const { t } = useI18n()
 
 .scroll-indicator {
   animation: bounce 2s infinite;
+  transition: opacity 0.3s ease-out;
+}
+
+@media print {
+  .hero-wrapper {
+    display: none;
+  }
 }
 </style>
 
