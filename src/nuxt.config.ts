@@ -8,6 +8,9 @@ export default defineNuxtConfig({
     '@nuxtjs/i18n'
   ],
 
+  // Import Tailwind CSS
+  css: ['~/assets/css/main.css'],
+
   // Static site generation for GitHub Pages
   ssr: false,
   

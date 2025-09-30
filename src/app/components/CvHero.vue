@@ -21,7 +21,7 @@ onMounted(() => {
     <!-- Hero Section - Full width when at top -->
     <div 
       v-show="!isScrolled"
-      class="hero-section min-h-[60vh] flex items-center justify-center bg-gradient-to-br from-primary-600 to-primary-800 dark:from-primary-700 dark:to-primary-900 print:hidden transition-all duration-500"
+      class="hero-section min-h-[60vh] flex items-center justify-center bg-blue-600 dark:bg-blue-700 print:hidden transition-all duration-500"
     >
       <div class="text-center text-white px-4">
         <div class="mb-8">
@@ -34,7 +34,7 @@ onMounted(() => {
         <h1 class="text-5xl md:text-6xl font-bold mb-4">
           Max Mustermann
         </h1>
-        <p class="text-2xl md:text-3xl mb-8 text-primary-100">
+        <p class="text-2xl md:text-3xl mb-8 text-blue-100">
           Software Architect
         </p>
         <div class="animate-bounce">
