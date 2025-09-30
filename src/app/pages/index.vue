@@ -1,23 +1,9 @@
 <script setup lang="ts">
 const { t } = useI18n()
-const isScrolled = ref(false)
 
 useSeoMeta({
   title: t('cv.title'),
   description: t('cv.description')
-})
-
-// Monitor scroll position
-onMounted(() => {
-  const handleScroll = () => {
-    isScrolled.value = window.scrollY > 100
-  }
-  
-  window.addEventListener('scroll', handleScroll)
-  
-  onUnmounted(() => {
-    window.removeEventListener('scroll', handleScroll)
-  })
 })
 </script>
 
@@ -30,13 +16,7 @@ onMounted(() => {
     <div class="cv-container">
       <!-- Sidebar - transitions from hero -->
       <aside 
-        :class="[
-          'sidebar',
-          'bg-gray-100 dark:bg-gray-800 print:bg-gray-50',
-          'lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto',
-          'transition-all duration-500',
-          isScrolled ? 'scrolled' : ''
-        ]"
+        class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto"
       >
         <div class="p-6 space-y-8">
           <!-- Profile with Picture -->
