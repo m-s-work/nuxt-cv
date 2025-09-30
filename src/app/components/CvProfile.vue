@@ -1,0 +1,49 @@
+<script setup lang="ts">
+const { t } = useI18n()
+
+// Profile information
+const profile = ref({
+  name: 'Max Mustermann',
+  title: 'Software Architect',
+  // Placeholder image - in real app this would come from API or uploaded
+  photoUrl: 'https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo'
+})
+</script>
+
+<template>
+  <div class="flex flex-col items-center space-y-4">
+    <!-- Profile Picture -->
+    <div class="relative">
+      <img 
+        :src="profile.photoUrl" 
+        :alt="profile.name"
+        class="w-40 h-48 object-cover rounded-lg shadow-lg border-4 border-white dark:border-gray-800 print:border-gray-300"
+      />
+    </div>
+    
+    <!-- Name and Title -->
+    <div class="text-center">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black">
+        {{ profile.name }}
+      </h1>
+      <p class="text-lg text-gray-600 dark:text-gray-400 print:text-gray-700 mt-1">
+        {{ profile.title }}
+      </p>
+    </div>
+  </div>
+</template>
+
+<i18n lang="json">
+{
+  "en": {
+    "profile": {
+      "title": "Profile"
+    }
+  },
+  "de": {
+    "profile": {
+      "title": "Profil"
+    }
+  }
+}
+</i18n>

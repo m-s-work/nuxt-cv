@@ -1,35 +1,99 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const isScrolled = ref(false)
 
 useSeoMeta({
   title: t('cv.title'),
   description: t('cv.description')
 })
+
+// Monitor scroll position
+onMounted(() => {
+  const handleScroll = () => {
+    isScrolled.value = window.scrollY > 100
+  }
+  
+  window.addEventListener('scroll', handleScroll)
+  
+  onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll)
+  })
+})
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-    <UContainer class="py-8">
-      <div class="space-y-8">
-        <!-- Header -->
-        <header class="text-center space-y-4">
-          <h1 class="text-4xl font-bold text-gray-900 dark:text-white">
-            {{ t('cv.title') }}
-          </h1>
-          <p class="text-lg text-gray-600 dark:text-gray-400">
-            {{ t('cv.subtitle') }}
-          </p>
-        </header>
+  <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+    <!-- Hero Section -->
+    <CvHero />
+    
+    <!-- Main Content with Sidebar Layout -->
+    <div class="cv-container">
+      <!-- Sidebar - transitions from hero -->
+      <aside 
+        :class="[
+          'sidebar',
+          'bg-gray-100 dark:bg-gray-800 print:bg-gray-50',
+          'lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto',
+          'transition-all duration-500',
+          isScrolled ? 'scrolled' : ''
+        ]"
+      >
+        <div class="p-6 space-y-8">
+          <!-- Profile with Picture -->
+          <CvProfile />
+          
+          <!-- Personal Details -->
+          <CvDetails />
+          
+          <!-- Languages -->
+          <CvLanguages />
+          
+          <!-- Driving Licenses -->
+          <CvDrivingLicenses />
+        </div>
+      </aside>
+      
+      <!-- Main Content -->
+      <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
+        <div class="p-6 lg:p-8 space-y-8">
+          <!-- Skills Section -->
+          <CvSkills />
+          
+          <!-- Experiences Section -->
+          <CvExperiences />
 
-        <!-- Experiences Section -->
-        <CvExperiences />
-
-        <!-- Studies Section -->
-        <CvStudies />
-      </div>
-    </UContainer>
+          <!-- Studies Section -->
+          <CvStudies />
+        </div>
+      </main>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.cv-container {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .cv-container {
+    grid-template-columns: 350px 1fr;
+  }
+}
+
+@media print {
+  .cv-container {
+    grid-template-columns: 300px 1fr;
+  }
+  
+  .sidebar {
+    height: auto !important;
+    position: static !important;
+    overflow: visible !important;
+  }
+}
+</style>
 
 <i18n lang="json">
 {

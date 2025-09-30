@@ -24,29 +24,29 @@ const experiences = ref([
 
 <template>
   <section>
-    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">
+    <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
       {{ t('experiences.title') }}
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="exp in experiences" :key="exp.id">
+      <UCard v-for="exp in experiences" :key="exp.id" class="print:!shadow-none print:!border print:!border-gray-300">
         <template #header>
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white print:text-black">
                 {{ exp.position }}
               </h3>
-              <p class="text-gray-600 dark:text-gray-400">
+              <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">
                 {{ exp.company }}
               </p>
             </div>
-            <UBadge color="primary" variant="subtle">
+            <UBadge color="primary" variant="subtle" class="print:!bg-gray-100 print:!text-black">
               {{ exp.period }}
             </UBadge>
           </div>
         </template>
 
-        <p class="text-gray-700 dark:text-gray-300 mb-4">
+        <p class="text-gray-700 dark:text-gray-300 print:text-black mb-4">
           {{ exp.description }}
         </p>
 
@@ -56,6 +56,7 @@ const experiences = ref([
             :key="tech"
             color="gray"
             variant="soft"
+            class="print:!bg-gray-100 print:!text-black"
           >
             {{ tech }}
           </UBadge>
