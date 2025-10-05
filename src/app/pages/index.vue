@@ -72,11 +72,11 @@ onMounted(() => {
 
 <style scoped>
 .cv-page {
-  min-h-screen;
+  min-height: 100vh;
   background: white;
 }
 
-.cv-page.dark {
+.dark .cv-page {
   background: rgb(17 24 39);
 }
 
