@@ -11,6 +11,13 @@ export default defineNuxtConfig({
   // Import Tailwind CSS
   css: ['~/assets/css/main.css'],
 
+  // Color mode configuration
+  colorMode: {
+    preference: 'light',
+    fallback: 'light',
+    classSuffix: ''
+  },
+
   // Static site generation for GitHub Pages
   ssr: false,
   
