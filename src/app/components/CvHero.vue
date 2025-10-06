@@ -1,83 +1,39 @@
 <script setup lang="ts">
 const { t } = useI18n()
-
-const props = defineProps<{
-  scrollProgress: number
-}>()
-
-// Calculate transform values based on scroll progress
-const heroScale = computed(() => {
-  // Scale from 1 to 0.4 as we scroll
-  return 1 - (props.scrollProgress * 0.6)
-})
-
-const heroOpacity = computed(() => {
-  // Fade out as we scroll
-  return 1 - props.scrollProgress
-})
-
-const heroTransform = computed(() => {
-  // Move hero to sidebar position
-  const translateX = props.scrollProgress * -35 // Move left
-  const translateY = props.scrollProgress * 0 // Keep vertical position
-  return `translate(${translateX}%, ${translateY}%) scale(${heroScale.value})`
-})
 </script>
 
 <template>
-  <div class="hero-wrapper">
-    <!-- Hero Section - Full page height initially, then transitions to sidebar -->
-    <div 
-      class="hero-section"
-      :style="{
-        transform: heroTransform,
-        opacity: heroOpacity,
-        height: scrollProgress < 1 ? '100vh' : '0',
-        pointerEvents: scrollProgress >= 1 ? 'none' : 'auto'
-      }"
-    >
-      <div class="hero-content">
-        <div class="mb-8">
-          <img 
-            src="https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo" 
-            alt="Profile"
-            class="profile-img"
-          />
-        </div>
-        <h1 class="hero-title">
-          Max Mustermann
-        </h1>
-        <p class="hero-subtitle">
-          Software Architect
-        </p>
-        <div class="scroll-indicator" :style="{ opacity: 1 - scrollProgress }">
-          <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
-          </svg>
-        </div>
+  <div class="hero-section">
+    <div class="hero-content">
+      <div class="mb-8">
+        <img 
+          src="https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo" 
+          alt="Profile"
+          class="profile-img"
+        />
+      </div>
+      <h1 class="hero-title">
+        Max Mustermann
+      </h1>
+      <p class="hero-subtitle">
+        Software Architect
+      </p>
+      <div class="scroll-indicator">
+        <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+        </svg>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.hero-wrapper {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  pointer-events: none;
-}
-
 .hero-section {
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, rgb(37 99 235) 0%, rgb(29 78 216) 100%);
-  transition: transform 0.1s ease-out, opacity 0.1s ease-out, height 0.3s ease-out;
-  transform-origin: center center;
-  pointer-events: auto;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -137,11 +93,10 @@ const heroTransform = computed(() => {
 
 .scroll-indicator {
   animation: bounce 2s infinite;
-  transition: opacity 0.3s ease-out;
 }
 
 @media print {
-  .hero-wrapper {
+  .hero-section {
     display: none;
   }
 }
