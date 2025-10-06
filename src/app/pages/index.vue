@@ -136,7 +136,7 @@ onMounted(() => {
       
       <!-- Main Content -->
       <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
-        <div class="p-6 lg:p-8 space-y-8">
+        <div class="p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
           <!-- Skills Section -->
           <CvSkills />
           
@@ -145,6 +145,9 @@ onMounted(() => {
 
           <!-- Studies Section -->
           <CvStudies />
+
+          <!-- Footer -->
+          <CvFooter />
         </div>
       </main>
     </div>
