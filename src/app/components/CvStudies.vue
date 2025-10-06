@@ -22,29 +22,29 @@ const studies = ref([
 
 <template>
   <section>
-    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-6">
+    <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
       {{ t('studies.title') }}
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="study in studies" :key="study.id">
+      <UCard v-for="study in studies" :key="study.id" class="print:!shadow-none print:!border print:!border-gray-300">
         <template #header>
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white print:text-black">
                 {{ study.degree }}
               </h3>
-              <p class="text-gray-600 dark:text-gray-400">
+              <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">
                 {{ study.institution }}
               </p>
             </div>
-            <UBadge color="primary" variant="subtle">
+            <UBadge color="primary" variant="subtle" class="print:!bg-gray-100 print:!text-black">
               {{ study.period }}
             </UBadge>
           </div>
         </template>
 
-        <p class="text-gray-700 dark:text-gray-300">
+        <p class="text-gray-700 dark:text-gray-300 print:text-black">
           {{ t('studies.focus') }}: {{ study.focus }}
         </p>
       </UCard>
