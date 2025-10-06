@@ -28,25 +28,21 @@ const triggerPrint = () => {
       <!-- Color mode toggle -->
       <button
         @click="cycleColorMode"
-        class="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-colors text-lg"
+        class="p-2 rounded-md hover:bg-blue-600 hover:bg-opacity-20 transition-colors text-2xl"
         :title="t('theme.toggle')"
         :aria-label="t('theme.toggle')"
       >
-        <UIcon :name="currentMode.icon" class="w-5 h-5" />
-        <!-- Fallback emoji when icon doesn't load -->
-        <span class="icon-fallback">{{ currentMode.emoji }}</span>
+        {{ currentMode.emoji }}
       </button>
       
       <!-- Print mode trigger -->
       <button
         @click="triggerPrint"
-        class="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-colors text-lg"
+        class="p-2 rounded-md hover:bg-blue-600 hover:bg-opacity-20 transition-colors text-2xl"
         :title="t('theme.print')"
         :aria-label="t('theme.print')"
       >
-        <UIcon name="i-heroicons-printer" class="w-5 h-5" />
-        <!-- Fallback emoji when icon doesn't load -->
-        <span class="icon-fallback">🖨️</span>
+        🖨️
       </button>
     </div>
   </div>
@@ -58,30 +54,6 @@ const triggerPrint = () => {
   top: 1rem;
   left: 1rem;
   z-index: 50;
-  background-color: rgba(255, 255, 255, 0.95);
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.dark .theme-selector {
-  background-color: rgba(31, 41, 55, 0.95);
-}
-
-/* Hide emoji fallback when icon loads successfully */
-button:has(.nuxt-icon:not(:empty)) .icon-fallback {
-  display: none;
-}
-
-/* Show emoji only when icon doesn't load */
-.icon-fallback {
-  display: inline-block;
-  line-height: 1;
-}
-
-/* Hide UIcon when it fails to load */
-.nuxt-icon:empty {
-  display: none;
 }
 
 @media print {
