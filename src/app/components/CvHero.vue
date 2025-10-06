@@ -1,22 +1,17 @@
 <script setup lang="ts">
 const { t } = useI18n()
-
-const props = defineProps<{
-  hideImage?: boolean
-}>()
 </script>
 
 <template>
   <div class="hero-section">
     <div class="hero-content">
-      <div v-if="!hideImage" class="mb-8">
+      <div class="mb-8">
         <img 
           src="https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo" 
           alt="Profile"
           class="profile-img"
         />
       </div>
-      <div v-else class="mb-8" style="height: 14rem;"></div>
       <h1 class="hero-title">
         Max Mustermann
       </h1>
