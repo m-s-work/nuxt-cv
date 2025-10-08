@@ -7,7 +7,9 @@ const { t } = useI18n()
     <div class="hero-content">
       <div class="mb-8">
         <img 
-          src="https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo" 
+          src="/images/profile-medium.jpg"
+          srcset="/images/profile-small.jpg 160w, /images/profile-medium.jpg 192w, /images/profile-large.jpg 320w, /images/profile-xlarge.jpg 384w"
+          sizes="(max-width: 640px) 160px, 192px"
           alt="Profile"
           class="profile-img"
         />
