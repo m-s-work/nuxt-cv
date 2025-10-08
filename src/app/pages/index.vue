@@ -73,7 +73,7 @@ const studies = ref([
   {
     id: 3,
     institution: 'University of Kamasutra',
-    degree: 'Bachelor of Science in Computer Science',
+    degree: 'Master of Arts in Love Studies',
     period: '2028 - 2028',
     startDate: '2028-09-01',
     endDate: '2028-06-30',
