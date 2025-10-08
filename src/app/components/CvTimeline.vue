@@ -236,7 +236,6 @@ const yearMarkers = computed(() => {
   position: sticky;
   top: 0;
   height: 100vh;
-  display: flex;
   align-items: flex-start;
   padding-top: 2rem;
 }
@@ -246,8 +245,15 @@ const yearMarkers = computed(() => {
   overflow: visible;
 }
 
+@media (min-width: 1024px) {
+  .timeline-container {
+    display: flex;
+  }
+}
+
 @media print {
   .timeline-container {
+    display: flex;
     position: static;
     height: auto;
     padding-top: 1rem;
