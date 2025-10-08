@@ -115,7 +115,7 @@ onMounted(() => {
     <div class="cv-container">
       <!-- Sidebar -->
       <aside 
-        class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto"
+        class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
       >
         <div class="p-6 space-y-8">
           <!-- Profile with Picture (hidden until scroll completes) -->
