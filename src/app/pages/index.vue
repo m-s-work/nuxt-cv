@@ -6,6 +6,43 @@ useSeoMeta({
   description: t('cv.description')
 })
 
+// Timeline data - these would eventually come from an API
+const experiences = ref([
+  {
+    id: 1,
+    company: 'Tech Company Inc.',
+    position: 'Senior Software Architect',
+    period: '2020 - Present',
+    description: 'Leading architecture design and implementation for cloud-native applications',
+    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+  },
+  {
+    id: 2,
+    company: 'Software Solutions Ltd.',
+    position: 'Full Stack Developer',
+    period: '2017 - 2020',
+    description: 'Developed enterprise web applications and microservices',
+    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+  }
+])
+
+const studies = ref([
+  {
+    id: 1,
+    institution: 'Technical University',
+    degree: 'Master of Science in Computer Science',
+    period: '2015 - 2017',
+    focus: 'Software Engineering & Distributed Systems'
+  },
+  {
+    id: 2,
+    institution: 'University of Technology',
+    degree: 'Bachelor of Science in Computer Science',
+    period: '2012 - 2015',
+    focus: 'Computer Science Fundamentals'
+  }
+])
+
 const scrollY = ref(0)
 const windowHeight = ref(0)
 const windowWidth = ref(0)
@@ -136,15 +173,21 @@ onMounted(() => {
       
       <!-- Main Content -->
       <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
-        <div class="p-6 lg:p-8 space-y-8">
-          <!-- Skills Section -->
-          <CvSkills />
+        <div class="main-with-timeline">
+          <!-- Timeline (left side, only visible on large screens and print) -->
+          <CvTimeline :experiences="experiences" :studies="studies" />
           
-          <!-- Experiences Section -->
-          <CvExperiences />
+          <!-- Content area -->
+          <div class="p-6 lg:p-8 space-y-8">
+            <!-- Skills Section -->
+            <CvSkills />
+            
+            <!-- Experiences Section -->
+            <CvExperiences />
 
-          <!-- Studies Section -->
-          <CvStudies />
+            <!-- Studies Section -->
+            <CvStudies />
+          </div>
         </div>
       </main>
     </div>
@@ -169,6 +212,17 @@ onMounted(() => {
   }
 }
 
+.main-with-timeline {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .main-with-timeline {
+    grid-template-columns: auto 1fr;
+  }
+}
+
 @media print {
   .cv-container {
     grid-template-columns: 300px 1fr;
@@ -178,6 +232,10 @@ onMounted(() => {
     height: auto !important;
     position: static !important;
     overflow: visible !important;
+  }
+  
+  .main-with-timeline {
+    grid-template-columns: auto 1fr;
   }
 }
 </style>

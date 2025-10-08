@@ -27,7 +27,12 @@ const studies = ref([
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="study in studies" :key="study.id" class="print:!shadow-none print:!border print:!border-gray-300">
+      <UCard 
+        v-for="study in studies" 
+        :key="study.id"
+        :data-item-id="`study-${study.id}`" 
+        class="print:!shadow-none print:!border print:!border-gray-300"
+      >
         <template #header>
           <div class="flex justify-between items-start">
             <div>

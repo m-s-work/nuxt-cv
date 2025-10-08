@@ -29,7 +29,12 @@ const experiences = ref([
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="exp in experiences" :key="exp.id" class="print:!shadow-none print:!border print:!border-gray-300">
+      <UCard 
+        v-for="exp in experiences" 
+        :key="exp.id" 
+        :data-item-id="`experience-${exp.id}`"
+        class="print:!shadow-none print:!border print:!border-gray-300"
+      >
         <template #header>
           <div class="flex justify-between items-start">
             <div>
