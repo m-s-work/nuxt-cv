@@ -23,9 +23,9 @@ const props = defineProps<{
   studies: Study[]
 }>()
 
-// Track scroll position and active items
+// Track scroll position and the single active item
 const scrollY = ref(0)
-const activeItems = ref<Set<string>>(new Set())
+const activeItemId = ref<string | null>(null)
 
 // Parse timeline data
 const timelineItems = computed(() => {
@@ -68,12 +68,13 @@ const svgWidth = computed(() => {
 
 const svgHeight = 800 // Fixed height, will scroll with content
 
-// Calculate Y position based on year
+// Calculate Y position based on year (reversed - newest at top)
 function getYPosition(year: number): number {
-  const { minYear, totalYears } = yearRange.value
+  const { minYear, maxYear, totalYears } = yearRange.value
   if (totalYears === 0) return 0
   
-  const progress = (year - minYear) / totalYears
+  // Reverse: newer years at top
+  const progress = (maxYear - year) / totalYears
   return progress * (svgHeight - 100) + 50 // 50px padding top/bottom
 }
 
@@ -90,9 +91,9 @@ function getXPosition(column: number): number {
   return 30 + column * 40
 }
 
-// Check if item is in viewport/active
+// Check if item is the active one
 function isItemActive(item: TimelineItem): boolean {
-  return activeItems.value.has(`${item.type}-${item.id}`)
+  return activeItemId.value === `${item.type}-${item.id}`
 }
 
 // Set up intersection observer for tracking active items
@@ -103,23 +104,27 @@ onMounted(() => {
   
   window.addEventListener('scroll', handleScroll)
   
-  // Set up intersection observer to track which items are visible
+  // Set up intersection observer to track which item is most visible
   const observer = new IntersectionObserver(
     (entries) => {
-      entries.forEach(entry => {
-        const el = entry.target as HTMLElement
+      // Find the entry with the highest intersection ratio
+      let mostVisible = entries.reduce((max, entry) => {
+        return entry.intersectionRatio > (max?.intersectionRatio || 0) ? entry : max
+      }, null as IntersectionObserverEntry | null)
+      
+      if (mostVisible && mostVisible.isIntersecting && mostVisible.intersectionRatio > 0.3) {
+        const el = mostVisible.target as HTMLElement
         const itemId = el.dataset.itemId
         if (itemId) {
-          if (entry.isIntersecting) {
-            activeItems.value.add(itemId)
-          } else {
-            activeItems.value.delete(itemId)
-          }
+          activeItemId.value = itemId
         }
-      })
+      } else if (!entries.some(e => e.isIntersecting)) {
+        // No items visible
+        activeItemId.value = null
+      }
     },
     {
-      threshold: 0.3,
+      threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
       rootMargin: '-20% 0px -20% 0px'
     }
   )
@@ -162,6 +167,36 @@ const yearMarkers = computed(() => {
       class="timeline-svg"
       xmlns="http://www.w3.org/2000/svg"
     >
+      <!-- Define arrow marker -->
+      <defs>
+        <marker
+          id="arrowhead"
+          markerWidth="8"
+          markerHeight="8"
+          refX="7"
+          refY="4"
+          orient="auto"
+        >
+          <polygon
+            points="0 0, 8 4, 0 8"
+            class="fill-gray-400 dark:fill-gray-500 print:fill-gray-500"
+          />
+        </marker>
+        <marker
+          id="arrowhead-active"
+          markerWidth="8"
+          markerHeight="8"
+          refX="7"
+          refY="4"
+          orient="auto"
+        >
+          <polygon
+            points="0 0, 8 4, 0 8"
+            class="fill-gray-600 dark:fill-gray-400 print:fill-gray-600"
+          />
+        </marker>
+      </defs>
+      
       <!-- Year axis line -->
       <line 
         :x1="svgWidth / 2" 
@@ -211,26 +246,26 @@ const yearMarkers = computed(() => {
           rx="3"
         />
         
-        <!-- Connector line to center axis - subtle for all items -->
+        <!-- Arrow line to center axis - with proper distance and arrow marker -->
         <line 
           :x1="getXPosition(item.column) + 20" 
           :y1="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
-          :x2="svgWidth / 2" 
+          :x2="svgWidth / 2 - 8" 
           :y2="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
           :class="[
             'transition-all duration-300',
             isItemActive(item) 
-              ? 'stroke-gray-400 dark:stroke-gray-500 print:stroke-gray-500 opacity-50' 
-              : 'stroke-gray-300 dark:stroke-gray-700 print:stroke-gray-300 opacity-20'
+              ? 'stroke-gray-600 dark:stroke-gray-400 print:stroke-gray-600' 
+              : 'stroke-gray-300 dark:stroke-gray-700 print:stroke-gray-300 opacity-30'
           ]"
-          stroke-width="1"
-          stroke-dasharray="2,2"
+          stroke-width="1.5"
+          :marker-end="isItemActive(item) ? 'url(#arrowhead-active)' : 'url(#arrowhead)'"
         />
         
-        <!-- Dot/Bubble on the right side - only visible when active -->
+        <!-- Dot/Bubble on the right side - only visible when active, with spacing -->
         <circle 
           v-if="isItemActive(item)"
-          :cx="getXPosition(item.column) + 20" 
+          :cx="getXPosition(item.column) + 35" 
           :cy="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
           r="8" 
           :class="[
@@ -241,10 +276,10 @@ const yearMarkers = computed(() => {
           ]"
         />
         
-        <!-- Inner dot for bubble effect - only visible when active -->
+        <!-- Inner dot for bubble effect - only visible when active, with spacing -->
         <circle 
           v-if="isItemActive(item)"
-          :cx="getXPosition(item.column) + 20" 
+          :cx="getXPosition(item.column) + 35" 
           :cy="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
           r="4" 
           class="fill-white dark:fill-gray-900 print:fill-white transition-all duration-300"
