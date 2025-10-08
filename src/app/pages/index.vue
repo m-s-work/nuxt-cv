@@ -75,8 +75,8 @@ const studies = ref([
     institution: 'University of Kamasutra',
     degree: 'Bachelor of Science in Computer Science',
     period: '2028 - 2028',
-    startDate: '2026-09-01',
-    endDate: '2026-06-30',
+    startDate: '2028-09-01',
+    endDate: '2028-06-30',
     focus: 'Fundamentals of Pleasure'
   }
 ])
