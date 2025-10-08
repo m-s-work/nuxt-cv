@@ -239,7 +239,7 @@ function handleTimelineClick(entryId: number | string) {
             }"
           />
           
-          <!-- Icon (briefcase for experience, graduation cap for study) -->
+          <!-- Icon (briefcase for experience, graduation cap for study, code for project) -->
           <g v-if="entry.type === 'experience'">
             <!-- Briefcase icon -->
             <svg
@@ -259,7 +259,7 @@ function handleTimelineClick(entryId: number | string) {
             </svg>
           </g>
           
-          <g v-else>
+          <g v-else-if="entry.type === 'study'">
             <!-- Graduation cap icon -->
             <svg
               :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
@@ -275,6 +275,25 @@ function handleTimelineClick(entryId: number | string) {
             >
               <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
               <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
+          </g>
+          
+          <g v-else>
+            <!-- Code/Project icon -->
+            <svg
+              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
+              :y="entry.startY + entry.height / 2 - 10"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
             </svg>
           </g>
           

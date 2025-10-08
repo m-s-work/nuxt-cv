@@ -63,7 +63,7 @@ function getProjectMedia(project: Props['projects'][0]) {
               <h3 
                 :class="{
                   'text-xl font-semibold print:text-black': true,
-                  'text-blue-600 dark:text-blue-400': isActive(project.id),
+                  'text-purple-600 dark:text-purple-400': isActive(project.id),
                   'text-gray-900 dark:text-white': !isActive(project.id)
                 }"
               >
@@ -104,7 +104,7 @@ function getProjectMedia(project: Props['projects'][0]) {
             color="gray"
             variant="solid"
             size="md"
-            class="print:!bg-gray-100 print:!text-black rounded-full px-3 py-1"
+            class="print:!bg-gray-100 print:!text-black rounded-full px-3 py-1 border border-gray-400 dark:border-gray-500"
           >
             {{ tech }}
           </UBadge>
