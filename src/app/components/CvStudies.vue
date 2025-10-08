@@ -43,6 +43,13 @@ function isActive(studyId: number): boolean {
   return props.activeIds.includes(`study-${studyId}`)
 }
 
+// Handle heading click to update URL hash
+function handleHeadingClick(elementId: string) {
+  if (typeof window !== 'undefined') {
+    window.history.pushState(null, '', `#${elementId}`)
+  }
+}
+
 </script>
 
 <template>
@@ -67,8 +74,9 @@ function isActive(studyId: number): boolean {
           <div class="flex justify-between items-start">
             <div>
               <h3 
+                @click="handleHeadingClick(`study-${study.id}`)"
                 :class="{
-                  'text-xl font-semibold print:text-black': true,
+                  'text-xl font-semibold print:text-black cursor-pointer hover:underline': true,
                   'text-green-600 dark:text-green-400': isActive(study.id),
                   'text-gray-900 dark:text-white': !isActive(study.id)
                 }"

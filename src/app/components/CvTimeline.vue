@@ -146,6 +146,11 @@ function handleTimelineClick(entryId: number | string) {
   const elementId = entryId.toString().replace('exp-', 'experience-').replace('study-', 'study-')
   const element = document.getElementById(elementId)
   if (element) {
+    // Update URL hash
+    const hash = `#${elementId}`
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', hash)
+    }
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
   // Emit the click event

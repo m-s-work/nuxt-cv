@@ -144,6 +144,31 @@ onMounted(() => {
       element.addEventListener('mouseleave', handleCardMouseLeave)
     }
   })
+  
+  // Restore scroll position from URL hash on page load
+  if (typeof window !== 'undefined' && window.location.hash) {
+    setTimeout(() => {
+      const hash = window.location.hash.substring(1)
+      const element = document.getElementById(hash)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Extract ID and activate it
+        if (hash.startsWith('experience-')) {
+          const id = parseInt(hash.replace('experience-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'exp')
+            clickedEntryId.value = `exp-${id}`
+          }
+        } else if (hash.startsWith('study-')) {
+          const id = parseInt(hash.replace('study-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'study')
+            clickedEntryId.value = `study-${id}`
+          }
+        }
+      }
+    }, 500) // Delay to ensure page is fully loaded
+  }
 })
 
 onUnmounted(() => {
