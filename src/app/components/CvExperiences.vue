@@ -101,15 +101,11 @@ function handleHeadingClick(elementId: string) {
         </p>
 
         <div class="flex flex-wrap gap-2">
-          <UBadge 
+          <TechBadge 
             v-for="tech in exp.technologies" 
             :key="tech"
-            color="gray"
-            variant="soft"
-            class="print:!bg-gray-100 print:!text-black"
-          >
-            {{ tech }}
-          </UBadge>
+            :technology="tech"
+          />
         </div>
       </UCard>
     </div>

@@ -28,6 +28,13 @@ function isActive(projectId: number): boolean {
   return props.activeIds.includes(`project-${projectId}`)
 }
 
+// Handle heading click to update URL hash
+function handleHeadingClick(elementId: string) {
+  if (typeof window !== 'undefined') {
+    window.history.pushState(null, '', `#${elementId}`)
+  }
+}
+
 // Get all media (screenshots, images, logos) for a project
 function getProjectMedia(project: Props['projects'][0]) {
   const media = []
@@ -61,8 +68,9 @@ function getProjectMedia(project: Props['projects'][0]) {
           <div class="flex justify-between items-start">
             <div class="flex-1">
               <h3 
+                @click="handleHeadingClick(`project-${project.id}`)"
                 :class="{
-                  'text-xl font-semibold print:text-black': true,
+                  'text-xl font-semibold print:text-black cursor-pointer hover:underline': true,
                   'text-purple-600 dark:text-purple-400': isActive(project.id),
                   'text-gray-900 dark:text-white': !isActive(project.id)
                 }"
@@ -98,16 +106,11 @@ function getProjectMedia(project: Props['projects'][0]) {
 
         <!-- Technology Badges -->
         <div class="flex flex-wrap gap-2">
-          <UBadge 
+          <TechBadge 
             v-for="tech in project.technologies" 
             :key="tech"
-            color="gray"
-            variant="solid"
-            size="md"
-            class="print:!bg-gray-100 print:!text-black rounded-full px-3 py-1 border border-gray-400 dark:border-gray-500"
-          >
-            {{ tech }}
-          </UBadge>
+            :technology="tech"
+          />
         </div>
       </UCard>
     </div>
