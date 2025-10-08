@@ -87,13 +87,14 @@ const yearMarkers = computed(() => {
 const TIMELINE_AXIS_X = 70 // X position of main timeline axis
 const YEAR_LABEL_X = 10 // X position for year labels
 const ENTRY_COLUMN_WIDTH = 45 // Width allocated per column for entries
-const ENTRY_START_X = 85 // X position where entries start
+const ENTRY_OFFSET = 15 // Gap between timeline axis and first entry
+const ENTRY_START_X = TIMELINE_AXIS_X + ENTRY_OFFSET // X position where entries start
 const ENTRY_WIDTH = 35 // Width of each entry bar
+const BASE_WIDTH = 80 // Minimum width for year labels and axis
 
 // Width calculation based on column count
 const timelineWidth = computed(() => {
-  const baseWidth = 80 // Space for years
-  return baseWidth + (timelineData.value.columnCount * ENTRY_COLUMN_WIDTH)
+  return BASE_WIDTH + (timelineData.value.columnCount * ENTRY_COLUMN_WIDTH)
 })
 
 // Check if entry is active
