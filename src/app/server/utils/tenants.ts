@@ -11,6 +11,8 @@ export interface Experience {
   company: string
   position: string
   period: string
+  startDate: string  // ISO date format or year
+  endDate: string | null  // ISO date format or year, null for current
   description: string
   technologies: string[]
 }
@@ -20,6 +22,8 @@ export interface Study {
   institution: string
   degree: string
   period: string
+  startDate: string  // ISO date format or year
+  endDate: string  // ISO date format or year
   focus: string
 }
 
@@ -34,6 +38,8 @@ export const tenants: Record<string, TenantConfig> = {
         company: 'Tech Company Inc.',
         position: 'Senior Software Architect',
         period: '2020 - Present',
+        startDate: '2020-01-01',
+        endDate: null,
         description: 'Leading architecture design and implementation for cloud-native applications',
         technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
       },
@@ -42,6 +48,8 @@ export const tenants: Record<string, TenantConfig> = {
         company: 'Software Solutions Ltd.',
         position: 'Full Stack Developer',
         period: '2017 - 2020',
+        startDate: '2017-03-01',
+        endDate: '2019-12-31',
         description: 'Developed enterprise web applications and microservices',
         technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
       }
@@ -52,6 +60,8 @@ export const tenants: Record<string, TenantConfig> = {
         institution: 'Technical University',
         degree: 'Master of Science in Computer Science',
         period: '2015 - 2017',
+        startDate: '2015-09-01',
+        endDate: '2017-06-30',
         focus: 'Software Engineering & Distributed Systems'
       },
       {
@@ -59,6 +69,8 @@ export const tenants: Record<string, TenantConfig> = {
         institution: 'University of Technology',
         degree: 'Bachelor of Science in Computer Science',
         period: '2012 - 2015',
+        startDate: '2012-09-01',
+        endDate: '2015-06-30',
         focus: 'Computer Science Fundamentals'
       }
     ]

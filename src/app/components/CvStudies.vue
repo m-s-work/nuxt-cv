@@ -1,23 +1,41 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// This would eventually come from an API with multi-tenant support
-const studies = ref([
-  {
-    id: 1,
-    institution: 'Technical University',
-    degree: 'Master of Science in Computer Science',
-    period: '2015 - 2017',
-    focus: 'Software Engineering & Distributed Systems'
-  },
-  {
-    id: 2,
-    institution: 'University of Technology',
-    degree: 'Bachelor of Science in Computer Science',
-    period: '2012 - 2015',
-    focus: 'Computer Science Fundamentals'
-  }
-])
+interface Props {
+  studies?: Array<{
+    id: number
+    institution: string
+    degree: string
+    period: string
+    startDate: string
+    endDate: string
+    focus: string
+  }>
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  studies: () => [
+    {
+      id: 1,
+      institution: 'Technical University',
+      degree: 'Master of Science in Computer Science',
+      period: '2015 - 2017',
+      startDate: '2015-09-01',
+      endDate: '2017-06-30',
+      focus: 'Software Engineering & Distributed Systems'
+    },
+    {
+      id: 2,
+      institution: 'University of Technology',
+      degree: 'Bachelor of Science in Computer Science',
+      period: '2012 - 2015',
+      startDate: '2012-09-01',
+      endDate: '2015-06-30',
+      focus: 'Computer Science Fundamentals'
+    }
+  ]
+})
+
 </script>
 
 <template>
@@ -27,7 +45,12 @@ const studies = ref([
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="study in studies" :key="study.id" class="print:!shadow-none print:!border print:!border-gray-300">
+      <UCard 
+        v-for="study in props.studies" 
+        :key="study.id" 
+        :id="`study-${study.id}`"
+        class="print:!shadow-none print:!border print:!border-gray-300"
+      >
         <template #header>
           <div class="flex justify-between items-start">
             <div>

@@ -1,25 +1,44 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// This would eventually come from an API with multi-tenant support
-const experiences = ref([
-  {
-    id: 1,
-    company: 'Tech Company Inc.',
-    position: 'Senior Software Architect',
-    period: '2020 - Present',
-    description: 'Leading architecture design and implementation for cloud-native applications',
-    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
-  },
-  {
-    id: 2,
-    company: 'Software Solutions Ltd.',
-    position: 'Full Stack Developer',
-    period: '2017 - 2020',
-    description: 'Developed enterprise web applications and microservices',
-    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
-  }
-])
+interface Props {
+  experiences?: Array<{
+    id: number
+    company: string
+    position: string
+    period: string
+    startDate: string
+    endDate: string | null
+    description: string
+    technologies: string[]
+  }>
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  experiences: () => [
+    {
+      id: 1,
+      company: 'Tech Company Inc.',
+      position: 'Senior Software Architect',
+      period: '2020 - Present',
+      startDate: '2020-01-01',
+      endDate: null,
+      description: 'Leading architecture design and implementation for cloud-native applications',
+      technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+    },
+    {
+      id: 2,
+      company: 'Software Solutions Ltd.',
+      position: 'Full Stack Developer',
+      period: '2017 - 2020',
+      startDate: '2017-03-01',
+      endDate: '2019-12-31',
+      description: 'Developed enterprise web applications and microservices',
+      technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+    }
+  ]
+})
+
 </script>
 
 <template>
@@ -29,7 +48,12 @@ const experiences = ref([
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="exp in experiences" :key="exp.id" class="print:!shadow-none print:!border print:!border-gray-300">
+      <UCard 
+        v-for="exp in props.experiences" 
+        :key="exp.id" 
+        :id="`experience-${exp.id}`"
+        class="print:!shadow-none print:!border print:!border-gray-300"
+      >
         <template #header>
           <div class="flex justify-between items-start">
             <div>

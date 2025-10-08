@@ -5,6 +5,112 @@ useSeoMeta({
   title: t('cv.title'),
   description: t('cv.description')
 })
+
+// Data for timeline - would eventually come from API
+const experiences = ref([
+  {
+    id: 1,
+    company: 'Tech Company Inc.',
+    position: 'Senior Software Architect',
+    period: '2020 - Present',
+    startDate: '2020-01-01',
+    endDate: null,
+    description: 'Leading architecture design and implementation for cloud-native applications',
+    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+  },
+  {
+    id: 2,
+    company: 'Software Solutions Ltd.',
+    position: 'Full Stack Developer',
+    period: '2017 - 2020',
+    startDate: '2017-03-01',
+    endDate: '2019-12-31',
+    description: 'Developed enterprise web applications and microservices',
+    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+  }
+])
+
+const studies = ref([
+  {
+    id: 1,
+    institution: 'Technical University',
+    degree: 'Master of Science in Computer Science',
+    period: '2015 - 2017',
+    startDate: '2015-09-01',
+    endDate: '2017-06-30',
+    focus: 'Software Engineering & Distributed Systems'
+  },
+  {
+    id: 2,
+    institution: 'University of Technology',
+    degree: 'Bachelor of Science in Computer Science',
+    period: '2012 - 2015',
+    startDate: '2012-09-01',
+    endDate: '2015-06-30',
+    focus: 'Computer Science Fundamentals'
+  }
+])
+
+// Track active entries based on scroll position
+const activeEntryIds = ref<(number | string)[]>([])
+
+// Refs for tracking elements in viewport
+const experienceSectionRef = ref<HTMLElement | null>(null)
+const studiesSectionRef = ref<HTMLElement | null>(null)
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  
+  const updateActiveEntries = () => {
+    const active: (number | string)[] = []
+    const scrollY = window.scrollY
+    const viewportHeight = window.innerHeight
+    const viewportCenter = scrollY + viewportHeight / 2
+    
+    // Check each experience card
+    experiences.value.forEach(exp => {
+      const element = document.getElementById(`experience-${exp.id}`)
+      if (element) {
+        const rect = element.getBoundingClientRect()
+        const elementTop = scrollY + rect.top
+        const elementBottom = elementTop + rect.height
+        
+        // Check if element is in viewport center region
+        if (elementTop <= viewportCenter && elementBottom >= viewportCenter) {
+          active.push(`exp-${exp.id}`)
+        }
+      }
+    })
+    
+    // Check each study card
+    studies.value.forEach(study => {
+      const element = document.getElementById(`study-${study.id}`)
+      if (element) {
+        const rect = element.getBoundingClientRect()
+        const elementTop = scrollY + rect.top
+        const elementBottom = elementTop + rect.height
+        
+        // Check if element is in viewport center region
+        if (elementTop <= viewportCenter && elementBottom >= viewportCenter) {
+          active.push(`study-${study.id}`)
+        }
+      }
+    })
+    
+    activeEntryIds.value = active
+  }
+  
+  // Update on scroll
+  window.addEventListener('scroll', updateActiveEntries, { passive: true })
+  
+  // Initial update
+  setTimeout(updateActiveEntries, 100)
+  
+  onUnmounted(() => {
+    window.removeEventListener('scroll', updateActiveEntries)
+  })
+})
+
 </script>
 
 <template>
@@ -37,18 +143,32 @@ useSeoMeta({
       
       <!-- Main Content -->
       <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
-        <div class="p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
-          <!-- Skills Section -->
-          <CvSkills />
+        <div class="main-content-wrapper">
+          <!-- Timeline (left side) -->
+          <CvTimeline 
+            :experiences="experiences"
+            :studies="studies"
+            :active-ids="activeEntryIds"
+          />
           
-          <!-- Experiences Section -->
-          <CvExperiences />
+          <!-- Content (right side) -->
+          <div class="content-area p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
+            <!-- Skills Section -->
+            <CvSkills />
+            
+            <!-- Experiences Section -->
+            <div ref="experienceSectionRef">
+              <CvExperiences :experiences="experiences" />
+            </div>
 
-          <!-- Studies Section -->
-          <CvStudies />
+            <!-- Studies Section -->
+            <div ref="studiesSectionRef">
+              <CvStudies :studies="studies" />
+            </div>
 
-          <!-- Footer -->
-          <CvFooter />
+            <!-- Footer -->
+            <CvFooter />
+          </div>
         </div>
       </main>
     </div>
@@ -98,6 +218,23 @@ useSeoMeta({
   .sidebar-profile {
     opacity: 1 !important;
     animation: none !important;
+  }
+}
+
+/* Main content wrapper for timeline layout */
+.main-content-wrapper {
+  display: flex;
+  gap: 1rem;
+}
+
+.content-area {
+  flex: 1;
+  min-width: 0; /* Prevent flex item from overflowing */
+}
+
+@media (max-width: 1279px) {
+  .main-content-wrapper {
+    display: block;
   }
 }
 </style>
