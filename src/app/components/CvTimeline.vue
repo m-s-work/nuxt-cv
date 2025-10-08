@@ -194,7 +194,7 @@ const yearMarkers = computed(() => {
       
       <!-- Timeline items -->
       <g v-for="item in timelineItems" :key="`${item.type}-${item.id}`">
-        <!-- Item bar -->
+        <!-- Item bar - always gray, only active items get color -->
         <rect 
           :x="getXPosition(item.column)" 
           :y="getYPosition(item.start)" 
@@ -206,12 +206,12 @@ const yearMarkers = computed(() => {
               ? item.type === 'experience' 
                 ? 'fill-primary-600 dark:fill-primary-500 print:fill-primary-700' 
                 : 'fill-blue-600 dark:fill-blue-500 print:fill-blue-700'
-              : 'fill-gray-400 dark:fill-gray-600 print:fill-gray-400 opacity-50'
+              : 'fill-gray-300 dark:fill-gray-600 print:fill-gray-400'
           ]"
           rx="3"
         />
         
-        <!-- Connector line to center axis -->
+        <!-- Connector line to center axis - subtle for all items -->
         <line 
           :x1="getXPosition(item.column) + 20" 
           :y1="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
@@ -220,11 +220,34 @@ const yearMarkers = computed(() => {
           :class="[
             'transition-all duration-300',
             isItemActive(item) 
-              ? 'stroke-gray-400 dark:stroke-gray-500 print:stroke-gray-500' 
-              : 'stroke-gray-300 dark:stroke-gray-700 print:stroke-gray-300 opacity-30'
+              ? 'stroke-gray-400 dark:stroke-gray-500 print:stroke-gray-500 opacity-50' 
+              : 'stroke-gray-300 dark:stroke-gray-700 print:stroke-gray-300 opacity-20'
           ]"
-          stroke-width="1.5"
-          stroke-dasharray="3,3"
+          stroke-width="1"
+          stroke-dasharray="2,2"
+        />
+        
+        <!-- Dot/Bubble on the right side - only visible when active -->
+        <circle 
+          v-if="isItemActive(item)"
+          :cx="getXPosition(item.column) + 20" 
+          :cy="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
+          r="8" 
+          :class="[
+            'transition-all duration-300',
+            item.type === 'experience' 
+              ? 'fill-primary-600 dark:fill-primary-500 print:fill-primary-700' 
+              : 'fill-blue-600 dark:fill-blue-500 print:fill-blue-700'
+          ]"
+        />
+        
+        <!-- Inner dot for bubble effect - only visible when active -->
+        <circle 
+          v-if="isItemActive(item)"
+          :cx="getXPosition(item.column) + 20" 
+          :cy="getYPosition(item.start) + getItemHeight(item.duration) / 2" 
+          r="4" 
+          class="fill-white dark:fill-gray-900 print:fill-white transition-all duration-300"
         />
       </g>
     </svg>
