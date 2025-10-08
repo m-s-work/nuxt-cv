@@ -5,8 +5,7 @@ const { t } = useI18n()
 const profile = ref({
   name: 'Max Mustermann',
   title: 'Software Architect',
-  // Placeholder image - in real app this would come from API or uploaded
-  photoUrl: 'https://via.placeholder.com/200x250/4F46E5/FFFFFF?text=Photo'
+  photoUrl: '/images/profile-small.jpg'
 })
 </script>
 
@@ -15,9 +14,12 @@ const profile = ref({
     <!-- Profile Picture -->
     <div class="relative">
       <img 
-        :src="profile.photoUrl" 
+        :src="profile.photoUrl"
+        :srcset="`/images/profile-small.jpg 160w, /images/profile-medium.jpg 192w, /images/profile-large.jpg 320w, /images/profile-xlarge.jpg 384w`"
+        sizes="(max-width: 640px) 160px, 192px"
         :alt="profile.name"
         class="w-40 h-48 object-cover rounded-lg shadow-lg border-4 border-white dark:border-gray-800 print:border-gray-300"
+        loading="lazy"
       />
     </div>
     
