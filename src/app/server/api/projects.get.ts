@@ -1,3 +1,5 @@
+import { getTenant } from '../utils/tenants'
+
 export default defineEventHandler((event) => {
   const query = getQuery(event)
   const tenantId = query.tenant as string | undefined
