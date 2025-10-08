@@ -1,25 +1,58 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// This would eventually come from an API with multi-tenant support
-const experiences = ref([
-  {
-    id: 1,
-    company: 'Tech Company Inc.',
-    position: 'Senior Software Architect',
-    period: '2020 - Present',
-    description: 'Leading architecture design and implementation for cloud-native applications',
-    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
-  },
-  {
-    id: 2,
-    company: 'Software Solutions Ltd.',
-    position: 'Full Stack Developer',
-    period: '2017 - 2020',
-    description: 'Developed enterprise web applications and microservices',
-    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+interface Props {
+  experiences?: Array<{
+    id: number
+    company: string
+    position: string
+    period: string
+    startDate: string
+    endDate: string | null
+    description: string
+    technologies: string[]
+  }>
+  activeIds?: (number | string)[]
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  experiences: () => [
+    {
+      id: 1,
+      company: 'Tech Company Inc.',
+      position: 'Senior Software Architect',
+      period: '2020 - Present',
+      startDate: '2020-01-01',
+      endDate: null,
+      description: 'Leading architecture design and implementation for cloud-native applications',
+      technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+    },
+    {
+      id: 2,
+      company: 'Software Solutions Ltd.',
+      position: 'Full Stack Developer',
+      period: '2017 - 2020',
+      startDate: '2017-03-01',
+      endDate: '2019-12-31',
+      description: 'Developed enterprise web applications and microservices',
+      technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+    }
+  ],
+  activeIds: () => []
+})
+
+// Check if an experience is active
+function isActive(expId: number): boolean {
+  return props.activeIds.includes(`exp-${expId}`)
+}
+
+// Handle heading click to update URL hash
+function handleHeadingClick(elementId: string) {
+  if (typeof window !== 'undefined') {
+    window.history.pushState(null, '', `#${elementId}`)
   }
-])
+}
+
 </script>
 
 <template>
@@ -29,11 +62,28 @@ const experiences = ref([
     </h2>
     
     <div class="space-y-6">
-      <UCard v-for="exp in experiences" :key="exp.id" class="print:!shadow-none print:!border print:!border-gray-300">
+      <UCard 
+        v-for="exp in props.experiences" 
+        :key="exp.id" 
+        :id="`experience-${exp.id}`"
+        :class="{
+          'print:!shadow-none print:!border print:!border-gray-300': true,
+          'transition-all duration-300': true,
+          'shadow-lg': isActive(exp.id),
+          'translate-x-2': isActive(exp.id)
+        }"
+      >
         <template #header>
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white print:text-black">
+              <h3 
+                @click="handleHeadingClick(`experience-${exp.id}`)"
+                :class="{
+                  'text-xl font-semibold print:text-black cursor-pointer hover:underline': true,
+                  'text-blue-600 dark:text-blue-400': isActive(exp.id),
+                  'text-gray-900 dark:text-white': !isActive(exp.id)
+                }"
+              >
                 {{ exp.position }}
               </h3>
               <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">

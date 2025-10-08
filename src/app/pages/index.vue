@@ -5,6 +5,191 @@ useSeoMeta({
   title: t('cv.title'),
   description: t('cv.description')
 })
+
+// Data for timeline - would eventually come from API
+const experiences = ref([
+  {
+    id: 1,
+    company: 'Tech Company Inc.',
+    position: 'Senior Software Architect',
+    period: '2020 - Present',
+    startDate: '2020-01-01',
+    endDate: null,
+    description: 'Leading architecture design and implementation for cloud-native applications',
+    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+  },
+  {
+    id: 4,
+    company: 'Software Solutions Ltd.',
+    position: 'Full Stack Developer',
+    period: '2017 - 2020',
+    startDate: '2017-03-01',
+    endDate: '2019-12-31',
+    description: 'Developed enterprise web applications and microservices',
+    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+  },
+  
+  {
+    id: 2,
+    company: 'Peter Enis KG',
+    position: 'Rubber Tester',
+    period: '2019 - 2023',
+    startDate: '2019-01-01',
+    endDate: '2023-12-31',
+    description: 'Did extensive testing of rubber materials for quality assurance',
+    technologies: ['Rubber.js', 'MongoDB']
+  },
+  {
+    id: 3,
+    company: 'Auto GmbH',
+    position: 'Car Mechanic',
+    period: '2015 - 2018',
+    startDate: '2015-06-01',
+    endDate: '2018-11-30',
+    description: 'Performed maintenance and repairs on various car models',
+    technologies: ['AutoCAD', 'Diagnostic Tools']
+  }
+])
+
+const studies = ref([
+  {
+    id: 1,
+    institution: 'Technical University',
+    degree: 'Master of Science in Computer Science',
+    period: '2015 - 2017',
+    startDate: '2015-09-01',
+    endDate: '2017-06-30',
+    focus: 'Software Engineering & Distributed Systems'
+  },
+  {
+    id: 2,
+    institution: 'University of Technology',
+    degree: 'Bachelor of Science in Computer Science',
+    period: '2012 - 2015',
+    startDate: '2012-09-01',
+    endDate: '2015-06-30',
+    focus: 'Computer Science Fundamentals'
+  },
+  {
+    id: 3,
+    institution: 'University of Kamasutra',
+    degree: 'Master of Arts in Love Studies',
+    period: '2028 - 2028',
+    startDate: '2028-09-01',
+    endDate: '2028-06-30',
+    focus: 'Fundamentals of Pleasure'
+  }
+])
+
+// Track active entries based on scroll position
+const activeEntryIds = ref<(number | string)[]>([])
+const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
+
+// Refs for tracking elements in viewport
+const experienceSectionRef = ref<HTMLElement | null>(null)
+const studiesSectionRef = ref<HTMLElement | null>(null)
+
+// Handle hover events on experience/study cards
+function handleCardMouseEnter(id: number | string, type: 'exp' | 'study') {
+  const fullId = type === 'exp' ? `exp-${id}` : `study-${id}`
+  clickedEntryId.value = null // Clear clicked state on first hover
+  if (!activeEntryIds.value.includes(fullId)) {
+    activeEntryIds.value = [fullId]
+  }
+}
+
+function handleCardMouseLeave() {
+  // Only clear if no clicked entry is active
+  if (clickedEntryId.value === null) {
+    activeEntryIds.value = []
+  }
+}
+
+// Handle timeline hover events
+function handleTimelineHover(entryId: number | string) {
+  clickedEntryId.value = null // Clear clicked state on first hover
+  activeEntryIds.value = [entryId]
+}
+
+function handleTimelineLeave() {
+  // Only clear if no clicked entry is active
+  if (clickedEntryId.value === null) {
+    activeEntryIds.value = []
+  }
+}
+
+// Handle timeline click - set as active until first hover
+function handleTimelineClick(entryId: number | string) {
+  clickedEntryId.value = entryId
+  activeEntryIds.value = [entryId]
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  
+  // Add hover listeners to all experience cards
+  experiences.value.forEach(exp => {
+    const element = document.getElementById(`experience-${exp.id}`)
+    if (element) {
+      element.addEventListener('mouseenter', () => handleCardMouseEnter(exp.id, 'exp'))
+      element.addEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+  
+  // Add hover listeners to all study cards
+  studies.value.forEach(study => {
+    const element = document.getElementById(`study-${study.id}`)
+    if (element) {
+      element.addEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
+      element.addEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+  
+  // Restore scroll position from URL hash on page load
+  if (typeof window !== 'undefined' && window.location.hash) {
+    setTimeout(() => {
+      const hash = window.location.hash.substring(1)
+      const element = document.getElementById(hash)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Extract ID and activate it
+        if (hash.startsWith('experience-')) {
+          const id = parseInt(hash.replace('experience-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'exp')
+            clickedEntryId.value = `exp-${id}`
+          }
+        } else if (hash.startsWith('study-')) {
+          const id = parseInt(hash.replace('study-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'study')
+            clickedEntryId.value = `study-${id}`
+          }
+        }
+      }
+    }, 500) // Delay to ensure page is fully loaded
+  }
+})
+
+onUnmounted(() => {
+  // Clean up event listeners
+  experiences.value.forEach(exp => {
+    const element = document.getElementById(`experience-${exp.id}`)
+    if (element) {
+      element.removeEventListener('mouseenter', () => handleCardMouseEnter(exp.id, 'exp'))
+      element.removeEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+  
+  studies.value.forEach(study => {
+    const element = document.getElementById(`study-${study.id}`)
+    if (element) {
+      element.removeEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
+      element.removeEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+})
+
 </script>
 
 <template>
@@ -37,18 +222,35 @@ useSeoMeta({
       
       <!-- Main Content -->
       <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
-        <div class="p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
-          <!-- Skills Section -->
-          <CvSkills />
+        <div class="main-content-wrapper">
+          <!-- Timeline (left side) -->
+          <CvTimeline 
+            :experiences="experiences"
+            :studies="studies"
+            :active-ids="activeEntryIds"
+            @entry-hover="handleTimelineHover"
+            @entry-leave="handleTimelineLeave"
+            @entry-click="handleTimelineClick"
+          />
           
-          <!-- Experiences Section -->
-          <CvExperiences />
+          <!-- Content (right side) -->
+          <div class="content-area p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
+            <!-- Skills Section -->
+            <CvSkills />
+            
+            <!-- Experiences Section -->
+            <div ref="experienceSectionRef">
+              <CvExperiences :experiences="experiences" :active-ids="activeEntryIds" />
+            </div>
 
-          <!-- Studies Section -->
-          <CvStudies />
+            <!-- Studies Section -->
+            <div ref="studiesSectionRef">
+              <CvStudies :studies="studies" :active-ids="activeEntryIds" />
+            </div>
 
-          <!-- Footer -->
-          <CvFooter />
+            <!-- Footer -->
+            <CvFooter />
+          </div>
         </div>
       </main>
     </div>
@@ -98,6 +300,23 @@ useSeoMeta({
   .sidebar-profile {
     opacity: 1 !important;
     animation: none !important;
+  }
+}
+
+/* Main content wrapper for timeline layout */
+.main-content-wrapper {
+  display: flex;
+  gap: 1rem;
+}
+
+.content-area {
+  flex: 1;
+  min-width: 0; /* Prevent flex item from overflowing */
+}
+
+@media (max-width: 1279px) {
+  .main-content-wrapper {
+    display: block;
   }
 }
 </style>
