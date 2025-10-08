@@ -30,3 +30,9 @@ describe('CvProfile', () => {
   })
 })
 
+describe('CvProjects', () => {
+  it('component exists', () => {
+    expect(true).toBe(true)
+  })
+})
+

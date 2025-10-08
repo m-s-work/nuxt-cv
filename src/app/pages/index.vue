@@ -42,6 +42,33 @@ const studies = ref([
     focus: 'Computer Science Fundamentals'
   }
 ])
+
+const projects = ref([
+  {
+    id: 1,
+    name: 'E-Commerce Platform',
+    type: 'Web Application',
+    period: '2022 - 2023',
+    description: 'Built a scalable e-commerce platform with microservices architecture',
+    technologies: ['Vue.js', 'Node.js', 'MongoDB', 'Redis', 'Docker']
+  },
+  {
+    id: 2,
+    name: 'Mobile Banking App',
+    type: 'Mobile Application',
+    period: '2021 - 2022',
+    description: 'Developed a secure mobile banking application',
+    technologies: ['React Native', 'TypeScript', 'GraphQL', 'PostgreSQL']
+  },
+  {
+    id: 3,
+    name: 'Cloud Infrastructure',
+    type: 'DevOps Project',
+    period: '2020 - 2021',
+    description: 'Designed and implemented cloud infrastructure',
+    technologies: ['Kubernetes', 'Terraform', 'AWS', 'Jenkins']
+  }
+])
 </script>
 
 <template>
@@ -76,7 +103,7 @@ const studies = ref([
       <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
         <div class="main-with-timeline">
           <!-- Timeline (left side, only visible on large screens and print) -->
-          <CvTimeline :experiences="experiences" :studies="studies" />
+          <CvTimeline :experiences="experiences" :studies="studies" :projects="projects" />
           
           <!-- Content area -->
           <div class="p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
@@ -85,6 +112,9 @@ const studies = ref([
             
             <!-- Experiences Section -->
             <CvExperiences />
+
+            <!-- Projects Section -->
+            <CvProjects />
 
             <!-- Studies Section -->
             <CvStudies />

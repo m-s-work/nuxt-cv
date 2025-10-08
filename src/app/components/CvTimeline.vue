@@ -18,9 +18,22 @@ interface Study {
   focus: string
 }
 
+interface Project {
+  id: number
+  name: string
+  type: string
+  period: string
+  description: string
+  technologies: string[]
+  images?: string[]
+  screenshots?: string[]
+  logo?: string
+}
+
 const props = defineProps<{
   experiences: Experience[]
   studies: Study[]
+  projects: Project[]
 }>()
 
 // Track scroll position and the single active item
@@ -29,7 +42,7 @@ const activeItemId = ref<string | null>(null)
 
 // Parse timeline data
 const timelineItems = computed(() => {
-  const items: Array<{ id: number; type: 'experience' | 'study'; start: number; end: number }> = []
+  const items: Array<{ id: number; type: 'experience' | 'study' | 'project'; start: number; end: number }> = []
   
   props.experiences.forEach(exp => {
     const parsed = parsePeriod(exp.period)
@@ -46,6 +59,16 @@ const timelineItems = computed(() => {
     items.push({
       id: study.id,
       type: 'study',
+      start: parsed.start,
+      end: parsed.end
+    })
+  })
+  
+  props.projects.forEach(project => {
+    const parsed = parsePeriod(project.period)
+    items.push({
+      id: project.id,
+      type: 'project',
       start: parsed.start,
       end: parsed.end
     })
@@ -240,7 +263,9 @@ const yearMarkers = computed(() => {
             isItemActive(item) 
               ? item.type === 'experience' 
                 ? 'fill-primary-600 dark:fill-primary-500 print:fill-primary-700' 
-                : 'fill-blue-600 dark:fill-blue-500 print:fill-blue-700'
+                : item.type === 'study'
+                ? 'fill-blue-600 dark:fill-blue-500 print:fill-blue-700'
+                : 'fill-green-600 dark:fill-green-500 print:fill-green-700'
               : 'fill-gray-300 dark:fill-gray-600 print:fill-gray-400'
           ]"
           rx="3"
@@ -272,7 +297,9 @@ const yearMarkers = computed(() => {
             'transition-all duration-300',
             item.type === 'experience' 
               ? 'fill-primary-600 dark:fill-primary-500 print:fill-primary-700' 
-              : 'fill-blue-600 dark:fill-blue-500 print:fill-blue-700'
+              : item.type === 'study'
+              ? 'fill-blue-600 dark:fill-blue-500 print:fill-blue-700'
+              : 'fill-green-600 dark:fill-green-500 print:fill-green-700'
           ]"
         />
         
