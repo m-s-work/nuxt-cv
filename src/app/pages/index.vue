@@ -258,6 +258,7 @@ onUnmounted(() => {
           <CvTimeline 
             :experiences="experiences"
             :studies="studies"
+            :projects="projects"
             :active-ids="activeEntryIds"
             @entry-hover="handleTimelineHover"
             @entry-leave="handleTimelineLeave"

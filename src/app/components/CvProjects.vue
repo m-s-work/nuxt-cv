@@ -102,8 +102,9 @@ function getProjectMedia(project: Props['projects'][0]) {
             v-for="tech in project.technologies" 
             :key="tech"
             color="gray"
-            variant="soft"
-            class="print:!bg-gray-100 print:!text-black"
+            variant="solid"
+            size="md"
+            class="print:!bg-gray-100 print:!text-black rounded-full px-3 py-1"
           >
             {{ tech }}
           </UBadge>

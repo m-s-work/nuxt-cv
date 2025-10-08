@@ -14,11 +14,18 @@ interface Props {
     startDate: string
     endDate: string
   }>
+  projects: Array<{
+    id: number
+    name: string
+    startDate: string
+    endDate: string | null
+  }>
   activeIds?: (number | string)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  activeIds: () => []
+  activeIds: () => [],
+  projects: () => []
 })
 
 const { parseDate, getYearRange, assignColumns, calculatePositions } = useTimeline()
@@ -44,6 +51,16 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       startDate: study.startDate,
       endDate: study.endDate,
       label: study.degree
+    })
+  })
+  
+  props.projects.forEach(project => {
+    entries.push({
+      id: `project-${project.id}`,
+      type: 'project',
+      startDate: project.startDate,
+      endDate: project.endDate,
+      label: project.name
     })
   })
   
@@ -105,21 +122,24 @@ function isActive(entryId: number | string): boolean {
 }
 
 // Get color for entry type
-function getEntryColor(type: 'experience' | 'study', active: boolean): string {
+function getEntryColor(type: 'experience' | 'study' | 'project', active: boolean): string {
   if (active) {
-    return type === 'experience' ? '#2563eb' : '#059669' // blue-600 or green-600
+    return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : '#9333ea' // blue-600, green-600, or purple-600
   }
-  return type === 'experience' ? '#bfdbfe' : '#a7f3d0' // blue-200 or green-200
+  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : '#e9d5ff' // blue-200, green-200, or purple-200
 }
 
 // Get stroke color for entry type
-function getStrokeColor(type: 'experience' | 'study'): string {
-  return type === 'experience' ? '#1e40af' : '#047857' // blue-800 or green-700
+function getStrokeColor(type: 'experience' | 'study' | 'project'): string {
+  return type === 'experience' ? '#1e40af' : type === 'study' ? '#047857' : '#7e22ce' // blue-800, green-700, or purple-700
 }
 
 // Handle click on timeline entry to scroll to corresponding section
 function handleEntryClick(entryId: number | string) {
-  const elementId = entryId.toString().replace('exp-', 'experience-').replace('study-', 'study-')
+  const elementId = entryId.toString()
+    .replace('exp-', 'experience-')
+    .replace('study-', 'study-')
+    .replace('project-', 'project-')
   const element = document.getElementById(elementId)
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
