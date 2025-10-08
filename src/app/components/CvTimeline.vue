@@ -105,13 +105,25 @@ const PRINT_BASE_WIDTH = 45 // Reduced minimum width for print
 
 // Detect if we're in print mode using media query
 const isPrintMode = ref(false)
-if (typeof window !== 'undefined') {
-  const printMediaQuery = window.matchMedia('print')
-  isPrintMode.value = printMediaQuery.matches
-  printMediaQuery.addEventListener('change', (e) => {
-    isPrintMode.value = e.matches
-  })
-}
+
+// Setup print mode detection after component is mounted
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    const printMediaQuery = window.matchMedia('print')
+    isPrintMode.value = printMediaQuery.matches
+    
+    const handlePrintChange = (e: MediaQueryListEvent) => {
+      isPrintMode.value = e.matches
+    }
+    
+    printMediaQuery.addEventListener('change', handlePrintChange)
+    
+    // Cleanup on unmount
+    onBeforeUnmount(() => {
+      printMediaQuery.removeEventListener('change', handlePrintChange)
+    })
+  }
+})
 
 // Width calculation based on column count
 const timelineWidth = computed(() => {
