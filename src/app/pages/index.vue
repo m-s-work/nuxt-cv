@@ -88,56 +88,56 @@ const activeEntryIds = ref<(number | string)[]>([])
 const experienceSectionRef = ref<HTMLElement | null>(null)
 const studiesSectionRef = ref<HTMLElement | null>(null)
 
+// Handle hover events on experience/study cards
+function handleCardMouseEnter(id: number | string, type: 'exp' | 'study') {
+  const fullId = type === 'exp' ? `exp-${id}` : `study-${id}`
+  if (!activeEntryIds.value.includes(fullId)) {
+    activeEntryIds.value = [fullId]
+  }
+}
+
+function handleCardMouseLeave() {
+  activeEntryIds.value = []
+}
+
 onMounted(() => {
   if (typeof window === 'undefined') return
   
-  const updateActiveEntries = () => {
-    const active: (number | string)[] = []
-    const scrollY = window.scrollY
-    const viewportHeight = window.innerHeight
-    const viewportCenter = scrollY + viewportHeight / 2
-    
-    // Check each experience card
-    experiences.value.forEach(exp => {
-      const element = document.getElementById(`experience-${exp.id}`)
-      if (element) {
-        const rect = element.getBoundingClientRect()
-        const elementTop = scrollY + rect.top
-        const elementBottom = elementTop + rect.height
-        
-        // Check if element is in viewport center region
-        if (elementTop <= viewportCenter && elementBottom >= viewportCenter) {
-          active.push(`exp-${exp.id}`)
-        }
-      }
-    })
-    
-    // Check each study card
-    studies.value.forEach(study => {
-      const element = document.getElementById(`study-${study.id}`)
-      if (element) {
-        const rect = element.getBoundingClientRect()
-        const elementTop = scrollY + rect.top
-        const elementBottom = elementTop + rect.height
-        
-        // Check if element is in viewport center region
-        if (elementTop <= viewportCenter && elementBottom >= viewportCenter) {
-          active.push(`study-${study.id}`)
-        }
-      }
-    })
-    
-    activeEntryIds.value = active
-  }
+  // Add hover listeners to all experience cards
+  experiences.value.forEach(exp => {
+    const element = document.getElementById(`experience-${exp.id}`)
+    if (element) {
+      element.addEventListener('mouseenter', () => handleCardMouseEnter(exp.id, 'exp'))
+      element.addEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
   
-  // Update on scroll
-  window.addEventListener('scroll', updateActiveEntries, { passive: true })
+  // Add hover listeners to all study cards
+  studies.value.forEach(study => {
+    const element = document.getElementById(`study-${study.id}`)
+    if (element) {
+      element.addEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
+      element.addEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+})
+
+onUnmounted(() => {
+  // Clean up event listeners
+  experiences.value.forEach(exp => {
+    const element = document.getElementById(`experience-${exp.id}`)
+    if (element) {
+      element.removeEventListener('mouseenter', () => handleCardMouseEnter(exp.id, 'exp'))
+      element.removeEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
   
-  // Initial update
-  setTimeout(updateActiveEntries, 100)
-  
-  onUnmounted(() => {
-    window.removeEventListener('scroll', updateActiveEntries)
+  studies.value.forEach(study => {
+    const element = document.getElementById(`study-${study.id}`)
+    if (element) {
+      element.removeEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
+      element.removeEventListener('mouseleave', handleCardMouseLeave)
+    }
   })
 })
 
