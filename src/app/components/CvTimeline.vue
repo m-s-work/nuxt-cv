@@ -83,11 +83,17 @@ const yearMarkers = computed(() => {
   return years
 })
 
+// Timeline dimensions and positioning constants
+const TIMELINE_AXIS_X = 70 // X position of main timeline axis
+const YEAR_LABEL_X = 10 // X position for year labels
+const ENTRY_COLUMN_WIDTH = 45 // Width allocated per column for entries
+const ENTRY_START_X = 85 // X position where entries start
+const ENTRY_WIDTH = 35 // Width of each entry bar
+
 // Width calculation based on column count
 const timelineWidth = computed(() => {
-  const columnWidth = 45
   const baseWidth = 80 // Space for years
-  return baseWidth + (timelineData.value.columnCount * columnWidth)
+  return baseWidth + (timelineData.value.columnCount * ENTRY_COLUMN_WIDTH)
 })
 
 // Check if entry is active
@@ -115,9 +121,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
       <!-- Year markers and labels -->
       <g class="year-markers">
         <line
-          x1="70"
+          :x1="TIMELINE_AXIS_X"
           y1="0"
-          x2="70"
+          :x2="TIMELINE_AXIS_X"
           :y2="timelineData.timelineHeight"
           stroke="currentColor"
           stroke-width="2"
@@ -126,14 +132,14 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
         
         <g v-for="marker in yearMarkers" :key="marker.year">
           <circle
-            cx="70"
+            :cx="TIMELINE_AXIS_X"
             :cy="marker.y"
             r="5"
             fill="currentColor"
             class="text-gray-400 dark:text-gray-500 print:text-gray-400"
           />
           <text
-            x="10"
+            :x="YEAR_LABEL_X"
             :y="marker.y + 5"
             class="text-sm fill-gray-700 dark:fill-gray-300 print:fill-gray-700 font-medium"
             font-family="system-ui, -apple-system, sans-serif"
@@ -148,9 +154,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
         <g v-for="entry in timelineData.entries" :key="entry.id">
           <!-- Entry bar -->
           <rect
-            :x="85 + (entry.column * 45)"
+            :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH)"
             :y="entry.startY"
-            width="35"
+            :width="ENTRY_WIDTH"
             :height="entry.height"
             :fill="getEntryColor(entry.type, isActive(entry.id))"
             :stroke="isActive(entry.id) ? '#1e40af' : 'none'"
@@ -165,9 +171,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
           
           <!-- Connection line to main timeline -->
           <line
-            :x1="70"
+            :x1="TIMELINE_AXIS_X"
             :y1="entry.startY + entry.height / 2"
-            :x2="85 + (entry.column * 45)"
+            :x2="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH)"
             :y2="entry.startY + entry.height / 2"
             stroke="currentColor"
             stroke-width="1"
