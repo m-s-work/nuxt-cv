@@ -85,8 +85,8 @@ const yearMarkers = computed(() => {
 
 // Width calculation based on column count
 const timelineWidth = computed(() => {
-  const columnWidth = 40
-  const baseWidth = 60 // Space for years
+  const columnWidth = 45
+  const baseWidth = 80 // Space for years
   return baseWidth + (timelineData.value.columnCount * columnWidth)
 })
 
@@ -98,9 +98,9 @@ function isActive(entryId: number | string): boolean {
 // Get color for entry type
 function getEntryColor(type: 'experience' | 'study', active: boolean): string {
   if (active) {
-    return type === 'experience' ? '#3b82f6' : '#10b981' // blue-500 or green-500
+    return type === 'experience' ? '#2563eb' : '#059669' // blue-600 or green-600
   }
-  return type === 'experience' ? '#93c5fd' : '#6ee7b7' // blue-300 or green-300
+  return type === 'experience' ? '#bfdbfe' : '#a7f3d0' // blue-200 or green-200
 }
 </script>
 
@@ -115,27 +115,27 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
       <!-- Year markers and labels -->
       <g class="year-markers">
         <line
-          x1="50"
+          x1="70"
           y1="0"
-          x2="50"
+          x2="70"
           :y2="timelineData.timelineHeight"
           stroke="currentColor"
           stroke-width="2"
-          class="text-gray-400 dark:text-gray-600 print:text-gray-400"
+          class="text-gray-300 dark:text-gray-600 print:text-gray-400"
         />
         
         <g v-for="marker in yearMarkers" :key="marker.year">
           <circle
-            cx="50"
+            cx="70"
             :cy="marker.y"
-            r="4"
+            r="5"
             fill="currentColor"
-            class="text-gray-400 dark:text-gray-600 print:text-gray-400"
+            class="text-gray-400 dark:text-gray-500 print:text-gray-400"
           />
           <text
             x="10"
             :y="marker.y + 5"
-            class="text-xs fill-gray-600 dark:fill-gray-400 print:fill-gray-600"
+            class="text-sm fill-gray-700 dark:fill-gray-300 print:fill-gray-700 font-medium"
             font-family="system-ui, -apple-system, sans-serif"
           >
             {{ marker.year }}
@@ -148,32 +148,32 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
         <g v-for="entry in timelineData.entries" :key="entry.id">
           <!-- Entry bar -->
           <rect
-            :x="60 + (entry.column * 40)"
+            :x="85 + (entry.column * 45)"
             :y="entry.startY"
-            width="30"
+            width="35"
             :height="entry.height"
             :fill="getEntryColor(entry.type, isActive(entry.id))"
             :stroke="isActive(entry.id) ? '#1e40af' : 'none'"
-            :stroke-width="isActive(entry.id) ? 2 : 0"
-            rx="4"
+            :stroke-width="isActive(entry.id) ? 3 : 0"
+            rx="6"
             :class="{
               'transition-all duration-300': true,
               'opacity-100': isActive(entry.id),
-              'opacity-60': !isActive(entry.id)
+              'opacity-50': !isActive(entry.id)
             }"
           />
           
           <!-- Connection line to main timeline -->
           <line
-            :x1="50"
+            :x1="70"
             :y1="entry.startY + entry.height / 2"
-            :x2="60 + (entry.column * 40)"
+            :x2="85 + (entry.column * 45)"
             :y2="entry.startY + entry.height / 2"
             stroke="currentColor"
             stroke-width="1"
-            stroke-dasharray="2,2"
-            class="text-gray-300 dark:text-gray-700 print:text-gray-300"
-            :class="{ 'opacity-100': isActive(entry.id), 'opacity-40': !isActive(entry.id) }"
+            stroke-dasharray="3,3"
+            class="text-gray-300 dark:text-gray-600 print:text-gray-300"
+            :class="{ 'opacity-100': isActive(entry.id), 'opacity-30': !isActive(entry.id) }"
           />
         </g>
       </g>
@@ -187,6 +187,7 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
   top: 20px;
   align-self: start;
   padding: 1rem 0;
+  margin-right: 1rem;
 }
 
 .timeline-svg {
@@ -205,6 +206,12 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
   .timeline-container {
     display: block !important;
     position: static;
+    page-break-inside: avoid;
+    margin-right: 0.5rem;
+  }
+  
+  .timeline-svg {
+    max-width: 150px;
   }
 }
 </style>
