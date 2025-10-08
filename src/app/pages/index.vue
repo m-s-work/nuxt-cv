@@ -19,7 +19,7 @@ const experiences = ref([
     technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
   },
   {
-    id: 2,
+    id: 4,
     company: 'Software Solutions Ltd.',
     position: 'Full Stack Developer',
     period: '2017 - 2020',
@@ -27,6 +27,27 @@ const experiences = ref([
     endDate: '2019-12-31',
     description: 'Developed enterprise web applications and microservices',
     technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+  },
+  
+  {
+    id: 2,
+    company: 'Peter Enis KG',
+    position: 'Rubber Tester',
+    period: '2019 - 2023',
+    startDate: '2019-01-01',
+    endDate: '2023-12-31',
+    description: 'Did extensive testing of rubber materials for quality assurance',
+    technologies: ['Rubber.js', 'MongoDB']
+  },
+  {
+    id: 3,
+    company: 'Auto GmbH',
+    position: 'Car Mechanic',
+    period: '2015 - 2018',
+    startDate: '2015-06-01',
+    endDate: '2018-11-30',
+    description: 'Performed maintenance and repairs on various car models',
+    technologies: ['AutoCAD', 'Diagnostic Tools']
   }
 ])
 
@@ -48,6 +69,15 @@ const studies = ref([
     startDate: '2012-09-01',
     endDate: '2015-06-30',
     focus: 'Computer Science Fundamentals'
+  },
+  {
+    id: 3,
+    institution: 'University of Kamasutra',
+    degree: 'Bachelor of Science in Computer Science',
+    period: '2028 - 2028',
+    startDate: '2026-09-01',
+    endDate: '2026-06-30',
+    focus: 'Fundamentals of Pleasure'
   }
 ])
 
