@@ -53,13 +53,13 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
 // Calculate timeline layout
 const timelineData = computed(() => {
   const entries = timelineEntries.value
-  if (entries.length === 0) return { entries: [], yearRange: { minYear: 0, maxYear: 0 }, columnCount: 0 }
+  if (entries.length === 0) return { entries: [], yearRange: { minYear: 0, maxYear: 0 }, columnCount: 0, timelineHeight: 0 }
   
   const yearRange = getYearRange(entries)
   const withColumns = assignColumns(entries)
   const columnCount = Math.max(...withColumns.map(e => e.column)) + 1
   const timelineHeight = 600 // Base height, adjust based on year range
-  const positioned = calculatePositions(withColumns, timelineHeight)
+  const positioned = calculatePositions(withColumns, timelineHeight, TOP_PADDING)
   
   return {
     entries: positioned,
@@ -69,14 +69,14 @@ const timelineData = computed(() => {
   }
 })
 
-// Calculate year markers
+// Calculate year markers (newest year on top, descending)
 const yearMarkers = computed(() => {
   const { minYear, maxYear } = timelineData.value.yearRange
   const years: Array<{ year: number; y: number }> = []
   const yearRange = maxYear - minYear || 1
   
-  for (let year = minYear; year <= maxYear; year++) {
-    const y = ((year - minYear) / yearRange) * timelineData.value.timelineHeight
+  for (let year = maxYear; year >= minYear; year--) {
+    const y = ((maxYear - year) / yearRange) * timelineData.value.timelineHeight + TOP_PADDING
     years.push({ year, y })
   }
   
@@ -91,6 +91,8 @@ const ENTRY_OFFSET = 15 // Gap between timeline axis and first entry
 const ENTRY_START_X = TIMELINE_AXIS_X + ENTRY_OFFSET // X position where entries start
 const ENTRY_WIDTH = 35 // Width of each entry bar
 const BASE_WIDTH = 80 // Minimum width for year labels and axis
+const TOP_PADDING = 20 // Padding at top to prevent year label cutoff
+const BOTTOM_PADDING = 20 // Padding at bottom for visual balance
 
 // Width calculation based on column count
 const timelineWidth = computed(() => {
@@ -115,7 +117,7 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
   <div class="timeline-container hidden xl:block print:block">
     <svg 
       :width="timelineWidth" 
-      :height="timelineData.timelineHeight + 40"
+      :height="timelineData.timelineHeight + TOP_PADDING + BOTTOM_PADDING"
       class="timeline-svg"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -123,9 +125,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
       <g class="year-markers">
         <line
           :x1="TIMELINE_AXIS_X"
-          y1="0"
+          :y1="TOP_PADDING"
           :x2="TIMELINE_AXIS_X"
-          :y2="timelineData.timelineHeight"
+          :y2="timelineData.timelineHeight + TOP_PADDING"
           stroke="currentColor"
           stroke-width="2"
           class="text-gray-300 dark:text-gray-600 print:text-gray-400"

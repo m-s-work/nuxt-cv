@@ -101,11 +101,12 @@ export function useTimeline() {
   }
 
   /**
-   * Calculate Y positions and heights for timeline entries
+   * Calculate Y positions and heights for timeline entries (newest on top)
    */
   function calculatePositions(
     entries: Array<TimelineEntry & { column: number }>,
-    timelineHeight: number
+    timelineHeight: number,
+    topPadding: number = 20
   ): Array<TimelineEntry & { column: number; startY: number; height: number }> {
     const { minYear, maxYear } = getYearRange(entries)
     const yearRange = maxYear - minYear || 1
@@ -115,8 +116,8 @@ export function useTimeline() {
       const endYear = parseDate(entry.endDate).getFullYear()
       const durationYears = endYear - startYear
       
-      // Calculate start position as percentage of total range
-      const startY = ((startYear - minYear) / yearRange) * timelineHeight
+      // Calculate start position as percentage of total range (reversed - newest on top)
+      const startY = ((maxYear - endYear) / yearRange) * timelineHeight + topPadding
       
       // Calculate height based on duration
       const height = (durationYears / yearRange) * timelineHeight
