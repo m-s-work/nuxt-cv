@@ -94,9 +94,51 @@ const BASE_WIDTH = 80 // Minimum width for year labels and axis
 const TOP_PADDING = 20 // Padding at top to prevent year label cutoff
 const BOTTOM_PADDING = 20 // Padding at bottom for visual balance
 
+// Print-specific slimmer dimensions
+const PRINT_TIMELINE_AXIS_X = 40 // Reduced X position for print
+const PRINT_YEAR_LABEL_X = 5 // Reduced X position for year labels in print
+const PRINT_ENTRY_COLUMN_WIDTH = 25 // Reduced width per column for print
+const PRINT_ENTRY_OFFSET = 8 // Reduced gap for print
+const PRINT_ENTRY_START_X = PRINT_TIMELINE_AXIS_X + PRINT_ENTRY_OFFSET
+const PRINT_ENTRY_WIDTH = 20 // Reduced entry bar width for print
+const PRINT_BASE_WIDTH = 45 // Reduced minimum width for print
+
+// Detect if we're in print mode using media query
+const isPrintMode = ref(false)
+if (typeof window !== 'undefined') {
+  const printMediaQuery = window.matchMedia('print')
+  isPrintMode.value = printMediaQuery.matches
+  printMediaQuery.addEventListener('change', (e) => {
+    isPrintMode.value = e.matches
+  })
+}
+
 // Width calculation based on column count
 const timelineWidth = computed(() => {
+  if (isPrintMode.value) {
+    return PRINT_BASE_WIDTH + (timelineData.value.columnCount * PRINT_ENTRY_COLUMN_WIDTH)
+  }
   return BASE_WIDTH + (timelineData.value.columnCount * ENTRY_COLUMN_WIDTH)
+})
+
+// Get dimension values based on print mode
+const dimensionValues = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      axisX: PRINT_TIMELINE_AXIS_X,
+      yearLabelX: PRINT_YEAR_LABEL_X,
+      entryStartX: PRINT_ENTRY_START_X,
+      entryColumnWidth: PRINT_ENTRY_COLUMN_WIDTH,
+      entryWidth: PRINT_ENTRY_WIDTH
+    }
+  }
+  return {
+    axisX: TIMELINE_AXIS_X,
+    yearLabelX: YEAR_LABEL_X,
+    entryStartX: ENTRY_START_X,
+    entryColumnWidth: ENTRY_COLUMN_WIDTH,
+    entryWidth: ENTRY_WIDTH
+  }
 })
 
 // Check if entry is active
@@ -124,9 +166,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
       <!-- Year markers and labels -->
       <g class="year-markers">
         <line
-          :x1="TIMELINE_AXIS_X"
+          :x1="dimensionValues.axisX"
           :y1="TOP_PADDING"
-          :x2="TIMELINE_AXIS_X"
+          :x2="dimensionValues.axisX"
           :y2="timelineData.timelineHeight + TOP_PADDING"
           stroke="currentColor"
           stroke-width="2"
@@ -135,14 +177,14 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
         
         <g v-for="marker in yearMarkers" :key="marker.year">
           <circle
-            :cx="TIMELINE_AXIS_X"
+            :cx="dimensionValues.axisX"
             :cy="marker.y"
             r="5"
             fill="currentColor"
             class="text-gray-400 dark:text-gray-500 print:text-gray-400"
           />
           <text
-            :x="YEAR_LABEL_X"
+            :x="dimensionValues.yearLabelX"
             :y="marker.y + 5"
             class="text-sm fill-gray-700 dark:fill-gray-300 print:fill-gray-700 font-medium"
             font-family="system-ui, -apple-system, sans-serif"
@@ -157,9 +199,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
         <g v-for="entry in timelineData.entries" :key="entry.id">
           <!-- Entry bar -->
           <rect
-            :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH)"
+            :x="dimensionValues.entryStartX + (entry.column * dimensionValues.entryColumnWidth)"
             :y="entry.startY"
-            :width="ENTRY_WIDTH"
+            :width="dimensionValues.entryWidth"
             :height="entry.height"
             :fill="getEntryColor(entry.type, isActive(entry.id))"
             :stroke="isActive(entry.id) ? '#1e40af' : 'none'"
@@ -174,9 +216,9 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
           
           <!-- Connection line to main timeline -->
           <line
-            :x1="TIMELINE_AXIS_X"
+            :x1="dimensionValues.axisX"
             :y1="entry.startY + entry.height / 2"
-            :x2="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH)"
+            :x2="dimensionValues.entryStartX + (entry.column * dimensionValues.entryColumnWidth)"
             :y2="entry.startY + entry.height / 2"
             stroke="currentColor"
             stroke-width="1"
@@ -217,10 +259,6 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
     position: static;
     page-break-inside: avoid;
     margin-right: 0.5rem;
-  }
-  
-  .timeline-svg {
-    max-width: 150px;
   }
 }
 </style>
