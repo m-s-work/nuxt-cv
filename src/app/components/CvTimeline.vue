@@ -111,6 +111,15 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
   }
   return type === 'experience' ? '#bfdbfe' : '#a7f3d0' // blue-200 or green-200
 }
+
+// Handle click on timeline entry to scroll to corresponding section
+function handleEntryClick(entryId: number | string) {
+  const elementId = entryId.toString().replace('exp-', 'experience-').replace('study-', 'study-')
+  const element = document.getElementById(elementId)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
 </script>
 
 <template>
@@ -154,7 +163,12 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
 
       <!-- Timeline entries -->
       <g class="timeline-entries">
-        <g v-for="entry in timelineData.entries" :key="entry.id">
+        <g 
+          v-for="entry in timelineData.entries" 
+          :key="entry.id"
+          @click="handleEntryClick(entry.id)"
+          class="cursor-pointer"
+        >
           <!-- Entry bar -->
           <rect
             :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH)"
@@ -171,6 +185,45 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
               'opacity-50': !isActive(entry.id)
             }"
           />
+          
+          <!-- Icon (briefcase for experience, graduation cap for study) -->
+          <g v-if="entry.type === 'experience'">
+            <!-- Briefcase icon -->
+            <svg
+              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
+              :y="entry.startY + entry.height / 2 - 10"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+          </g>
+          
+          <g v-else>
+            <!-- Graduation cap icon -->
+            <svg
+              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
+              :y="entry.startY + entry.height / 2 - 10"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
+          </g>
           
           <!-- Connection line to main timeline -->
           <line

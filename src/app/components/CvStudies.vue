@@ -11,6 +11,7 @@ interface Props {
     endDate: string
     focus: string
   }>
+  activeIds?: (number | string)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -33,8 +34,14 @@ const props = withDefaults(defineProps<Props>(), {
       endDate: '2015-06-30',
       focus: 'Computer Science Fundamentals'
     }
-  ]
+  ],
+  activeIds: () => []
 })
+
+// Check if a study is active
+function isActive(studyId: number): boolean {
+  return props.activeIds.includes(`study-${studyId}`)
+}
 
 </script>
 
@@ -49,12 +56,23 @@ const props = withDefaults(defineProps<Props>(), {
         v-for="study in props.studies" 
         :key="study.id" 
         :id="`study-${study.id}`"
-        class="print:!shadow-none print:!border print:!border-gray-300"
+        :class="{
+          'print:!shadow-none print:!border print:!border-gray-300': true,
+          'transition-all duration-300': true,
+          'ring-2 ring-green-500 dark:ring-green-400': isActive(study.id),
+          'shadow-lg': isActive(study.id)
+        }"
       >
         <template #header>
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white print:text-black">
+              <h3 
+                :class="{
+                  'text-xl font-semibold print:text-black': true,
+                  'text-green-600 dark:text-green-400': isActive(study.id),
+                  'text-gray-900 dark:text-white': !isActive(study.id)
+                }"
+              >
                 {{ study.degree }}
               </h3>
               <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">
