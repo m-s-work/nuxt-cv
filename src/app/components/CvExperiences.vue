@@ -12,6 +12,7 @@ interface Props {
     description: string
     technologies: string[]
   }>
+  activeIds?: (number | string)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -36,8 +37,14 @@ const props = withDefaults(defineProps<Props>(), {
       description: 'Developed enterprise web applications and microservices',
       technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
     }
-  ]
+  ],
+  activeIds: () => []
 })
+
+// Check if an experience is active
+function isActive(expId: number): boolean {
+  return props.activeIds.includes(`exp-${expId}`)
+}
 
 </script>
 
@@ -52,12 +59,23 @@ const props = withDefaults(defineProps<Props>(), {
         v-for="exp in props.experiences" 
         :key="exp.id" 
         :id="`experience-${exp.id}`"
-        class="print:!shadow-none print:!border print:!border-gray-300"
+        :class="{
+          'print:!shadow-none print:!border print:!border-gray-300': true,
+          'transition-all duration-300': true,
+          'ring-2 ring-blue-500 dark:ring-blue-400': isActive(exp.id),
+          'shadow-lg': isActive(exp.id)
+        }"
       >
         <template #header>
           <div class="flex justify-between items-start">
             <div>
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white print:text-black">
+              <h3 
+                :class="{
+                  'text-xl font-semibold print:text-black': true,
+                  'text-blue-600 dark:text-blue-400': isActive(exp.id),
+                  'text-gray-900 dark:text-white': !isActive(exp.id)
+                }"
+              >
                 {{ exp.position }}
               </h3>
               <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">

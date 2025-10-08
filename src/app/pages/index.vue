@@ -188,12 +188,12 @@ onMounted(() => {
             
             <!-- Experiences Section -->
             <div ref="experienceSectionRef">
-              <CvExperiences :experiences="experiences" />
+              <CvExperiences :experiences="experiences" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Studies Section -->
             <div ref="studiesSectionRef">
-              <CvStudies :studies="studies" />
+              <CvStudies :studies="studies" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Footer -->
