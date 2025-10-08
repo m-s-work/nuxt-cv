@@ -59,8 +59,8 @@ function isActive(studyId: number): boolean {
         :class="{
           'print:!shadow-none print:!border print:!border-gray-300': true,
           'transition-all duration-300': true,
-          'ring-2 ring-green-500 dark:ring-green-400': isActive(study.id),
-          'shadow-lg': isActive(study.id)
+          'shadow-lg': isActive(study.id),
+          'translate-x-2': isActive(study.id)
         }"
       >
         <template #header>

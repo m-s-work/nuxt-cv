@@ -62,8 +62,8 @@ function isActive(expId: number): boolean {
         :class="{
           'print:!shadow-none print:!border print:!border-gray-300': true,
           'transition-all duration-300': true,
-          'ring-2 ring-blue-500 dark:ring-blue-400': isActive(exp.id),
-          'shadow-lg': isActive(exp.id)
+          'shadow-lg': isActive(exp.id),
+          'translate-x-2': isActive(exp.id)
         }"
       >
         <template #header>

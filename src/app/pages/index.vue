@@ -83,6 +83,7 @@ const studies = ref([
 
 // Track active entries based on scroll position
 const activeEntryIds = ref<(number | string)[]>([])
+const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
 
 // Refs for tracking elements in viewport
 const experienceSectionRef = ref<HTMLElement | null>(null)
@@ -91,13 +92,36 @@ const studiesSectionRef = ref<HTMLElement | null>(null)
 // Handle hover events on experience/study cards
 function handleCardMouseEnter(id: number | string, type: 'exp' | 'study') {
   const fullId = type === 'exp' ? `exp-${id}` : `study-${id}`
+  clickedEntryId.value = null // Clear clicked state on first hover
   if (!activeEntryIds.value.includes(fullId)) {
     activeEntryIds.value = [fullId]
   }
 }
 
 function handleCardMouseLeave() {
-  activeEntryIds.value = []
+  // Only clear if no clicked entry is active
+  if (clickedEntryId.value === null) {
+    activeEntryIds.value = []
+  }
+}
+
+// Handle timeline hover events
+function handleTimelineHover(entryId: number | string) {
+  clickedEntryId.value = null // Clear clicked state on first hover
+  activeEntryIds.value = [entryId]
+}
+
+function handleTimelineLeave() {
+  // Only clear if no clicked entry is active
+  if (clickedEntryId.value === null) {
+    activeEntryIds.value = []
+  }
+}
+
+// Handle timeline click - set as active until first hover
+function handleTimelineClick(entryId: number | string) {
+  clickedEntryId.value = entryId
+  activeEntryIds.value = [entryId]
 }
 
 onMounted(() => {
@@ -179,6 +203,9 @@ onUnmounted(() => {
             :experiences="experiences"
             :studies="studies"
             :active-ids="activeEntryIds"
+            @entry-hover="handleTimelineHover"
+            @entry-leave="handleTimelineLeave"
+            @entry-click="handleTimelineClick"
           />
           
           <!-- Content (right side) -->

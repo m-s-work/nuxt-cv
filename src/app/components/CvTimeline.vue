@@ -112,6 +112,11 @@ function getEntryColor(type: 'experience' | 'study', active: boolean): string {
   return type === 'experience' ? '#bfdbfe' : '#a7f3d0' // blue-200 or green-200
 }
 
+// Get stroke color for entry type
+function getStrokeColor(type: 'experience' | 'study'): string {
+  return type === 'experience' ? '#1e40af' : '#047857' // blue-800 or green-700
+}
+
 // Handle click on timeline entry to scroll to corresponding section
 function handleEntryClick(entryId: number | string) {
   const elementId = entryId.toString().replace('exp-', 'experience-').replace('study-', 'study-')
@@ -119,6 +124,32 @@ function handleEntryClick(entryId: number | string) {
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
+}
+
+// Handle hover on timeline entry
+const emit = defineEmits<{
+  'entry-hover': [id: number | string]
+  'entry-leave': []
+  'entry-click': [id: number | string]
+}>()
+
+function handleTimelineHover(entryId: number | string) {
+  emit('entry-hover', entryId)
+}
+
+function handleTimelineLeave() {
+  emit('entry-leave')
+}
+
+function handleTimelineClick(entryId: number | string) {
+  // Scroll to the corresponding section
+  const elementId = entryId.toString().replace('exp-', 'experience-').replace('study-', 'study-')
+  const element = document.getElementById(elementId)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  // Emit the click event
+  emit('entry-click', entryId)
 }
 </script>
 
@@ -166,7 +197,9 @@ function handleEntryClick(entryId: number | string) {
         <g 
           v-for="entry in timelineData.entries" 
           :key="entry.id"
-          @click="handleEntryClick(entry.id)"
+          @click="handleTimelineClick(entry.id)"
+          @mouseenter="handleTimelineHover(entry.id)"
+          @mouseleave="handleTimelineLeave"
           class="cursor-pointer"
         >
           <!-- Entry bar -->
@@ -176,7 +209,7 @@ function handleEntryClick(entryId: number | string) {
             :width="ENTRY_WIDTH"
             :height="entry.height"
             :fill="getEntryColor(entry.type, isActive(entry.id))"
-            :stroke="isActive(entry.id) ? '#1e40af' : 'none'"
+            :stroke="isActive(entry.id) ? getStrokeColor(entry.type) : 'none'"
             :stroke-width="isActive(entry.id) ? 3 : 0"
             rx="6"
             :class="{
