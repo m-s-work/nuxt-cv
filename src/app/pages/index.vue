@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const { scrollToElementSafely } = useSafeScroll()
+const { isFiltering } = useTechFilter()
 
 useSeoMeta({
   title: t('cv.title'),
@@ -263,8 +264,10 @@ onUnmounted(() => {
     <!-- Filter Indicator (shown when filtering is active) -->
     <FilterIndicator />
     
-    <!-- Hero Section - Full page height -->
-    <CvHero />
+    <!-- Add padding when filter is active to prevent content from being hidden -->
+    <div :class="{ 'pt-16': isFiltering }">
+      <!-- Hero Section - Full page height -->
+      <CvHero />
     
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
@@ -354,6 +357,7 @@ onUnmounted(() => {
           </div>
         </div>
       </main>
+    </div>
     </div>
   </div>
 </template>

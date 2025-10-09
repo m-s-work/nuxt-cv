@@ -49,7 +49,8 @@ export const useTechFilter = () => {
       delete query.techs
     }
     
-    router.push({ query })
+    // Use replace instead of push to avoid page jump and not add to history
+    router.replace({ query })
   }
   
   // Check if an item should be visible based on selected techs
