@@ -27,7 +27,7 @@ const getLevelColor = (level: string) => {
       <div 
         v-for="lang in languages" 
         :key="lang.code"
-        class="flex items-center justify-between"
+        class="language-row flex items-center justify-between"
       >
         <span class="text-sm font-medium text-gray-800 dark:text-gray-200 print:text-black">
           {{ lang.name }}
@@ -43,6 +43,31 @@ const getLevelColor = (level: string) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.language-row {
+  padding: 0.25rem;
+  margin: -0.25rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.language-row:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: translateX(4px);
+}
+
+:global(.dark) .language-row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+@media print {
+  .language-row:hover {
+    background-color: transparent;
+    transform: none;
+  }
+}
+</style>
 
 <i18n lang="json">
 {

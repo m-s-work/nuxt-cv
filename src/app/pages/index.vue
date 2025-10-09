@@ -204,19 +204,25 @@ onUnmounted(() => {
         class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
       >
         <div class="p-6 space-y-8">
-          <!-- Profile with Picture (fades in on scroll) -->
-          <div class="sidebar-profile">
+          <!-- Profile with Picture (fades in on scroll) - Hidden on mobile -->
+          <div class="sidebar-profile hidden lg:block">
             <CvProfile />
           </div>
           
-          <!-- Personal Details -->
-          <CvDetails />
+          <!-- Personal Details - Hidden on mobile -->
+          <div class="hidden lg:block">
+            <CvDetails />
+          </div>
           
-          <!-- Languages -->
-          <CvLanguages />
+          <!-- Languages - Hidden on mobile -->
+          <div class="hidden lg:block">
+            <CvLanguages />
+          </div>
           
-          <!-- Driving Licenses -->
-          <CvDrivingLicenses />
+          <!-- Driving Licenses - Hidden on mobile -->
+          <div class="hidden lg:block">
+            <CvDrivingLicenses />
+          </div>
         </div>
       </aside>
       
@@ -246,6 +252,18 @@ onUnmounted(() => {
             <!-- Studies Section -->
             <div ref="studiesSectionRef">
               <CvStudies :studies="studies" :active-ids="activeEntryIds" />
+            </div>
+
+            <!-- Sidebar sections on mobile (shown at end) -->
+            <div class="lg:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+              <!-- Personal Details -->
+              <CvDetails />
+              
+              <!-- Languages -->
+              <CvLanguages />
+              
+              <!-- Driving Licenses -->
+              <CvDrivingLicenses />
             </div>
 
             <!-- Footer -->
