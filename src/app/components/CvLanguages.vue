@@ -29,7 +29,7 @@ const getLevelColor = (level: string) => {
         :key="lang.code"
         class="sidebar-row-hover language-row flex items-center justify-between"
       >
-        <span class="text-sm font-medium text-gray-800 dark:text-gray-200 print:text-black">
+        <span class="font-medium text-gray-800 dark:text-gray-200 print:text-black">
           {{ lang.name }}
         </span>
         <UBadge 
