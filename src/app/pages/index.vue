@@ -266,19 +266,33 @@ onUnmounted(() => {
         class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
       >
         <div class="p-6 space-y-8">
-          <!-- Profile with Picture (fades in on scroll) -->
-          <div class="sidebar-profile">
+          <!-- Profile with Picture (fades in on scroll) - Hidden on mobile -->
+          <div class="sidebar-profile hidden lg:block print:block">
             <CvProfile />
           </div>
           
-          <!-- Personal Details -->
-          <CvDetails />
+          <!-- Personal Details - Hidden on mobile -->
+          <div class="hidden lg:block print:block">
+            <CvDetails />
+          </div>
           
-          <!-- Languages -->
-          <CvLanguages />
+          <!-- Languages - Hidden on mobile -->
+          <div class="hidden lg:block print:block">
+            <CvLanguages />
+          </div>
           
-          <!-- Driving Licenses -->
-          <CvDrivingLicenses />
+          <!-- Driving Licenses - Hidden on mobile -->
+          <div class="hidden lg:block print:block">
+            <CvDrivingLicenses />
+          </div>
+
+          <!-- Spacer to push QR code to bottom on print -->
+          <div class="flex-grow print:block hidden"></div>
+          
+          <!-- QR Code -->
+          <div class="hidden lg:block print:block">
+            <CvQrCode />
+          </div>
         </div>
       </aside>
       
@@ -314,6 +328,18 @@ onUnmounted(() => {
             <!-- Projects Section -->
             <div ref="projectsSectionRef">
               <CvProjects :projects="projects" :active-ids="activeEntryIds" />
+            </div>
+
+            <!-- Sidebar sections on mobile (shown at end) -->
+            <div class="lg:hidden print:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+              <!-- Personal Details -->
+              <CvDetails />
+              
+              <!-- Languages -->
+              <CvLanguages />
+              
+              <!-- Driving Licenses -->
+              <CvDrivingLicenses />
             </div>
 
             <!-- Footer -->
@@ -357,12 +383,20 @@ onUnmounted(() => {
 @media print {
   .cv-container {
     grid-template-columns: 300px 1fr;
+    min-height: 100vh;
   }
   
   .sidebar {
     height: auto !important;
     position: static !important;
     overflow: visible !important;
+    min-height: 100vh;
+  }
+  
+  .sidebar-content {
+    display: flex !important;
+    flex-direction: column;
+    min-height: calc(100vh - 3rem); /* Account for padding */
   }
   
   .sidebar-profile {
