@@ -1,5 +1,20 @@
 <script setup lang="ts">
 const { t } = useI18n()
+
+// Function to scroll down past the hero section
+function scrollToContent() {
+  // Find the cv-container (main content) and scroll to it
+  const mainContent = document.querySelector('.cv-container')
+  if (mainContent) {
+    mainContent.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } else {
+    // Fallback: scroll down by 100vh if element not found
+    window.scrollTo({
+      top: window.innerHeight,
+      behavior: 'smooth'
+    })
+  }
+}
 </script>
 
 <template>
@@ -20,8 +35,8 @@ const { t } = useI18n()
       <p class="hero-subtitle">
         Software Architect
       </p>
-      <div class="scroll-indicator">
-        <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="scroll-indicator cursor-pointer" @click="scrollToContent">
+        <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
         </svg>
       </div>
