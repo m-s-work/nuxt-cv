@@ -213,6 +213,12 @@ onMounted(() => {
             handleCardMouseEnter(id, 'study')
             clickedEntryId.value = `study-${id}`
           }
+        } else if (hash.startsWith('project-')) {
+          const id = parseInt(hash.replace('project-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'project')
+            clickedEntryId.value = `project-${id}`
+          }
         }
       }
     }, 500) // Delay to ensure page is fully loaded
