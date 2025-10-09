@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { scrollToElementSafely } = useSafeScroll()
 
 useSeoMeta({
   title: t('cv.title'),
@@ -199,7 +200,7 @@ onMounted(() => {
       const hash = window.location.hash.substring(1)
       const element = document.getElementById(hash)
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        scrollToElementSafely(hash, 'smooth')
         // Extract ID and activate it
         if (hash.startsWith('experience-')) {
           const id = parseInt(hash.replace('experience-', ''))

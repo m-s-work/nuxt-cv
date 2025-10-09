@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { TimelineEntry } from '~/composables/useTimeline'
 
+const { scrollToElementSafely } = useSafeScroll()
+
 interface Props {
   experiences: Array<{
     id: number
@@ -142,7 +144,7 @@ function handleEntryClick(entryId: number | string) {
     .replace('project-', 'project-')
   const element = document.getElementById(elementId)
   if (element) {
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    scrollToElementSafely(elementId, 'smooth')
   }
 }
 
@@ -171,7 +173,7 @@ function handleTimelineClick(entryId: number | string) {
     if (typeof window !== 'undefined') {
       window.history.pushState(null, '', hash)
     }
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    scrollToElementSafely(elementId, 'smooth')
   }
   // Emit the click event
   emit('entry-click', entryId)
