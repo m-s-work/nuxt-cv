@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useSafeScroll } from '../../app/composables/useSafeScroll'
+import { describe, it, expect, beforeEach, vi, type MockedFunction } from 'vitest'
+import { useSafeScroll } from '~/composables/useSafeScroll'
 
 describe('useSafeScroll composable', () => {
   beforeEach(() => {
@@ -83,7 +83,8 @@ describe('useSafeScroll composable', () => {
       scrollToElementSafely('test-element', 'smooth')
 
       expect(window.scrollTo).toHaveBeenCalled()
-      const callArgs = (window.scrollTo as any).mock.calls[0][0]
+      const scrollToMock = window.scrollTo as MockedFunction<typeof window.scrollTo>
+      const callArgs = scrollToMock.mock.calls[0][0] as ScrollToOptions
       expect(callArgs.behavior).toBe('smooth')
       // The scroll should respect the hero height (800px minimum)
       expect(callArgs.top).toBeGreaterThanOrEqual(800)
@@ -121,7 +122,8 @@ describe('useSafeScroll composable', () => {
       scrollToElementSafely('test-element', 'smooth')
 
       expect(window.scrollTo).toHaveBeenCalled()
-      const callArgs = (window.scrollTo as any).mock.calls[0][0]
+      const scrollToMock = window.scrollTo as MockedFunction<typeof window.scrollTo>
+      const callArgs = scrollToMock.mock.calls[0][0] as ScrollToOptions
       // Should use centered position since it's well below hero
       // elementTop (2000) - centerOffset (1000/2 - 100/2 = 450) = 1550
       expect(callArgs.top).toBe(1550)
