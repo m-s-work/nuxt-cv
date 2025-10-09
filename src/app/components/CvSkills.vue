@@ -20,15 +20,11 @@ const likedTechs = ref([
       </h2>
       
       <div class="flex flex-wrap gap-2">
-        <UBadge 
+        <TechBadge 
           v-for="tech in skilledTechs" 
           :key="tech"
-          color="primary"
-          variant="soft"
-          class="print:!bg-gray-100 print:!text-black"
-        >
-          {{ tech }}
-        </UBadge>
+          :technology="tech"
+        />
       </div>
     </div>
 
@@ -38,15 +34,11 @@ const likedTechs = ref([
       </h2>
       
       <div class="flex flex-wrap gap-2">
-        <UBadge 
+        <TechBadge 
           v-for="tech in likedTechs" 
           :key="tech"
-          color="blue"
-          variant="soft"
-          class="print:!bg-gray-100 print:!text-black"
-        >
-          {{ tech }}
-        </UBadge>
+          :technology="tech"
+        />
       </div>
     </div>
   </div>

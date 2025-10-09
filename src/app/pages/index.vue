@@ -81,6 +81,44 @@ const studies = ref([
   }
 ])
 
+const projects = ref([
+  {
+    id: 1,
+    name: 'E-Commerce Platform',
+    type: 'Web Application',
+    description: 'Built a scalable e-commerce platform with microservices architecture, handling thousands of transactions daily',
+    technologies: ['Vue.js', 'Node.js', 'PostgreSQL', 'Redis', 'Docker'],
+    period: '2021 - 2023',
+    startDate: '2021-03-01',
+    endDate: '2023-06-30',
+    screenshots: ['/images/projects/ecommerce-screenshot.jpg'],
+    logos: ['/images/projects/ecommerce-logo.png']
+  },
+  {
+    id: 2,
+    name: 'Mobile Banking App',
+    type: 'Mobile Application',
+    description: 'Developed a secure mobile banking application with biometric authentication and real-time transaction processing',
+    technologies: ['React Native', 'TypeScript', 'Firebase', 'REST API'],
+    period: '2019 - 2021',
+    startDate: '2019-06-01',
+    endDate: '2021-02-28',
+    screenshots: ['/images/projects/banking-app-1.jpg', '/images/projects/banking-app-2.jpg']
+  },
+  {
+    id: 3,
+    name: 'AI Content Generator',
+    type: 'SaaS Platform',
+    description: 'Created an AI-powered content generation tool using machine learning models for automated content creation',
+    technologies: ['Python', 'TensorFlow', 'FastAPI', 'React', 'AWS'],
+    period: '2022 - Present',
+    startDate: '2022-01-01',
+    endDate: null,
+    images: ['/images/projects/ai-generator.jpg'],
+    logos: ['/images/projects/ai-logo.svg']
+  }
+])
+
 // Track active entries based on scroll position
 const activeEntryIds = ref<(number | string)[]>([])
 const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
@@ -88,10 +126,11 @@ const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
 // Refs for tracking elements in viewport
 const experienceSectionRef = ref<HTMLElement | null>(null)
 const studiesSectionRef = ref<HTMLElement | null>(null)
+const projectsSectionRef = ref<HTMLElement | null>(null)
 
-// Handle hover events on experience/study cards
-function handleCardMouseEnter(id: number | string, type: 'exp' | 'study') {
-  const fullId = type === 'exp' ? `exp-${id}` : `study-${id}`
+// Handle hover events on experience/study/project cards
+function handleCardMouseEnter(id: number | string, type: 'exp' | 'study' | 'project') {
+  const fullId = type === 'exp' ? `exp-${id}` : type === 'study' ? `study-${id}` : `project-${id}`
   clickedEntryId.value = null // Clear clicked state on first hover
   if (!activeEntryIds.value.includes(fullId)) {
     activeEntryIds.value = [fullId]
@@ -144,6 +183,15 @@ onMounted(() => {
       element.addEventListener('mouseleave', handleCardMouseLeave)
     }
   })
+
+  // Add hover listeners to all project cards
+  projects.value.forEach(project => {
+    const element = document.getElementById(`project-${project.id}`)
+    if (element) {
+      element.addEventListener('mouseenter', () => handleCardMouseEnter(project.id, 'project'))
+      element.addEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
   
   // Restore scroll position from URL hash on page load
   if (typeof window !== 'undefined' && window.location.hash) {
@@ -165,6 +213,12 @@ onMounted(() => {
             handleCardMouseEnter(id, 'study')
             clickedEntryId.value = `study-${id}`
           }
+        } else if (hash.startsWith('project-')) {
+          const id = parseInt(hash.replace('project-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'project')
+            clickedEntryId.value = `project-${id}`
+          }
         }
       }
     }, 500) // Delay to ensure page is fully loaded
@@ -185,6 +239,14 @@ onUnmounted(() => {
     const element = document.getElementById(`study-${study.id}`)
     if (element) {
       element.removeEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
+      element.removeEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+
+  projects.value.forEach(project => {
+    const element = document.getElementById(`project-${project.id}`)
+    if (element) {
+      element.removeEventListener('mouseenter', () => handleCardMouseEnter(project.id, 'project'))
       element.removeEventListener('mouseleave', handleCardMouseLeave)
     }
   })
@@ -233,6 +295,7 @@ onUnmounted(() => {
           <CvTimeline 
             :experiences="experiences"
             :studies="studies"
+            :projects="projects"
             :active-ids="activeEntryIds"
             @entry-hover="handleTimelineHover"
             @entry-leave="handleTimelineLeave"
@@ -252,6 +315,11 @@ onUnmounted(() => {
             <!-- Studies Section -->
             <div ref="studiesSectionRef">
               <CvStudies :studies="studies" :active-ids="activeEntryIds" />
+            </div>
+
+            <!-- Projects Section -->
+            <div ref="projectsSectionRef">
+              <CvProjects :projects="projects" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Footer -->
