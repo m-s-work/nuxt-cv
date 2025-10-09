@@ -3,11 +3,17 @@ const { t } = useI18n()
 
 // Function to scroll down past the hero section
 function scrollToContent() {
-  // Scroll down by 100vh to get past the hero section
-  window.scrollTo({
-    top: window.innerHeight,
-    behavior: 'smooth'
-  })
+  // Find the cv-container (main content) and scroll to it
+  const mainContent = document.querySelector('.cv-container')
+  if (mainContent) {
+    mainContent.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } else {
+    // Fallback: scroll down by 100vh if element not found
+    window.scrollTo({
+      top: window.innerHeight,
+      behavior: 'smooth'
+    })
+  }
 }
 </script>
 
