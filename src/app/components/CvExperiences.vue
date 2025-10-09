@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
 
 interface Props {
   experiences?: Array<{
@@ -41,6 +42,11 @@ const props = withDefaults(defineProps<Props>(), {
   activeIds: () => []
 })
 
+// Filter experiences based on selected technologies
+const filteredExperiences = computed(() => {
+  return props.experiences.filter(exp => shouldShowItem(exp.technologies))
+})
+
 // Check if an experience is active
 function isActive(expId: number): boolean {
   return props.activeIds.includes(`exp-${expId}`)
@@ -63,7 +69,7 @@ function handleHeadingClick(elementId: string) {
     
     <div class="space-y-6">
       <UCard 
-        v-for="exp in props.experiences" 
+        v-for="exp in filteredExperiences" 
         :key="exp.id" 
         :id="`experience-${exp.id}`"
         :class="{
@@ -105,6 +111,9 @@ function handleHeadingClick(elementId: string) {
             v-for="tech in exp.technologies" 
             :key="tech"
             :technology="tech"
+            clickable
+            :selected="isTechSelected(tech)"
+            @click="toggleTech(tech)"
           />
         </div>
       </UCard>

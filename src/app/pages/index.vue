@@ -60,7 +60,8 @@ const studies = ref([
     period: '2015 - 2017',
     startDate: '2015-09-01',
     endDate: '2017-06-30',
-    focus: 'Software Engineering & Distributed Systems'
+    focus: 'Software Engineering & Distributed Systems',
+    technologies: ['Java', 'Python', 'Docker', 'Kubernetes']
   },
   {
     id: 2,
@@ -69,7 +70,8 @@ const studies = ref([
     period: '2012 - 2015',
     startDate: '2012-09-01',
     endDate: '2015-06-30',
-    focus: 'Computer Science Fundamentals'
+    focus: 'Computer Science Fundamentals',
+    technologies: ['C++', 'Java', 'SQL']
   },
   {
     id: 3,
@@ -78,7 +80,8 @@ const studies = ref([
     period: '2028 - 2028',
     startDate: '2028-09-01',
     endDate: '2028-06-30',
-    focus: 'Fundamentals of Pleasure'
+    focus: 'Fundamentals of Pleasure',
+    technologies: ['Python', 'MongoDB']
   }
 ])
 
@@ -257,6 +260,9 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+    <!-- Filter Indicator (shown when filtering is active) -->
+    <FilterIndicator />
+    
     <!-- Hero Section - Full page height -->
     <CvHero />
     

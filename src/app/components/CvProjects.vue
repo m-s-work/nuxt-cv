@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
 
 interface Props {
   projects?: Array<{
@@ -21,6 +22,11 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   projects: () => [],
   activeIds: () => []
+})
+
+// Filter projects based on selected technologies
+const filteredProjects = computed(() => {
+  return props.projects.filter(project => shouldShowItem(project.technologies))
 })
 
 // Check if a project is active
@@ -54,7 +60,7 @@ function getProjectMedia(project: Props['projects'][0]) {
     
     <div class="space-y-6">
       <UCard 
-        v-for="project in props.projects" 
+        v-for="project in filteredProjects" 
         :key="project.id" 
         :id="`project-${project.id}`"
         :class="{
@@ -110,6 +116,9 @@ function getProjectMedia(project: Props['projects'][0]) {
             v-for="tech in project.technologies" 
             :key="tech"
             :technology="tech"
+            clickable
+            :selected="isTechSelected(tech)"
+            @click="toggleTech(tech)"
           />
         </div>
       </UCard>
