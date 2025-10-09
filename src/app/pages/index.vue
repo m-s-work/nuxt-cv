@@ -212,6 +212,9 @@ onUnmounted(() => {
           <!-- Personal Details -->
           <CvDetails />
           
+          <!-- QR Code -->
+          <CvQrCode />
+          
           <!-- Languages -->
           <CvLanguages />
           

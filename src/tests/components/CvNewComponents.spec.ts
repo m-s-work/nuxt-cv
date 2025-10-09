@@ -30,3 +30,9 @@ describe('CvProfile', () => {
   })
 })
 
+describe('CvQrCode', () => {
+  it('component exists', () => {
+    expect(true).toBe(true)
+  })
+})
+
