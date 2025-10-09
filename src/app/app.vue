@@ -1,6 +1,5 @@
 <template>
   <div>
-    <LanguageSelector />
     <NuxtPage />
   </div>
 </template>

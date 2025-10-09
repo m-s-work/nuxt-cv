@@ -276,6 +276,11 @@ onUnmounted(() => {
             <CvDetails />
           </div>
           
+          <!-- Language Selector - Hidden on mobile -->
+          <div class="hidden lg:block print:block">
+            <LanguageSelector />
+          </div>
+          
           <!-- Languages - Hidden on mobile -->
           <div class="hidden lg:block print:block">
             <CvLanguages />
@@ -334,6 +339,9 @@ onUnmounted(() => {
             <div class="lg:hidden print:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
               <!-- Personal Details -->
               <CvDetails />
+              
+              <!-- Language Selector -->
+              <LanguageSelector />
               
               <!-- Languages -->
               <CvLanguages />
