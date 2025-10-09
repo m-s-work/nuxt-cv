@@ -267,22 +267,22 @@ onUnmounted(() => {
       >
         <div class="p-6 space-y-8">
           <!-- Profile with Picture (fades in on scroll) - Hidden on mobile -->
-          <div class="sidebar-profile hidden lg:block">
+          <div class="sidebar-profile hidden lg:block print:block">
             <CvProfile />
           </div>
           
           <!-- Personal Details - Hidden on mobile -->
-          <div class="hidden lg:block">
+          <div class="hidden lg:block print:block">
             <CvDetails />
           </div>
           
           <!-- Languages - Hidden on mobile -->
-          <div class="hidden lg:block">
+          <div class="hidden lg:block print:block">
             <CvLanguages />
           </div>
           
           <!-- Driving Licenses - Hidden on mobile -->
-          <div class="hidden lg:block">
+          <div class="hidden lg:block print:block">
             <CvDrivingLicenses />
           </div>
 
@@ -290,7 +290,7 @@ onUnmounted(() => {
           <div class="flex-grow print:block hidden"></div>
           
           <!-- QR Code -->
-          <div class="hidden lg:block">
+          <div class="hidden lg:block print:block">
             <CvQrCode />
           </div>
         </div>
@@ -331,7 +331,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Sidebar sections on mobile (shown at end) -->
-            <div class="lg:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+            <div class="lg:hidden print:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
               <!-- Personal Details -->
               <CvDetails />
               
