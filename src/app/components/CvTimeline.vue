@@ -14,11 +14,18 @@ interface Props {
     startDate: string
     endDate: string
   }>
+  projects: Array<{
+    id: number
+    name: string
+    startDate: string
+    endDate: string | null
+  }>
   activeIds?: (number | string)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  activeIds: () => []
+  activeIds: () => [],
+  projects: () => []
 })
 
 const { parseDate, getYearRange, assignColumns, calculatePositions } = useTimeline()
@@ -44,6 +51,16 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       startDate: study.startDate,
       endDate: study.endDate,
       label: study.degree
+    })
+  })
+  
+  props.projects.forEach(project => {
+    entries.push({
+      id: `project-${project.id}`,
+      type: 'project',
+      startDate: project.startDate,
+      endDate: project.endDate,
+      label: project.name
     })
   })
   
@@ -105,21 +122,24 @@ function isActive(entryId: number | string): boolean {
 }
 
 // Get color for entry type
-function getEntryColor(type: 'experience' | 'study', active: boolean): string {
+function getEntryColor(type: 'experience' | 'study' | 'project', active: boolean): string {
   if (active) {
-    return type === 'experience' ? '#2563eb' : '#059669' // blue-600 or green-600
+    return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : '#9333ea' // blue-600, green-600, or purple-600
   }
-  return type === 'experience' ? '#bfdbfe' : '#a7f3d0' // blue-200 or green-200
+  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : '#e9d5ff' // blue-200, green-200, or purple-200
 }
 
 // Get stroke color for entry type
-function getStrokeColor(type: 'experience' | 'study'): string {
-  return type === 'experience' ? '#1e40af' : '#047857' // blue-800 or green-700
+function getStrokeColor(type: 'experience' | 'study' | 'project'): string {
+  return type === 'experience' ? '#1e40af' : type === 'study' ? '#047857' : '#7e22ce' // blue-800, green-700, or purple-700
 }
 
 // Handle click on timeline entry to scroll to corresponding section
 function handleEntryClick(entryId: number | string) {
-  const elementId = entryId.toString().replace('exp-', 'experience-').replace('study-', 'study-')
+  const elementId = entryId.toString()
+    .replace('exp-', 'experience-')
+    .replace('study-', 'study-')
+    .replace('project-', 'project-')
   const element = document.getElementById(elementId)
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -224,7 +244,7 @@ function handleTimelineClick(entryId: number | string) {
             }"
           />
           
-          <!-- Icon (briefcase for experience, graduation cap for study) -->
+          <!-- Icon (briefcase for experience, graduation cap for study, code for project) -->
           <g v-if="entry.type === 'experience'">
             <!-- Briefcase icon -->
             <svg
@@ -244,7 +264,7 @@ function handleTimelineClick(entryId: number | string) {
             </svg>
           </g>
           
-          <g v-else>
+          <g v-else-if="entry.type === 'study'">
             <!-- Graduation cap icon -->
             <svg
               :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
@@ -260,6 +280,25 @@ function handleTimelineClick(entryId: number | string) {
             >
               <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
               <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
+          </g>
+          
+          <g v-else>
+            <!-- Code/Project icon -->
+            <svg
+              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
+              :y="entry.startY + entry.height / 2 - 10"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
             </svg>
           </g>
           
