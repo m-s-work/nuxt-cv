@@ -4,6 +4,7 @@ export interface TenantConfig {
   domain?: string
   experiences: Experience[]
   studies: Study[]
+  projects: Project[]
 }
 
 export interface Experience {
@@ -25,6 +26,20 @@ export interface Study {
   startDate: string  // ISO date format or year
   endDate: string  // ISO date format or year
   focus: string
+}
+
+export interface Project {
+  id: number
+  name: string
+  type: string
+  description: string
+  technologies: string[]
+  period: string
+  startDate: string  // ISO date format or year
+  endDate: string | null  // ISO date format or year, null for ongoing
+  screenshots?: string[]  // URLs to screenshots
+  images?: string[]  // URLs to images
+  logos?: string[]  // URLs to logos
 }
 
 // Multi-tenant configuration
@@ -72,6 +87,43 @@ export const tenants: Record<string, TenantConfig> = {
         startDate: '2012-09-01',
         endDate: '2015-06-30',
         focus: 'Computer Science Fundamentals'
+      }
+    ],
+    projects: [
+      {
+        id: 1,
+        name: 'E-Commerce Platform',
+        type: 'Web Application',
+        description: 'Built a scalable e-commerce platform with microservices architecture, handling thousands of transactions daily',
+        technologies: ['Vue.js', 'Node.js', 'PostgreSQL', 'Redis', 'Docker'],
+        period: '2021 - 2023',
+        startDate: '2021-03-01',
+        endDate: '2023-06-30',
+        screenshots: ['/images/projects/ecommerce-screenshot.jpg'],
+        logos: ['/images/projects/ecommerce-logo.png']
+      },
+      {
+        id: 2,
+        name: 'Mobile Banking App',
+        type: 'Mobile Application',
+        description: 'Developed a secure mobile banking application with biometric authentication and real-time transaction processing',
+        technologies: ['React Native', 'TypeScript', 'Firebase', 'REST API'],
+        period: '2019 - 2021',
+        startDate: '2019-06-01',
+        endDate: '2021-02-28',
+        screenshots: ['/images/projects/banking-app-1.jpg', '/images/projects/banking-app-2.jpg']
+      },
+      {
+        id: 3,
+        name: 'AI Content Generator',
+        type: 'SaaS Platform',
+        description: 'Created an AI-powered content generation tool using machine learning models for automated content creation',
+        technologies: ['Python', 'TensorFlow', 'FastAPI', 'React', 'AWS'],
+        period: '2022 - Present',
+        startDate: '2022-01-01',
+        endDate: null,
+        images: ['/images/projects/ai-generator.jpg'],
+        logos: ['/images/projects/ai-logo.svg']
       }
     ]
   }
