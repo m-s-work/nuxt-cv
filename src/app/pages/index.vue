@@ -203,7 +203,7 @@ onUnmounted(() => {
       <aside 
         class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
       >
-        <div class="p-6 space-y-8">
+        <div class="p-6 space-y-8 sidebar-content">
           <!-- Profile with Picture (fades in on scroll) -->
           <div class="sidebar-profile">
             <CvProfile />
@@ -212,14 +212,17 @@ onUnmounted(() => {
           <!-- Personal Details -->
           <CvDetails />
           
-          <!-- QR Code -->
-          <CvQrCode />
-          
           <!-- Languages -->
           <CvLanguages />
           
           <!-- Driving Licenses -->
           <CvDrivingLicenses />
+          
+          <!-- Spacer to push QR code to bottom on print -->
+          <div class="flex-grow print:block hidden"></div>
+          
+          <!-- QR Code -->
+          <CvQrCode />
         </div>
       </aside>
       
@@ -292,12 +295,20 @@ onUnmounted(() => {
 @media print {
   .cv-container {
     grid-template-columns: 300px 1fr;
+    min-height: 100vh;
   }
   
   .sidebar {
     height: auto !important;
     position: static !important;
     overflow: visible !important;
+    min-height: 100vh;
+  }
+  
+  .sidebar-content {
+    display: flex !important;
+    flex-direction: column;
+    min-height: calc(100vh - 3rem); /* Account for padding */
   }
   
   .sidebar-profile {
