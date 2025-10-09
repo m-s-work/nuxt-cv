@@ -27,7 +27,7 @@ const getLevelColor = (level: string) => {
       <div 
         v-for="lang in languages" 
         :key="lang.code"
-        class="flex items-center justify-between"
+        class="sidebar-row-hover language-row flex items-center justify-between"
       >
         <span class="text-sm font-medium text-gray-800 dark:text-gray-200 print:text-black">
           {{ lang.name }}

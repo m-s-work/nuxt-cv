@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+/* Shared hover effect styles for sidebar rows */
+@layer components {
+  .sidebar-row-hover {
+    padding: 0.25rem;
+    margin: -0.25rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .sidebar-row-hover:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    transform: translateX(4px);
+  }
+
+  :global(.dark) .sidebar-row-hover:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  @media print {
+    .sidebar-row-hover:hover {
+      background-color: transparent;
+      transform: none;
+    }
+  }
+}
