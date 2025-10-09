@@ -11,7 +11,7 @@ onMounted(async () => {
   if (typeof window !== 'undefined') {
     try {
       // Get current URL without hash
-      const url = window.location.origin + window.location.pathname + window.location.search
+      const url = new URL(window.location.pathname + window.location.search, window.location.origin).toString()
       
       // Generate QR code as data URL
       qrCodeDataUrl.value = await QRCode.toDataURL(url, {
@@ -43,6 +43,9 @@ onMounted(async () => {
           class="w-40 h-40"
         />
       </div>
+      <div v-else class="bg-gray-200 dark:bg-gray-700 p-3 rounded-lg shadow-sm border border-gray-200 w-40 h-40 flex items-center justify-center">
+        <span class="text-gray-500 dark:text-gray-400 text-sm">{{ t('qrcode.loading') }}</span>
+      </div>
       <p class="text-xs text-center text-gray-600 dark:text-gray-400 print:text-gray-700">
         {{ t('qrcode.description') }}
       </p>
@@ -56,14 +59,16 @@ onMounted(async () => {
     "qrcode": {
       "title": "QR Code",
       "alt": "QR Code to this CV",
-      "description": "Scan to open this CV online"
+      "description": "Scan to open this CV online",
+      "loading": "Loading..."
     }
   },
   "de": {
     "qrcode": {
       "title": "QR-Code",
       "alt": "QR-Code zu diesem Lebenslauf",
-      "description": "Scannen, um diesen Lebenslauf online zu öffnen"
+      "description": "Scannen, um diesen Lebenslauf online zu öffnen",
+      "loading": "Lädt..."
     }
   }
 }
