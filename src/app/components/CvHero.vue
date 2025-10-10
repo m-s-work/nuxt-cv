@@ -19,6 +19,7 @@ function scrollToContent() {
 
 <template>
   <div class="hero-section">
+    <HeaderMenu />
     <div class="hero-content">
       <div class="mb-8">
         <img 
@@ -46,6 +47,7 @@ function scrollToContent() {
 
 <style scoped>
 .hero-section {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
