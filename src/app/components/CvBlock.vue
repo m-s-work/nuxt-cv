@@ -57,10 +57,16 @@ const activeColorClass = computed(() => {
 </script>
 
 <template>
+  <!-- 
+    Border removal: UCard components have default borders in Nuxt UI.
+    We override this with !border-0 to remove the border in light/dark modes.
+    For print mode, we keep the border for better document structure.
+  -->
   <UCard 
     :id="`${type}-${id}`"
     :class="{
-      'print:!shadow-none print:!border print:!border-gray-300': true,
+      '!border-0 print:!border print:!border-gray-300': true,
+      'print:!shadow-none': true,
       'transition-all duration-300': true,
       'translate-x-2': isActive()
     }"
@@ -82,11 +88,15 @@ const activeColorClass = computed(() => {
             {{ subtitle }}
           </p>
         </div>
+        <!-- 
+          Period badge: Remove border by adding !border-0 class.
+          UBadge with variant="subtle" has a default border in Nuxt UI.
+        -->
         <UBadge 
           v-if="period && showPeriod" 
           color="primary" 
           variant="subtle" 
-          class="print:!bg-gray-100 print:!text-black"
+          class="!border-0 print:!bg-gray-100 print:!text-black"
         >
           {{ period }}
         </UBadge>
