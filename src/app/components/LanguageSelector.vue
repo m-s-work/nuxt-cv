@@ -18,8 +18,12 @@ function switchLanguage(newLocale: string) {
   if (queryString) {
     newUrl += '?' + queryString
   }
-  if (route.hash) {
-    newUrl += route.hash
+  
+  // Preserve hash from current location
+  // window.location.hash includes the # symbol, route.hash also includes it
+  const currentHash = window.location.hash
+  if (currentHash && !newUrl.includes(currentHash)) {
+    newUrl += currentHash
   }
   
   // Update the URL without triggering navigation (push to history)
