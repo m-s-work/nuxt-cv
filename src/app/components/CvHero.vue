@@ -11,7 +11,7 @@ const profile = ref({
 
 // Design option for displaying academic titles
 // Options: 'inline', 'separate-row', 'above-name', 'below-title'
-const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-title'>('separate-row')
+const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-title'>('above-name')
 
 // Function to scroll down past the hero section
 function scrollToContent() {
