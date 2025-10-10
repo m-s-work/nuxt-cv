@@ -5,6 +5,8 @@ const { t } = useI18n()
 const details = ref({
   name: 'Max Mustermann',
   title: 'Software Architect',
+  prependedTitles: ['Dr.'],
+  appendedTitles: ['PhD', 'MSc'],
   location: 'Berlin, Germany',
   citizenship: 'German',
   email: 'max.mustermann@example.com',

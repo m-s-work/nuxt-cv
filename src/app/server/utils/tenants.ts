@@ -2,6 +2,8 @@ export interface TenantConfig {
   id: string
   name: string
   domain?: string
+  prependedTitles?: string[]  // Academic titles before name (e.g., Dr., Prof.)
+  appendedTitles?: string[]   // Academic titles after name (e.g., PhD, MSc)
   experiences: Experience[]
   studies: Study[]
   projects: Project[]
@@ -47,6 +49,8 @@ export const tenants: Record<string, TenantConfig> = {
   default: {
     id: 'default',
     name: 'Default CV',
+    prependedTitles: ['Dr.'],
+    appendedTitles: ['PhD', 'MSc'],
     experiences: [
       {
         id: 1,

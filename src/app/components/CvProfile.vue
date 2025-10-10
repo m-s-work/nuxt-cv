@@ -5,7 +5,24 @@ const { t } = useI18n()
 const profile = ref({
   name: 'Max Mustermann',
   title: 'Software Architect',
-  photoUrl: '/images/profile-small.jpg'
+  photoUrl: '/images/profile-small.jpg',
+  prependedTitles: ['Dr.'],
+  appendedTitles: ['PhD', 'MSc']
+})
+
+// Compute full name with titles
+const fullName = computed(() => {
+  const prepended = profile.value.prependedTitles?.join(' ') || ''
+  const appended = profile.value.appendedTitles?.join(', ') || ''
+  
+  let result = profile.value.name
+  if (prepended) {
+    result = `${prepended} ${result}`
+  }
+  if (appended) {
+    result = `${result}, ${appended}`
+  }
+  return result
 })
 </script>
 
@@ -26,7 +43,7 @@ const profile = ref({
     <!-- Name and Title -->
     <div class="text-center">
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black">
-        {{ profile.name }}
+        {{ fullName }}
       </h1>
       <p class="text-lg text-gray-600 dark:text-gray-400 print:text-gray-700 mt-1">
         {{ profile.title }}

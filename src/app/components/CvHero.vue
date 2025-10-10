@@ -1,6 +1,29 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
+// Profile information with academic titles
+const profile = ref({
+  name: 'Max Mustermann',
+  title: 'Software Architect',
+  prependedTitles: ['Dr.'],
+  appendedTitles: ['PhD', 'MSc']
+})
+
+// Compute full name with titles
+const fullName = computed(() => {
+  const prepended = profile.value.prependedTitles?.join(' ') || ''
+  const appended = profile.value.appendedTitles?.join(', ') || ''
+  
+  let result = profile.value.name
+  if (prepended) {
+    result = `${prepended} ${result}`
+  }
+  if (appended) {
+    result = `${result}, ${appended}`
+  }
+  return result
+})
+
 // Function to scroll down past the hero section
 function scrollToContent() {
   // Find the cv-container (main content) and scroll to it
@@ -30,10 +53,10 @@ function scrollToContent() {
         />
       </div>
       <h1 class="hero-title">
-        Max Mustermann
+        {{ fullName }}
       </h1>
       <p class="hero-subtitle">
-        Software Architect
+        {{ profile.title }}
       </p>
       <div class="scroll-indicator cursor-pointer" @click="scrollToContent">
         <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
