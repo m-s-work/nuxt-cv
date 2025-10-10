@@ -1,9 +1,28 @@
 <script setup lang="ts">
-const { locale, locales, setLocale } = useI18n()
+const { locale, locales } = useI18n()
+const switchLocalePath = useSwitchLocalePath()
+const router = useRouter()
 
-// Smooth language switch without page reload
+// Smooth language switch without page jump
 async function switchLanguage(newLocale: string) {
-  await setLocale(newLocale)
+  // Save current scroll position before navigation
+  const savedScrollY = window.scrollY
+  
+  // Get the path for the new locale
+  const path = switchLocalePath(newLocale)
+  
+  // Use router push with savedPosition to prevent scroll-to-top
+  await router.push({
+    path,
+    // This prevents the default scroll behavior
+    replace: true
+  })
+  
+  // Restore scroll position immediately after navigation
+  // Use requestAnimationFrame to ensure it happens after DOM updates
+  requestAnimationFrame(() => {
+    window.scrollTo(0, savedScrollY)
+  })
 }
 </script>
 
