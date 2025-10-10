@@ -1,13 +1,25 @@
 export interface TimelineEntry {
   id: number | string
-  type: 'experience' | 'study'
+  type: 'experience' | 'study' | 'project' | 'other'
   startDate: string
   endDate: string | null
   label: string
+  icon?: string
 }
 
 export interface TimelineColumn {
   entries: Array<TimelineEntry & { column: number; startY: number; height: number }>
+}
+
+/**
+ * Base interface for timeline items
+ * All items that appear on the timeline should extend this interface
+ */
+export interface TimelineItem {
+  id: number
+  startDate: string
+  endDate: string | null
+  icon?: string
 }
 
 export function useTimeline() {

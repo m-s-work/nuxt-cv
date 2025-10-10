@@ -9,6 +9,20 @@ useSeoMeta({
 
 // Data for timeline - would eventually come from API
 const experiences = ref([
+  
+  // self employed entry for testing overlapping periods
+  {
+    id: 5,
+    company: 'Freelance Developer',
+    position: 'Self-Employed',
+    period: '2018 - Present',
+    startDate: '2018-05-01',
+    endDate: null,
+    description: 'Providing freelance software development services to various clients',
+    technologies: ['JavaScript', 'Python', 'Django', 'React'],
+    icon: 'lightbulb'
+  },
+
   {
     id: 1,
     company: 'Tech Company Inc.',
@@ -49,7 +63,7 @@ const experiences = ref([
     endDate: '2018-11-30',
     description: 'Performed maintenance and repairs on various car models',
     technologies: ['AutoCAD', 'Diagnostic Tools']
-  }
+  },
 ])
 
 const studies = ref([
@@ -120,6 +134,75 @@ const projects = ref([
   }
 ])
 
+const otherEntries = ref([
+  {
+    id: 1,
+    title: 'Mandatory Military Service',
+    institution: 'Armed Forces',
+    period: '2011 - 2012',
+    startDate: '2011-07-01',
+    endDate: '2012-06-30',
+    description: 'Completed mandatory military service',
+    showPeriod: true,
+    icon: 'shield'
+  },
+  {
+    id: 1,
+    title: 'Mandatory Military Service',
+    institution: 'Armed Forces',
+    period: '2011 - 2012',
+    startDate: '2011-07-01',
+    endDate: '2012-06-30',
+    description: 'Completed mandatory military service',
+    showPeriod: true,
+    icon: 'helmet'
+  },
+  {
+    id: 2,
+    title: 'Abitur',
+    institution: 'High School',
+    period: '2011',
+    startDate: '2011-01-01',
+    endDate: '2011-06-30',
+    description: 'High school diploma (Abitur)',
+    showPeriod: true,
+    icon: 'award'
+  },
+  {
+    id: 3,
+    title: 'School',
+    institution: 'Secondary School',
+    period: '2005 - 2011',
+    startDate: '2005-09-01',
+    endDate: '2011-06-30',
+    description: 'Secondary education',
+    showPeriod: false,
+    icon: 'book-open'
+  },
+  {
+    id: 4,
+    title: 'Summer Internship',
+    institution: 'Tech Startup Inc.',
+    period: 'Jul 2010',
+    startDate: '2010-07-01',
+    endDate: '2010-07-31',
+    description: 'One-month internship in web development',
+    showPeriod: true,
+    icon: 'users'
+  },
+  {
+    id: 5,
+    title: 'Summer Internship',
+    institution: 'Local Engineering Firm',
+    period: 'Aug 2009 - Sep 2009',
+    startDate: '2009-08-01',
+    endDate: '2009-09-30',
+    description: 'Two-month internship in software engineering',
+    showPeriod: true,
+    icon: 'hammer'
+  }
+])
+
 // Track active entries based on scroll position
 const activeEntryIds = ref<(number | string)[]>([])
 const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
@@ -128,10 +211,11 @@ const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
 const experienceSectionRef = ref<HTMLElement | null>(null)
 const studiesSectionRef = ref<HTMLElement | null>(null)
 const projectsSectionRef = ref<HTMLElement | null>(null)
+const otherEntriesSectionRef = ref<HTMLElement | null>(null)
 
 // Handle hover events on experience/study/project cards
-function handleCardMouseEnter(id: number | string, type: 'exp' | 'study' | 'project') {
-  const fullId = type === 'exp' ? `exp-${id}` : type === 'study' ? `study-${id}` : `project-${id}`
+function handleCardMouseEnter(id: number | string, type: 'exp' | 'study' | 'project' | 'other') {
+  const fullId = type === 'exp' ? `exp-${id}` : type === 'study' ? `study-${id}` : type === 'project' ? `project-${id}` : `other-${id}`
   clickedEntryId.value = null // Clear clicked state on first hover
   if (!activeEntryIds.value.includes(fullId)) {
     activeEntryIds.value = [fullId]
@@ -193,6 +277,15 @@ onMounted(() => {
       element.addEventListener('mouseleave', handleCardMouseLeave)
     }
   })
+
+  // Add hover listeners to all other entry cards
+  otherEntries.value.forEach(entry => {
+    const element = document.getElementById(`other-${entry.id}`)
+    if (element) {
+      element.addEventListener('mouseenter', () => handleCardMouseEnter(entry.id, 'other'))
+      element.addEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
   
   // Restore scroll position from URL hash on page load
   if (typeof window !== 'undefined' && window.location.hash) {
@@ -219,6 +312,12 @@ onMounted(() => {
           if (!isNaN(id)) {
             handleCardMouseEnter(id, 'project')
             clickedEntryId.value = `project-${id}`
+          }
+        } else if (hash.startsWith('other-')) {
+          const id = parseInt(hash.replace('other-', ''))
+          if (!isNaN(id)) {
+            handleCardMouseEnter(id, 'other')
+            clickedEntryId.value = `other-${id}`
           }
         }
       }
@@ -248,6 +347,14 @@ onUnmounted(() => {
     const element = document.getElementById(`project-${project.id}`)
     if (element) {
       element.removeEventListener('mouseenter', () => handleCardMouseEnter(project.id, 'project'))
+      element.removeEventListener('mouseleave', handleCardMouseLeave)
+    }
+  })
+
+  otherEntries.value.forEach(entry => {
+    const element = document.getElementById(`other-${entry.id}`)
+    if (element) {
+      element.removeEventListener('mouseenter', () => handleCardMouseEnter(entry.id, 'other'))
       element.removeEventListener('mouseleave', handleCardMouseLeave)
     }
   })
@@ -310,6 +417,7 @@ onUnmounted(() => {
             :experiences="experiences"
             :studies="studies"
             :projects="projects"
+            :other-entries="otherEntries"
             :active-ids="activeEntryIds"
             @entry-hover="handleTimelineHover"
             @entry-leave="handleTimelineLeave"
@@ -334,6 +442,11 @@ onUnmounted(() => {
             <!-- Projects Section -->
             <div ref="projectsSectionRef">
               <CvProjects :projects="projects" :active-ids="activeEntryIds" />
+            </div>
+
+            <!-- Other Experiences Section -->
+            <div ref="otherEntriesSectionRef">
+              <CvOtherExperiences :entries="otherEntries" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Sidebar sections on mobile (shown at end) -->

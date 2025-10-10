@@ -1,33 +1,20 @@
 <script setup lang="ts">
-import type { TimelineEntry } from '~/composables/useTimeline'
+import type { TimelineEntry, TimelineItem } from '~/composables/useTimeline'
 
 const { scrollToElementSafely } = useSafeScroll()
 
 interface Props {
-  experiences: Array<{
-    id: number
-    position: string
-    startDate: string
-    endDate: string | null
-  }>
-  studies: Array<{
-    id: number
-    degree: string
-    startDate: string
-    endDate: string
-  }>
-  projects: Array<{
-    id: number
-    name: string
-    startDate: string
-    endDate: string | null
-  }>
+  experiences: Array<TimelineItem & { position: string }>
+  studies: Array<TimelineItem & { degree: string; endDate: string }>
+  projects: Array<TimelineItem & { name: string }>
+  otherEntries?: Array<TimelineItem & { title: string }>
   activeIds?: (number | string)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   activeIds: () => [],
-  projects: () => []
+  projects: () => [],
+  otherEntries: () => []
 })
 
 const { parseDate, getYearRange, assignColumns, calculatePositions } = useTimeline()
@@ -42,7 +29,8 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       type: 'experience',
       startDate: exp.startDate,
       endDate: exp.endDate,
-      label: exp.position
+      label: exp.position,
+      icon: exp.icon
     })
   })
   
@@ -52,7 +40,8 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       type: 'study',
       startDate: study.startDate,
       endDate: study.endDate,
-      label: study.degree
+      label: study.degree,
+      icon: study.icon
     })
   })
   
@@ -62,7 +51,19 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       type: 'project',
       startDate: project.startDate,
       endDate: project.endDate,
-      label: project.name
+      label: project.name,
+      icon: project.icon
+    })
+  })
+  
+  props.otherEntries.forEach(entry => {
+    entries.push({
+      id: `other-${entry.id}`,
+      type: 'other',
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+      label: entry.title,
+      icon: entry.icon
     })
   })
   
@@ -124,16 +125,84 @@ function isActive(entryId: number | string): boolean {
 }
 
 // Get color for entry type
-function getEntryColor(type: 'experience' | 'study' | 'project', active: boolean): string {
+function getEntryColor(type: 'experience' | 'study' | 'project' | 'other', active: boolean): string {
   if (active) {
-    return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : '#9333ea' // blue-600, green-600, or purple-600
+    return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : type === 'project' ? '#9333ea' : '#ea580c' // blue-600, green-600, purple-600, or orange-600
   }
-  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : '#e9d5ff' // blue-200, green-200, or purple-200
+  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : type === 'project' ? '#e9d5ff' : '#fed7aa' // blue-200, green-200, purple-200, or orange-200
 }
 
 // Get stroke color for entry type
-function getStrokeColor(type: 'experience' | 'study' | 'project'): string {
-  return type === 'experience' ? '#1e40af' : type === 'study' ? '#047857' : '#7e22ce' // blue-800, green-700, or purple-700
+function getStrokeColor(type: 'experience' | 'study' | 'project' | 'other'): string {
+  return type === 'experience' ? '#1e40af' : type === 'study' ? '#047857' : type === 'project' ? '#7e22ce' : '#c2410c' // blue-800, green-700, purple-700, or orange-700
+}
+
+// Get icon SVG path for entry
+function getIconSVG(entry: TimelineEntry & { column: number; startY: number; height: number }): string {
+  // If custom icon is provided, use it; otherwise fall back to type-based defaults
+  const iconType = entry.icon || entry.type
+  
+  switch (iconType) {
+    case 'experience':
+    case 'briefcase':
+      // Briefcase icon
+      return '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>'
+    
+    case 'study':
+    case 'graduation-cap':
+      // Graduation cap icon
+      return '<path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path>'
+    
+    case 'project':
+    case 'code':
+      // Code icon
+      return '<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>'
+    
+    case 'shield':
+    case 'military':
+      // Shield icon for military service
+      return '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>'
+    
+    case 'helmet':
+    case 'army-helmet':
+      // Army helmet icon
+      return '<path d="M12 2C6.48 2 2 6.48 2 12c0 2.21.72 4.25 1.94 5.9L12 22l8.06-4.1C21.28 16.25 22 14.21 22 12c0-5.52-4.48-10-10-10z"></path><ellipse cx="12" cy="12" rx="8" ry="4"></ellipse>'
+    
+    case 'award':
+    case 'abitur':
+      // Award/medal icon for Abitur
+      return '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>'
+    
+    case 'school':
+    case 'book-open':
+      // Book icon for school
+      return '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>'
+    
+    case 'internship':
+    case 'users':
+      // Users icon for internships
+      return '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
+    
+    case 'hammer':
+    case 'construction':
+      // Hammer icon for construction internships
+      return '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>'
+    
+    case 'briefcase-business':
+    case 'self-employed':
+    case 'business':
+      // Briefcase with star icon for self-employed/business
+      return '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><path d="M12 11l1.5 3 3 .5-2.5 2 .5 3-2.5-1.5L9.5 19.5l.5-3-2.5-2 3-.5z"></path>'
+    
+    case 'lightbulb':
+    case 'entrepreneur':
+      // Lightbulb icon for entrepreneurship/innovation
+      return '<path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>'
+    
+    default:
+      // Default to code icon
+      return '<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>'
+  }
 }
 
 // Handle click on timeline entry to scroll to corresponding section
@@ -142,6 +211,7 @@ function handleEntryClick(entryId: number | string) {
     .replace('exp-', 'experience-')
     .replace('study-', 'study-')
     .replace('project-', 'project-')
+    .replace('other-', 'other-')
   const element = document.getElementById(elementId)
   if (element) {
     scrollToElementSafely(elementId, 'smooth')
@@ -246,63 +316,21 @@ function handleTimelineClick(entryId: number | string) {
             }"
           />
           
-          <!-- Icon (briefcase for experience, graduation cap for study, code for project) -->
-          <g v-if="entry.type === 'experience'">
-            <!-- Briefcase icon -->
-            <svg
-              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
-              :y="entry.startY + entry.height / 2 - 10"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-            </svg>
-          </g>
-          
-          <g v-else-if="entry.type === 'study'">
-            <!-- Graduation cap icon -->
-            <svg
-              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
-              :y="entry.startY + entry.height / 2 - 10"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-              <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-            </svg>
-          </g>
-          
-          <g v-else>
-            <!-- Code/Project icon -->
-            <svg
-              :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
-              :y="entry.startY + entry.height / 2 - 10"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="16 18 22 12 16 6"></polyline>
-              <polyline points="8 6 2 12 8 18"></polyline>
-            </svg>
-          </g>
+          <!-- Icon - dynamic based on entry type or custom icon -->
+          <svg
+            :x="ENTRY_START_X + (entry.column * ENTRY_COLUMN_WIDTH) + 7"
+            :y="entry.startY + entry.height / 2 - 10"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            v-html="getIconSVG(entry)"
+          >
+          </svg>
           
           <!-- Connection line to main timeline -->
           <line
