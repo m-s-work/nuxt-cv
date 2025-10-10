@@ -3,6 +3,7 @@ import type { TimelineItem } from '~/composables/useTimeline'
 
 const { t } = useI18n()
 const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
+const { navigateToSection } = useSafeScroll()
 
 interface Props {
   experiences?: Array<TimelineItem & {
@@ -54,7 +55,9 @@ const filteredExperiences = computed(() => {
 <template>
   <section>
     <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
-      {{ t('experiences.title') }}
+      <a :href="`#experiences-section`" @click="navigateToSection($event, 'experiences-section')" class="section-heading-link">
+        {{ t('experiences.title') }}
+      </a>
     </h2>
     
     <div class="space-y-6">
