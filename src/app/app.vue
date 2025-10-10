@@ -1,6 +1,7 @@
 <template>
   <div>
     <LanguageSelector />
+    <CvNavigationMenu />
     <NuxtPage />
   </div>
 </template>

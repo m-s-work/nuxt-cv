@@ -56,7 +56,7 @@ function handleHeadingClick(elementId: string) {
 </script>
 
 <template>
-  <section>
+  <section id="experiences-section">
     <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
       {{ t('experiences.title') }}
     </h2>

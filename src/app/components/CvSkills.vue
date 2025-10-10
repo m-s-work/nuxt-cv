@@ -13,7 +13,8 @@ const likedTechs = ref([
 </script>
 
 <template>
-  <div class="space-y-6">
+  <section id="skills-section">
+    <div class="space-y-6">
     <div>
       <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
         {{ t('skills.skilled') }}
@@ -41,7 +42,7 @@ const likedTechs = ref([
         />
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <i18n lang="json">
