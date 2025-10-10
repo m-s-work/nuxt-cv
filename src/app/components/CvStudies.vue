@@ -64,9 +64,8 @@ function handleHeadingClick(elementId: string) {
         :key="study.id" 
         :id="`study-${study.id}`"
         :class="{
-          'print:!shadow-none print:!border print:!border-gray-300': true,
+          'print:!shadow-none': true,
           'transition-all duration-300': true,
-          'shadow-lg': isActive(study.id),
           'translate-x-2': isActive(study.id)
         }"
       >

@@ -58,9 +58,8 @@ function getProjectMedia(project: Props['projects'][0]) {
         :key="project.id" 
         :id="`project-${project.id}`"
         :class="{
-          'print:!shadow-none print:!border print:!border-gray-300': true,
+          'print:!shadow-none': true,
           'transition-all duration-300': true,
-          'shadow-lg': isActive(project.id),
           'translate-x-2': isActive(project.id)
         }"
       >
