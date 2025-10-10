@@ -1,16 +1,16 @@
 <script setup lang="ts">
+import type { TimelineItem } from '~/composables/useTimeline'
+
 const { t } = useI18n()
+const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
 
 interface Props {
-  projects?: Array<{
-    id: number
+  projects?: Array<TimelineItem & {
     name: string
     type: string
     description: string
     technologies: string[]
     period: string
-    startDate: string
-    endDate: string | null
     screenshots?: string[]
     images?: string[]
     logos?: string[]
@@ -23,17 +23,13 @@ const props = withDefaults(defineProps<Props>(), {
   activeIds: () => []
 })
 
-// Check if a project is active
-function isActive(projectId: number): boolean {
-  return props.activeIds.includes(`project-${projectId}`)
-}
-
-// Handle heading click to update URL hash
-function handleHeadingClick(elementId: string) {
-  if (typeof window !== 'undefined') {
-    window.history.pushState(null, '', `#${elementId}`)
-  }
-}
+// Filter projects based on selected technologies
+const filteredProjects = computed(() => {
+  return props.projects.filter(project => {
+    if (!project.technologies || project.technologies.length === 0) return true
+    return shouldShowItem(project.technologies)
+  })
+})
 
 // Get all media (screenshots, images, logos) for a project
 function getProjectMedia(project: Props['projects'][0]) {
@@ -53,66 +49,23 @@ function getProjectMedia(project: Props['projects'][0]) {
     </h2>
     
     <div class="space-y-6">
-      <UCard 
-        v-for="project in props.projects" 
-        :key="project.id" 
-        :id="`project-${project.id}`"
-        :class="{
-          'print:!shadow-none print:!border print:!border-gray-300': true,
-          'transition-all duration-300': true,
-          'shadow-lg': isActive(project.id),
-          'translate-x-2': isActive(project.id)
-        }"
-      >
-        <template #header>
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <h3 
-                @click="handleHeadingClick(`project-${project.id}`)"
-                :class="{
-                  'text-xl font-semibold print:text-black cursor-pointer hover:underline': true,
-                  'text-purple-600 dark:text-purple-400': isActive(project.id),
-                  'text-gray-900 dark:text-white': !isActive(project.id)
-                }"
-              >
-                {{ project.name }}
-              </h3>
-              <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">
-                {{ project.type }}
-              </p>
-            </div>
-            <UBadge color="primary" variant="subtle" class="print:!bg-gray-100 print:!text-black">
-              {{ project.period }}
-            </UBadge>
-          </div>
-        </template>
-
-        <!-- Project Images/Screenshots/Logos -->
-        <div v-if="getProjectMedia(project).length > 0" class="mb-4 flex flex-wrap gap-2">
-          <img 
-            v-for="(media, index) in getProjectMedia(project)" 
-            :key="index"
-            :src="media"
-            :alt="`${project.name} screenshot ${index + 1}`"
-            class="h-32 w-auto object-cover rounded border border-gray-200 dark:border-gray-700 print:border-gray-300"
-            loading="lazy"
-          />
-        </div>
-
-        <!-- Project Description -->
-        <p class="text-gray-700 dark:text-gray-300 print:text-black mb-4">
-          {{ project.description }}
-        </p>
-
-        <!-- Technology Badges -->
-        <div class="flex flex-wrap gap-2">
-          <TechBadge 
-            v-for="tech in project.technologies" 
-            :key="tech"
-            :technology="tech"
-          />
-        </div>
-      </UCard>
+      <CvBlock
+        v-for="project in filteredProjects" 
+        :key="project.id"
+        :id="project.id"
+        :title="project.name"
+        :subtitle="project.type"
+        :period="project.period"
+        :description="project.description"
+        :technologies="project.technologies"
+        :images="getProjectMedia(project)"
+        :active-ids="activeIds"
+        :icon="project.icon"
+        type="project"
+        :tech-clickable="true"
+        :tech-selected="(tech) => isTechSelected(tech)"
+        @tech-click="toggleTech"
+      />
     </div>
   </section>
 </template>
