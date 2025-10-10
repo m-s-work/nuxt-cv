@@ -129,7 +129,7 @@ function getEntryColor(type: 'experience' | 'study' | 'project' | 'other', activ
   if (active) {
     return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : type === 'project' ? '#9333ea' : '#ea580c' // blue-600, green-600, purple-600, or orange-600
   }
-  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : type === 'project' ? '#e9d5ff' : '#fed7aa' // blue-200, green-200, purple-200, or orange-200
+  return type === 'experience' ? '#60a5fa' : type === 'study' ? '#34d399' : type === 'project' ? '#c084fc' : '#fb923c' // blue-400, green-400, purple-400, or orange-400
 }
 
 // Get stroke color for entry type
