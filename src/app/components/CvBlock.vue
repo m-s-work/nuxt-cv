@@ -12,6 +12,8 @@ interface Props {
   showPeriod?: boolean
   showTechnologies?: boolean
   icon?: string
+  techClickable?: boolean
+  techSelected?: (tech: string) => boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -20,6 +22,8 @@ const props = withDefaults(defineProps<Props>(), {
   showPeriod: true,
   showTechnologies: true
 })
+
+const emit = defineEmits(['tech-click'])
 
 // Check if this block is active
 function isActive(): boolean {
@@ -113,6 +117,9 @@ const activeColorClass = computed(() => {
         v-for="tech in technologies" 
         :key="tech"
         :technology="tech"
+        :clickable="techClickable"
+        :selected="techSelected ? techSelected(tech) : false"
+        @click="(t) => emit('tech-click', t)"
       />
     </div>
   </UCard>

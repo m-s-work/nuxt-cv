@@ -2,6 +2,7 @@
 import type { TimelineItem } from '~/composables/useTimeline'
 
 const { t } = useI18n()
+const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
 
 interface Props {
   experiences?: Array<TimelineItem & {
@@ -9,7 +10,7 @@ interface Props {
     position: string
     period: string
     description: string
-    technologies: string[]
+    technologies?: string[]
   }>
   activeIds?: (number | string)[]
 }
@@ -40,6 +41,14 @@ const props = withDefaults(defineProps<Props>(), {
   activeIds: () => []
 })
 
+// Filter experiences based on selected technologies
+const filteredExperiences = computed(() => {
+  return props.experiences.filter(exp => {
+    if (!exp.technologies || exp.technologies.length === 0) return true
+    return shouldShowItem(exp.technologies)
+  })
+})
+
 </script>
 
 <template>
@@ -50,7 +59,7 @@ const props = withDefaults(defineProps<Props>(), {
     
     <div class="space-y-6">
       <CvBlock
-        v-for="exp in props.experiences" 
+        v-for="exp in filteredExperiences" 
         :key="exp.id"
         :id="exp.id"
         :title="exp.position"
@@ -61,6 +70,9 @@ const props = withDefaults(defineProps<Props>(), {
         :active-ids="activeIds"
         :icon="exp.icon"
         type="experience"
+        :tech-clickable="true"
+        :tech-selected="(tech) => isTechSelected(tech)"
+        @tech-click="toggleTech"
       />
     </div>
   </section>

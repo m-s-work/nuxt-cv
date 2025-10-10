@@ -2,6 +2,7 @@
 import type { TimelineItem } from '~/composables/useTimeline'
 
 const { t } = useI18n()
+const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
 
 interface Props {
   projects?: Array<TimelineItem & {
@@ -20,6 +21,14 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   projects: () => [],
   activeIds: () => []
+})
+
+// Filter projects based on selected technologies
+const filteredProjects = computed(() => {
+  return props.projects.filter(project => {
+    if (!project.technologies || project.technologies.length === 0) return true
+    return shouldShowItem(project.technologies)
+  })
 })
 
 // Get all media (screenshots, images, logos) for a project
@@ -41,7 +50,7 @@ function getProjectMedia(project: Props['projects'][0]) {
     
     <div class="space-y-6">
       <CvBlock
-        v-for="project in props.projects" 
+        v-for="project in filteredProjects" 
         :key="project.id"
         :id="project.id"
         :title="project.name"
@@ -53,6 +62,9 @@ function getProjectMedia(project: Props['projects'][0]) {
         :active-ids="activeIds"
         :icon="project.icon"
         type="project"
+        :tech-clickable="true"
+        :tech-selected="(tech) => isTechSelected(tech)"
+        @tech-click="toggleTech"
       />
     </div>
   </section>
