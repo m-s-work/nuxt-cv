@@ -18,12 +18,11 @@ This document lists all available icons for timeline entries in the CV applicati
 
 ### Military & Service
 - `shield` or `military` - Shield icon for military service
-- `helmet` or `army-helmet` - Army-style helmet icon for military service
+- `helmet` or `army-helmet` - Army helmet icon for military service
 
-### Internships & Construction
+### Internships
 - `users` or `internship` - Users/team icon for general internships
-- `hammer` or `construction` - Hammer icon for construction work
-- `wrench` or `tool` - Wrench icon for technical/mechanical work
+- `hammer` or `construction` - Hammer icon for construction site internships
 
 ### Entrepreneurship
 - `lightbulb` or `entrepreneur` - Lightbulb icon for entrepreneurship/innovation
@@ -47,11 +46,6 @@ const otherEntries = ref([
   },
   {
     id: 3,
-    title: 'Mechanical Internship',
-    icon: 'wrench'  // or 'tool'
-  },
-  {
-    id: 4,
     title: 'Self-Employed Consultant',
     icon: 'lightbulb'  // or 'entrepreneur'
   }
@@ -70,15 +64,7 @@ If no icon is specified, the following defaults are used:
 
 Many icons have multiple aliases for convenience:
 - Military: `shield`, `military`, `helmet`, `army-helmet`
-- Construction: `hammer`, `construction`
-- Technical work: `wrench`, `tool`
-- Internship: `users`, `internship`
+- Internship: `users`, `internship`, `hammer`, `construction`
 - Business: `briefcase-business`, `self-employed`, `business`
 - School: `book-open`, `school`
 - Entrepreneurship: `lightbulb`, `entrepreneur`
-
-## Recent Changes
-
-- **Renamed**: Old `hammer` icon is now `wrench` (for technical/mechanical work)
-- **New**: `hammer` icon added specifically for construction work
-- **Updated**: `helmet` icon redesigned to be a proper army-style helmet
