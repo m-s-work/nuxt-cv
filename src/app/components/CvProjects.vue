@@ -3,7 +3,7 @@ import type { TimelineItem } from '~/composables/useTimeline'
 
 const { t } = useI18n()
 const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
-const { scrollToElementSafely } = useSafeScroll()
+const { navigateToSection } = useSafeScroll()
 
 interface Props {
   projects?: Array<TimelineItem & {
@@ -39,13 +39,6 @@ function getProjectMedia(project: Props['projects'][0]) {
   if (project.images) media.push(...project.images)
   if (project.logos) media.push(...project.logos)
   return media
-}
-
-function navigateToSection(event: Event, sectionId: string) {
-  event.preventDefault()
-  const hash = `#${sectionId}`
-  window.history.pushState(null, '', hash)
-  scrollToElementSafely(sectionId)
 }
 
 </script>

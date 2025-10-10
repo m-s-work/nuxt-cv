@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
-const { scrollToElementSafely } = useSafeScroll()
+const { scrollToElementSafely, navigateToSection } = useSafeScroll()
 
 // Skilled and liked technologies
 const skilledTechs = ref([
@@ -11,13 +11,6 @@ const skilledTechs = ref([
 const likedTechs = ref([
   'Python', 'Go', 'React', 'AWS', 'GraphQL'
 ])
-
-function navigateToSection(event: Event, sectionId: string) {
-  event.preventDefault()
-  const hash = `#${sectionId}`
-  window.history.pushState(null, '', hash)
-  scrollToElementSafely(sectionId)
-}
 </script>
 
 <template>

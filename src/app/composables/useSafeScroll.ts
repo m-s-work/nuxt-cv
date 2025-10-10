@@ -41,8 +41,21 @@ export function useSafeScroll() {
     })
   }
 
+  /**
+   * Navigate to a section with smooth scrolling and history management
+   * @param event - The click event to prevent default behavior
+   * @param sectionId - The ID of the section to navigate to
+   */
+  function navigateToSection(event: Event, sectionId: string) {
+    event.preventDefault()
+    const hash = `#${sectionId}`
+    window.history.pushState(null, '', hash)
+    scrollToElementSafely(sectionId)
+  }
+
   return {
     scrollToElementSafely,
-    getHeroHeight
+    getHeroHeight,
+    navigateToSection
   }
 }

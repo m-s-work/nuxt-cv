@@ -3,7 +3,7 @@ import type { TimelineItem } from '~/composables/useTimeline'
 
 const { t } = useI18n()
 const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
-const { scrollToElementSafely } = useSafeScroll()
+const { navigateToSection } = useSafeScroll()
 
 interface Props {
   studies?: Array<TimelineItem & {
@@ -48,13 +48,6 @@ const filteredStudies = computed(() => {
     return shouldShowItem(study.technologies)
   })
 })
-
-function navigateToSection(event: Event, sectionId: string) {
-  event.preventDefault()
-  const hash = `#${sectionId}`
-  window.history.pushState(null, '', hash)
-  scrollToElementSafely(sectionId)
-}
 
 </script>
 
