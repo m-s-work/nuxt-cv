@@ -4,7 +4,7 @@ const { toggleTech, isTechSelected } = useTechFilter()
 
 // Developer's preferred technologies
 const preferredTechs = ref([
-  'Vue.js', 'Nuxt', 'TypeScript', 'Node.js', 'Docker'
+  'C#', 'Vue.js', 'Nuxt', 'TypeScript', 'Node.js', 'Docker'
 ])
 </script>
 

@@ -39,7 +39,7 @@ const experiences = ref([
     startDate: '2019-01-01',
     endDate: '2023-12-31',
     description: 'Did extensive testing of rubber materials for quality assurance',
-    technologies: ['Rubber.js', 'MongoDB']
+    technologies: ['Rubber.js', 'Python', 'MongoDB']
   },
   {
     id: 3,
