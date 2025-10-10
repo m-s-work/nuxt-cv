@@ -3,10 +3,11 @@ import type { RouterConfig } from '@nuxt/schema'
 // Custom router configuration to handle scroll behavior
 export default <RouterConfig>{
   scrollBehavior(to, from, savedPosition) {
-    // If navigating to a different locale of the same route (language switch)
-    // prevent scroll and let the component handle it
-    if (to.path !== from.path && to.name === from.name) {
-      // This is a language switch - don't scroll
+    // Check if we're currently switching languages
+    const isSwitchingLanguage = useState('languageSwitching', () => false)
+    
+    // If switching languages, don't scroll - let the component handle it
+    if (isSwitchingLanguage.value) {
       return false
     }
     

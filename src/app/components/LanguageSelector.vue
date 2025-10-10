@@ -3,26 +3,36 @@ const { locale, locales } = useI18n()
 const switchLocalePath = useSwitchLocalePath()
 const router = useRouter()
 
+// Track if we're currently switching languages
+const isSwitchingLanguage = useState('languageSwitching', () => false)
+
 // Smooth language switch without page jump
 async function switchLanguage(newLocale: string) {
+  if (locale.value === newLocale) return
+  
+  // Mark that we're switching languages
+  isSwitchingLanguage.value = true
+  
   // Save current scroll position before navigation
   const savedScrollY = window.scrollY
   
   // Get the path for the new locale
   const path = switchLocalePath(newLocale)
   
-  // Use router push with savedPosition to prevent scroll-to-top
+  // Navigate to the new locale
   await router.push({
     path,
-    // This prevents the default scroll behavior
     replace: true
   })
   
-  // Restore scroll position immediately after navigation
-  // Use requestAnimationFrame to ensure it happens after DOM updates
-  requestAnimationFrame(() => {
-    window.scrollTo(0, savedScrollY)
-  })
+  // Restore scroll position after navigation completes
+  await nextTick()
+  window.scrollTo(0, savedScrollY)
+  
+  // Reset the flag after a short delay to ensure scroll restoration completes
+  setTimeout(() => {
+    isSwitchingLanguage.value = false
+  }, 100)
 }
 </script>
 
