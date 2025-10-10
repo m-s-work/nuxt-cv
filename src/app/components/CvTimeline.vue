@@ -181,7 +181,7 @@ function handleTimelineClick(entryId: number | string) {
 </script>
 
 <template>
-  <div class="timeline-container hidden xl:block print:block">
+  <div class="timeline-container hidden xl:block print:hidden">
     <svg 
       :width="timelineWidth" 
       :height="timelineData.timelineHeight + TOP_PADDING + BOTTOM_PADDING"
@@ -342,17 +342,10 @@ function handleTimelineClick(entryId: number | string) {
   }
 }
 
-/* Show in print */
+/* Print: hide timeline graphic */
 @media print {
   .timeline-container {
-    display: block !important;
-    position: static;
-    page-break-inside: avoid;
-    margin-right: 0.5rem;
-  }
-  
-  .timeline-svg {
-    max-width: 150px;
+    display: none !important;
   }
 }
 </style>
