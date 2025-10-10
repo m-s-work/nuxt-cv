@@ -9,6 +9,20 @@ useSeoMeta({
 
 // Data for timeline - would eventually come from API
 const experiences = ref([
+  
+  // self employed entry for testing overlapping periods
+  {
+    id: 5,
+    company: 'Freelance Developer',
+    position: 'Self-Employed',
+    period: '2018 - Present',
+    startDate: '2018-05-01',
+    endDate: null,
+    description: 'Providing freelance software development services to various clients',
+    technologies: ['JavaScript', 'Python', 'Django', 'React'],
+    icon: 'lightbulb'
+  },
+
   {
     id: 1,
     company: 'Tech Company Inc.',
@@ -49,7 +63,7 @@ const experiences = ref([
     endDate: '2018-11-30',
     description: 'Performed maintenance and repairs on various car models',
     technologies: ['AutoCAD', 'Diagnostic Tools']
-  }
+  },
 ])
 
 const studies = ref([
@@ -133,6 +147,17 @@ const otherEntries = ref([
     icon: 'shield'
   },
   {
+    id: 1,
+    title: 'Mandatory Military Service',
+    institution: 'Armed Forces',
+    period: '2011 - 2012',
+    startDate: '2011-07-01',
+    endDate: '2012-06-30',
+    description: 'Completed mandatory military service',
+    showPeriod: true,
+    icon: 'helmet'
+  },
+  {
     id: 2,
     title: 'Abitur',
     institution: 'High School',
@@ -174,7 +199,7 @@ const otherEntries = ref([
     endDate: '2009-09-30',
     description: 'Two-month internship in software engineering',
     showPeriod: true,
-    icon: 'users'
+    icon: 'hammer'
   }
 ])
 
