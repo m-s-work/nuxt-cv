@@ -14,8 +14,8 @@ export const useNameFormatter = () => {
     prependedTitles?: string[],
     appendedTitles?: string[]
   ): string => {
-    const prepended = prependedTitles?.join(' ') || ''
-    const appended = appendedTitles?.join(', ') || ''
+    const prepended = prependedTitles?.join(' ') ?? ''
+    const appended = appendedTitles?.join(', ') ?? ''
     
     let result = name
     if (prepended) {
