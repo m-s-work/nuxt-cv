@@ -2,6 +2,7 @@
 import type { TimelineItem } from '~/composables/useTimeline'
 
 const { t } = useI18n()
+const { scrollToElementSafely } = useSafeScroll()
 
 interface Props {
   entries?: Array<TimelineItem & {
@@ -19,12 +20,19 @@ const props = withDefaults(defineProps<Props>(), {
   entries: () => [],
   activeIds: () => []
 })
+
+function navigateToSection(event: Event, sectionId: string) {
+  event.preventDefault()
+  const hash = `#${sectionId}`
+  window.history.pushState(null, '', hash)
+  scrollToElementSafely(sectionId)
+}
 </script>
 
 <template>
   <section>
     <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
-      <a :href="`#other-section`" class="section-heading-link">
+      <a :href="`#other-section`" @click="navigateToSection($event, 'other-section')" class="section-heading-link">
         {{ t('otherExperiences.title') }}
       </a>
     </h2>

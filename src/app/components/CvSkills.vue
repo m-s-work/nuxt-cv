@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { scrollToElementSafely } = useSafeScroll()
 
 // Skilled and liked technologies
 const skilledTechs = ref([
@@ -10,13 +11,20 @@ const skilledTechs = ref([
 const likedTechs = ref([
   'Python', 'Go', 'React', 'AWS', 'GraphQL'
 ])
+
+function navigateToSection(event: Event, sectionId: string) {
+  event.preventDefault()
+  const hash = `#${sectionId}`
+  window.history.pushState(null, '', hash)
+  scrollToElementSafely(sectionId)
+}
 </script>
 
 <template>
   <div class="space-y-6">
     <div>
       <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
-        <a :href="`#skills-section`" class="section-heading-link">
+        <a :href="`#skills-section`" @click="navigateToSection($event, 'skills-section')" class="section-heading-link">
           {{ t('skills.skilled') }}
         </a>
       </h2>
