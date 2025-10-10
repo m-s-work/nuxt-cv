@@ -22,7 +22,7 @@ function navigateTo(sectionId: string) {
         <a 
           @click.prevent="navigateTo(item.id)"
           class="menu-link"
-          href="#"
+          :href="`#${item.id}-section`"
         >
           {{ t(item.label) }}
         </a>
