@@ -6,7 +6,7 @@ const { isFiltering, selectedTechs, clearFilters } = useTechFilter()
 <template>
   <div 
     v-if="isFiltering" 
-    class="print:hidden fixed top-0 left-0 right-0 z-50 bg-green-600 dark:bg-green-700 text-white shadow-lg transition-all duration-300"
+    class="print:hidden fixed top-0 left-0 right-0 z-50 bg-orange-500 dark:bg-orange-600 text-white shadow-lg transition-all duration-300"
   >
     <div class="container mx-auto px-4 py-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
@@ -33,7 +33,7 @@ const { isFiltering, selectedTechs, clearFilters } = useTechFilter()
           variant="outline"
           size="sm"
           @click="clearFilters"
-          class="hover:bg-white hover:text-green-600 transition-colors"
+          class="hover:bg-white hover:text-orange-600 transition-colors"
         >
           {{ t('filter.clear') }}
         </UButton>
