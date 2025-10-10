@@ -260,6 +260,9 @@ onUnmounted(() => {
     <!-- Hero Section - Full page height -->
     <CvHero />
     
+    <!-- Header Menu for Navigation -->
+    <CvHeaderMenu />
+    
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
       <!-- Sidebar -->
@@ -314,20 +317,22 @@ onUnmounted(() => {
           <!-- Content (right side) -->
           <div class="content-area p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
             <!-- Skills Section -->
-            <CvSkills />
+            <div id="skills-section">
+              <CvSkills />
+            </div>
             
             <!-- Experiences Section -->
-            <div ref="experienceSectionRef">
+            <div id="experiences-section" ref="experienceSectionRef">
               <CvExperiences :experiences="experiences" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Studies Section -->
-            <div ref="studiesSectionRef">
+            <div id="studies-section" ref="studiesSectionRef">
               <CvStudies :studies="studies" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Projects Section -->
-            <div ref="projectsSectionRef">
+            <div id="projects-section" ref="projectsSectionRef">
               <CvProjects :projects="projects" :active-ids="activeEntryIds" />
             </div>
 
