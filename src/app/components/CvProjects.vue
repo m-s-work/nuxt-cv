@@ -14,6 +14,7 @@ interface Props {
     screenshots?: string[]
     images?: string[]
     logos?: string[]
+    icon?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -52,6 +53,7 @@ function getProjectMedia(project: Props['projects'][0]) {
         :technologies="project.technologies"
         :images="getProjectMedia(project)"
         :active-ids="activeIds"
+        :icon="project.icon"
         type="project"
       />
     </div>

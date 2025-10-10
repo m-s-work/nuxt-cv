@@ -12,6 +12,7 @@ interface Props {
     description?: string
     showPeriod?: boolean
     images?: string[]
+    icon?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -39,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
         :description="entry.description"
         :images="entry.images"
         :active-ids="activeIds"
+        :icon="entry.icon"
         type="other"
         :show-period="entry.showPeriod !== false"
         :show-technologies="false"

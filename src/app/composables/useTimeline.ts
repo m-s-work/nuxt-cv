@@ -4,6 +4,7 @@ export interface TimelineEntry {
   startDate: string
   endDate: string | null
   label: string
+  icon?: string
 }
 
 export interface TimelineColumn {

@@ -11,6 +11,7 @@ interface Props {
     endDate: string | null
     description: string
     technologies: string[]
+    icon?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -60,6 +61,7 @@ const props = withDefaults(defineProps<Props>(), {
         :description="exp.description"
         :technologies="exp.technologies"
         :active-ids="activeIds"
+        :icon="exp.icon"
         type="experience"
       />
     </div>

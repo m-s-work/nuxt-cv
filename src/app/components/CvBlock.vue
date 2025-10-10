@@ -11,6 +11,7 @@ interface Props {
   type?: 'experience' | 'study' | 'project' | 'other'
   showPeriod?: boolean
   showTechnologies?: boolean
+  icon?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {

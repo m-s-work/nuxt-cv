@@ -129,7 +129,8 @@ const otherEntries = ref([
     startDate: '2011-07-01',
     endDate: '2012-06-30',
     description: 'Completed mandatory military service',
-    showPeriod: true
+    showPeriod: true,
+    icon: 'shield'
   },
   {
     id: 2,
@@ -139,7 +140,8 @@ const otherEntries = ref([
     startDate: '2011-01-01',
     endDate: '2011-06-30',
     description: 'High school diploma (Abitur)',
-    showPeriod: true
+    showPeriod: true,
+    icon: 'award'
   },
   {
     id: 3,
@@ -149,7 +151,8 @@ const otherEntries = ref([
     startDate: '2005-09-01',
     endDate: '2011-06-30',
     description: 'Secondary education',
-    showPeriod: false
+    showPeriod: false,
+    icon: 'book-open'
   },
   {
     id: 4,
@@ -159,7 +162,8 @@ const otherEntries = ref([
     startDate: '2010-07-01',
     endDate: '2010-07-31',
     description: 'One-month internship in web development',
-    showPeriod: true
+    showPeriod: true,
+    icon: 'users'
   },
   {
     id: 5,
@@ -169,7 +173,8 @@ const otherEntries = ref([
     startDate: '2009-08-01',
     endDate: '2009-09-30',
     description: 'Two-month internship in software engineering',
-    showPeriod: true
+    showPeriod: true,
+    icon: 'users'
   }
 ])
 

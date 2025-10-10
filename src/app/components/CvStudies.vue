@@ -10,6 +10,7 @@ interface Props {
     startDate: string
     endDate: string
     focus: string
+    icon?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -56,6 +57,7 @@ const props = withDefaults(defineProps<Props>(), {
         :period="study.period"
         :description="`${t('studies.focus')}: ${study.focus}`"
         :active-ids="activeIds"
+        :icon="study.icon"
         type="study"
         :show-technologies="false"
       />
