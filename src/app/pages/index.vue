@@ -319,20 +319,22 @@ onUnmounted(() => {
           <!-- Content (right side) -->
           <div class="content-area p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
             <!-- Skills Section -->
-            <CvSkills />
+            <div id="skills">
+              <CvSkills />
+            </div>
             
             <!-- Experiences Section -->
-            <div ref="experienceSectionRef">
+            <div id="experiences" ref="experienceSectionRef">
               <CvExperiences :experiences="experiences" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Studies Section -->
-            <div ref="studiesSectionRef">
+            <div id="studies" ref="studiesSectionRef">
               <CvStudies :studies="studies" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Projects Section -->
-            <div ref="projectsSectionRef">
+            <div id="projects" ref="projectsSectionRef">
               <CvProjects :projects="projects" :active-ids="activeEntryIds" />
             </div>
 
