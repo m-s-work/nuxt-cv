@@ -1,6 +1,6 @@
 export interface TimelineEntry {
   id: number | string
-  type: 'experience' | 'study'
+  type: 'experience' | 'study' | 'project'
   startDate: string
   endDate: string | null
   label: string

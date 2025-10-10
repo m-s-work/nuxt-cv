@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { toggleTech, isTechSelected, shouldShowItem } = useTechFilter()
 
 interface Props {
   studies?: Array<{
@@ -10,6 +11,7 @@ interface Props {
     startDate: string
     endDate: string
     focus: string
+    technologies?: string[]
   }>
   activeIds?: (number | string)[]
 }
@@ -38,6 +40,17 @@ const props = withDefaults(defineProps<Props>(), {
   activeIds: () => []
 })
 
+// Filter studies based on selected technologies
+const filteredStudies = computed(() => {
+  return props.studies.filter(study => {
+    // If study has no technologies, always show it (unless filtering is active)
+    if (!study.technologies || study.technologies.length === 0) {
+      return true
+    }
+    return shouldShowItem(study.technologies)
+  })
+})
+
 // Check if a study is active
 function isActive(studyId: number): boolean {
   return props.activeIds.includes(`study-${studyId}`)
@@ -60,7 +73,7 @@ function handleHeadingClick(elementId: string) {
     
     <div class="space-y-6">
       <UCard 
-        v-for="study in props.studies" 
+        v-for="study in filteredStudies" 
         :key="study.id" 
         :id="`study-${study.id}`"
         :class="{
@@ -92,9 +105,21 @@ function handleHeadingClick(elementId: string) {
           </div>
         </template>
 
-        <p class="text-gray-700 dark:text-gray-300 print:text-black">
+        <p class="text-gray-700 dark:text-gray-300 print:text-black mb-4">
           {{ t('studies.focus') }}: {{ study.focus }}
         </p>
+
+        <!-- Technology Badges (if any) -->
+        <div v-if="study.technologies && study.technologies.length > 0" class="flex flex-wrap gap-2">
+          <TechBadge 
+            v-for="tech in study.technologies" 
+            :key="tech"
+            :technology="tech"
+            clickable
+            :selected="isTechSelected(tech)"
+            @click="toggleTech(tech)"
+          />
+        </div>
       </UCard>
     </div>
   </section>
