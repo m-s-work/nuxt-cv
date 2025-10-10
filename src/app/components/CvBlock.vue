@@ -62,7 +62,6 @@ const activeColorClass = computed(() => {
     :class="{
       'print:!shadow-none print:!border print:!border-gray-300': true,
       'transition-all duration-300': true,
-      'shadow-lg': isActive(),
       'translate-x-2': isActive()
     }"
   >
