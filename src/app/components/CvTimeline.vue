@@ -165,8 +165,8 @@ function getIconSVG(entry: TimelineEntry & { column: number; startY: number; hei
     
     case 'helmet':
     case 'army-helmet':
-      // Army helmet icon
-      return '<path d="M12 2C6.48 2 2 6.48 2 12c0 2.21.72 4.25 1.94 5.9L12 22l8.06-4.1C21.28 16.25 22 14.21 22 12c0-5.52-4.48-10-10-10z"></path><ellipse cx="12" cy="12" rx="8" ry="4"></ellipse>'
+      // Army-style helmet icon
+      return '<path d="M12 3C7 3 3 5.5 3 8.5V12c0 1.5 1 3 2 4v3c0 .5.5 1 1 1h12c.5 0 1-.5 1-1v-3c1-1 2-2.5 2-4V8.5C21 5.5 17 3 12 3z"></path><ellipse cx="12" cy="9" rx="7" ry="2.5"></ellipse><path d="M5 12v2h2v-2z"></path><path d="M17 12v2h2v-2z"></path>'
     
     case 'award':
     case 'abitur':
@@ -183,10 +183,15 @@ function getIconSVG(entry: TimelineEntry & { column: number; startY: number; hei
       // Users icon for internships
       return '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
     
+    case 'wrench':
+    case 'tool':
+      // Wrench icon (renamed from old hammer)
+      return '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>'
+    
     case 'hammer':
     case 'construction':
-      // Hammer icon for construction internships
-      return '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>'
+      // Hammer icon for construction work
+      return '<path d="M15 3v4m0 0h4m-4 0l5-5"></path><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"></path><line x1="6" y1="17" x2="18" y2="17"></line>'
     
     case 'briefcase-business':
     case 'self-employed':
