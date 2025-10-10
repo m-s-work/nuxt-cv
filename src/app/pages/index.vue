@@ -264,16 +264,17 @@ onUnmounted(() => {
     <!-- Filter Indicator (shown when filtering is active) -->
     <FilterIndicator />
     
-    <!-- Add padding when filter is active to prevent content from being hidden -->
-    <div :class="{ 'pt-16': isFiltering }">
-      <!-- Hero Section - Full page height -->
-      <CvHero />
-    
+    <!-- Hero Section - Full page height -->
+    <CvHero />
+  
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
       <!-- Sidebar -->
       <aside 
-        class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
+        :class="[
+          'sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:self-start lg:min-h-screen lg:overflow-y-auto',
+          { 'lg:top-16': isFiltering, 'lg:top-0': !isFiltering }
+        ]"
       >
         <div class="p-6 space-y-8">
           <!-- Profile with Picture (fades in on scroll) - Hidden on mobile -->
@@ -357,7 +358,6 @@ onUnmounted(() => {
           </div>
         </div>
       </main>
-    </div>
     </div>
   </div>
 </template>

@@ -2,6 +2,7 @@
 import type { TimelineEntry } from '~/composables/useTimeline'
 
 const { scrollToElementSafely } = useSafeScroll()
+const { isFiltering } = useTechFilter()
 
 interface Props {
   experiences: Array<{
@@ -181,7 +182,7 @@ function handleTimelineClick(entryId: number | string) {
 </script>
 
 <template>
-  <div class="timeline-container hidden xl:block print:block">
+  <div :class="['timeline-container hidden xl:block print:block', { 'pt-16': isFiltering }]">
     <svg 
       :width="timelineWidth" 
       :height="timelineData.timelineHeight + TOP_PADDING + BOTTOM_PADDING"
