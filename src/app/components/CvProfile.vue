@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { formatFullName } = useNameFormatter()
 
 // Profile information
 const profile = ref({
@@ -11,19 +12,9 @@ const profile = ref({
 })
 
 // Compute full name with titles
-const fullName = computed(() => {
-  const prepended = profile.value.prependedTitles?.join(' ') || ''
-  const appended = profile.value.appendedTitles?.join(', ') || ''
-  
-  let result = profile.value.name
-  if (prepended) {
-    result = `${prepended} ${result}`
-  }
-  if (appended) {
-    result = `${result}, ${appended}`
-  }
-  return result
-})
+const fullName = computed(() => 
+  formatFullName(profile.value.name, profile.value.prependedTitles, profile.value.appendedTitles)
+)
 </script>
 
 <template>
