@@ -22,12 +22,19 @@ interface Props {
     startDate: string
     endDate: string | null
   }>
+  otherEntries?: Array<{
+    id: number
+    title: string
+    startDate: string
+    endDate: string | null
+  }>
   activeIds?: (number | string)[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   activeIds: () => [],
-  projects: () => []
+  projects: () => [],
+  otherEntries: () => []
 })
 
 const { parseDate, getYearRange, assignColumns, calculatePositions } = useTimeline()
@@ -63,6 +70,16 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       startDate: project.startDate,
       endDate: project.endDate,
       label: project.name
+    })
+  })
+  
+  props.otherEntries.forEach(entry => {
+    entries.push({
+      id: `other-${entry.id}`,
+      type: 'other',
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+      label: entry.title
     })
   })
   
@@ -124,16 +141,16 @@ function isActive(entryId: number | string): boolean {
 }
 
 // Get color for entry type
-function getEntryColor(type: 'experience' | 'study' | 'project', active: boolean): string {
+function getEntryColor(type: 'experience' | 'study' | 'project' | 'other', active: boolean): string {
   if (active) {
-    return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : '#9333ea' // blue-600, green-600, or purple-600
+    return type === 'experience' ? '#2563eb' : type === 'study' ? '#059669' : type === 'project' ? '#9333ea' : '#ea580c' // blue-600, green-600, purple-600, or orange-600
   }
-  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : '#e9d5ff' // blue-200, green-200, or purple-200
+  return type === 'experience' ? '#bfdbfe' : type === 'study' ? '#a7f3d0' : type === 'project' ? '#e9d5ff' : '#fed7aa' // blue-200, green-200, purple-200, or orange-200
 }
 
 // Get stroke color for entry type
-function getStrokeColor(type: 'experience' | 'study' | 'project'): string {
-  return type === 'experience' ? '#1e40af' : type === 'study' ? '#047857' : '#7e22ce' // blue-800, green-700, or purple-700
+function getStrokeColor(type: 'experience' | 'study' | 'project' | 'other'): string {
+  return type === 'experience' ? '#1e40af' : type === 'study' ? '#047857' : type === 'project' ? '#7e22ce' : '#c2410c' // blue-800, green-700, purple-700, or orange-700
 }
 
 // Handle click on timeline entry to scroll to corresponding section
@@ -142,6 +159,7 @@ function handleEntryClick(entryId: number | string) {
     .replace('exp-', 'experience-')
     .replace('study-', 'study-')
     .replace('project-', 'project-')
+    .replace('other-', 'other-')
   const element = document.getElementById(elementId)
   if (element) {
     scrollToElementSafely(elementId, 'smooth')

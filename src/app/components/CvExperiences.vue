@@ -41,18 +41,6 @@ const props = withDefaults(defineProps<Props>(), {
   activeIds: () => []
 })
 
-// Check if an experience is active
-function isActive(expId: number): boolean {
-  return props.activeIds.includes(`exp-${expId}`)
-}
-
-// Handle heading click to update URL hash
-function handleHeadingClick(elementId: string) {
-  if (typeof window !== 'undefined') {
-    window.history.pushState(null, '', `#${elementId}`)
-  }
-}
-
 </script>
 
 <template>
@@ -62,52 +50,18 @@ function handleHeadingClick(elementId: string) {
     </h2>
     
     <div class="space-y-6">
-      <UCard 
+      <CvBlock
         v-for="exp in props.experiences" 
-        :key="exp.id" 
-        :id="`experience-${exp.id}`"
-        :class="{
-          'print:!shadow-none print:!border print:!border-gray-300': true,
-          'transition-all duration-300': true,
-          'shadow-lg': isActive(exp.id),
-          'translate-x-2': isActive(exp.id)
-        }"
-      >
-        <template #header>
-          <div class="flex justify-between items-start">
-            <div>
-              <h3 
-                @click="handleHeadingClick(`experience-${exp.id}`)"
-                :class="{
-                  'text-xl font-semibold print:text-black cursor-pointer hover:underline': true,
-                  'text-blue-600 dark:text-blue-400': isActive(exp.id),
-                  'text-gray-900 dark:text-white': !isActive(exp.id)
-                }"
-              >
-                {{ exp.position }}
-              </h3>
-              <p class="text-gray-600 dark:text-gray-400 print:text-gray-700">
-                {{ exp.company }}
-              </p>
-            </div>
-            <UBadge color="primary" variant="subtle" class="print:!bg-gray-100 print:!text-black">
-              {{ exp.period }}
-            </UBadge>
-          </div>
-        </template>
-
-        <p class="text-gray-700 dark:text-gray-300 print:text-black mb-4">
-          {{ exp.description }}
-        </p>
-
-        <div class="flex flex-wrap gap-2">
-          <TechBadge 
-            v-for="tech in exp.technologies" 
-            :key="tech"
-            :technology="tech"
-          />
-        </div>
-      </UCard>
+        :key="exp.id"
+        :id="exp.id"
+        :title="exp.position"
+        :subtitle="exp.company"
+        :period="exp.period"
+        :description="exp.description"
+        :technologies="exp.technologies"
+        :active-ids="activeIds"
+        type="experience"
+      />
     </div>
   </section>
 </template>
