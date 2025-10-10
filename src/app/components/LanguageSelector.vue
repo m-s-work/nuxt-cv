@@ -20,9 +20,9 @@ function switchLanguage(newLocale: string) {
   }
   
   // Preserve hash from current location
-  // window.location.hash includes the # symbol, route.hash also includes it
+  // window.location.hash includes the # symbol
   const currentHash = window.location.hash
-  if (currentHash && !newUrl.includes(currentHash)) {
+  if (currentHash && !newUrl.endsWith(currentHash)) {
     newUrl += currentHash
   }
   
