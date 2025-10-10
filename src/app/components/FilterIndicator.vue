@@ -6,13 +6,13 @@ const { isFiltering, selectedTechs, clearFilters } = useTechFilter()
 <template>
   <div 
     v-if="isFiltering" 
-    class="print:hidden fixed top-0 left-0 right-0 z-50 bg-orange-500 dark:bg-orange-600 text-white shadow-lg transition-all duration-300"
+    class="fixed top-0 left-0 right-0 z-50 bg-orange-500 dark:bg-orange-600 text-white shadow-lg transition-all duration-300 print:relative print:bg-orange-400 print:text-black print:shadow-none print:mb-4"
   >
     <div class="container mx-auto px-4 py-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-3 flex-wrap">
           <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-funnel" class="w-5 h-5" />
+            <UIcon name="i-heroicons-funnel" class="w-5 h-5 print:hidden" />
             <span class="font-semibold">{{ t('filter.active') }}:</span>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -22,21 +22,18 @@ const { isFiltering, selectedTechs, clearFilters } = useTechFilter()
               color="white"
               variant="solid"
               size="md"
-              class="px-3 py-1"
+              class="px-3 py-1 print:!bg-gray-200 print:!text-black print:border print:border-gray-400"
             >
               {{ tech }}
             </UBadge>
           </div>
         </div>
-        <UButton 
-          color="white" 
-          variant="outline"
-          size="sm"
+        <button
           @click="clearFilters"
-          class="hover:bg-white hover:text-orange-600 transition-colors"
+          class="text-sm underline hover:no-underline print:hidden"
         >
           {{ t('filter.clear') }}
-        </UButton>
+        </button>
       </div>
     </div>
   </div>
