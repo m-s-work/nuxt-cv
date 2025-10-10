@@ -1,20 +1,18 @@
 <script setup lang="ts">
+import type { TimelineItem } from '~/composables/useTimeline'
+
 const { t } = useI18n()
 
 interface Props {
-  projects?: Array<{
-    id: number
+  projects?: Array<TimelineItem & {
     name: string
     type: string
     description: string
     technologies: string[]
     period: string
-    startDate: string
-    endDate: string | null
     screenshots?: string[]
     images?: string[]
     logos?: string[]
-    icon?: string
   }>
   activeIds?: (number | string)[]
 }

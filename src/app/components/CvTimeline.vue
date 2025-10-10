@@ -1,37 +1,13 @@
 <script setup lang="ts">
-import type { TimelineEntry } from '~/composables/useTimeline'
+import type { TimelineEntry, TimelineItem } from '~/composables/useTimeline'
 
 const { scrollToElementSafely } = useSafeScroll()
 
 interface Props {
-  experiences: Array<{
-    id: number
-    position: string
-    startDate: string
-    endDate: string | null
-    icon?: string
-  }>
-  studies: Array<{
-    id: number
-    degree: string
-    startDate: string
-    endDate: string
-    icon?: string
-  }>
-  projects: Array<{
-    id: number
-    name: string
-    startDate: string
-    endDate: string | null
-    icon?: string
-  }>
-  otherEntries?: Array<{
-    id: number
-    title: string
-    startDate: string
-    endDate: string | null
-    icon?: string
-  }>
+  experiences: Array<TimelineItem & { position: string }>
+  studies: Array<TimelineItem & { degree: string; endDate: string }>
+  projects: Array<TimelineItem & { name: string }>
+  otherEntries?: Array<TimelineItem & { title: string }>
   activeIds?: (number | string)[]
 }
 

@@ -1,16 +1,15 @@
 <script setup lang="ts">
+import type { TimelineItem } from '~/composables/useTimeline'
+
 const { t } = useI18n()
 
 interface Props {
-  studies?: Array<{
-    id: number
+  studies?: Array<TimelineItem & {
     institution: string
     degree: string
     period: string
-    startDate: string
-    endDate: string
+    endDate: string  // Override to make non-nullable for studies
     focus: string
-    icon?: string
   }>
   activeIds?: (number | string)[]
 }
