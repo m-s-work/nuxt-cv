@@ -1,43 +1,36 @@
 <script setup lang="ts">
 const { locale, locales } = useI18n()
 const switchLocalePath = useSwitchLocalePath()
-const router = useRouter()
 
-// Track if we're currently switching languages
-const isSwitchingLanguage = useState('languageSwitching', () => false)
-
-// Smooth language switch without page jump
-async function switchLanguage(newLocale: string) {
+// Switch language without triggering navigation
+function switchLanguage(newLocale: string) {
   if (locale.value === newLocale) return
-  
-  // Mark that we're switching languages
-  isSwitchingLanguage.value = true
-  
-  // Save current scroll position before navigation
-  const savedScrollY = window.scrollY
   
   // Get current route info to preserve query and hash
   const route = useRoute()
   
   // Get the path for the new locale
-  const path = switchLocalePath(newLocale)
+  const newPath = switchLocalePath(newLocale)
   
-  // Navigate to the new locale, preserving query params and hash
-  await router.push({
-    path,
-    query: route.query,
-    hash: route.hash,
-    replace: true
-  })
+  // Build the new URL with query params and hash
+  let newUrl = newPath
+  const queryString = new URLSearchParams(route.query as Record<string, string>).toString()
+  if (queryString) {
+    newUrl += '?' + queryString
+  }
   
-  // Restore scroll position after navigation completes
-  await nextTick()
-  window.scrollTo(0, savedScrollY)
+  // Preserve hash from current location
+  // window.location.hash includes the # symbol
+  const currentHash = window.location.hash
+  if (currentHash && !newUrl.endsWith(currentHash)) {
+    newUrl += currentHash
+  }
   
-  // Reset the flag after a short delay to ensure scroll restoration completes
-  setTimeout(() => {
-    isSwitchingLanguage.value = false
-  }, 100)
+  // Update the URL without triggering navigation (push to history)
+  window.history.pushState({}, '', newUrl)
+  
+  // Update the locale (this will update all i18n content)
+  locale.value = newLocale
 }
 </script>
 
