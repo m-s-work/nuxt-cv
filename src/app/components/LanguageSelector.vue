@@ -1,35 +1,63 @@
 <script setup lang="ts">
 const { locale, locales } = useI18n()
 const switchLocalePath = useSwitchLocalePath()
+const router = useRouter()
 
-const availableLocales = computed(() => {
-  return locales.value.filter((i) => i.code !== locale.value)
-})
+// Track if we're currently switching languages
+const isSwitchingLanguage = useState('languageSwitching', () => false)
 
-const currentLocale = computed(() => {
-  return locales.value.find((i) => i.code === locale.value)
-})
+// Smooth language switch without page jump
+async function switchLanguage(newLocale: string) {
+  if (locale.value === newLocale) return
+  
+  // Mark that we're switching languages
+  isSwitchingLanguage.value = true
+  
+  // Save current scroll position before navigation
+  const savedScrollY = window.scrollY
+  
+  // Get current route info to preserve query and hash
+  const route = useRoute()
+  
+  // Get the path for the new locale
+  const path = switchLocalePath(newLocale)
+  
+  // Navigate to the new locale, preserving query params and hash
+  await router.push({
+    path,
+    query: route.query,
+    hash: route.hash,
+    replace: true
+  })
+  
+  // Restore scroll position after navigation completes
+  await nextTick()
+  window.scrollTo(0, savedScrollY)
+  
+  // Reset the flag after a short delay to ensure scroll restoration completes
+  setTimeout(() => {
+    isSwitchingLanguage.value = false
+  }, 100)
+}
 </script>
 
 <template>
   <div class="language-selector print:hidden">
-    <div class="flex items-center gap-2">
-      <!-- Current language display -->
-      <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-        {{ currentLocale?.code.toUpperCase() }}
-      </span>
-      
-      <!-- Language switcher buttons -->
-      <div class="flex gap-1">
-        <NuxtLink
-          v-for="locale in availableLocales"
-          :key="locale.code"
-          :to="switchLocalePath(locale.code)"
-          class="px-2 py-1 text-sm rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 transition-colors"
-        >
-          {{ locale.code.toUpperCase() }}
-        </NuxtLink>
-      </div>
+    <div class="language-toggle">
+      <!-- Language buttons with active state -->
+      <button
+        v-for="loc in locales"
+        :key="loc.code"
+        @click="switchLanguage(loc.code)"
+        :class="[
+          'language-btn',
+          locale === loc.code ? 'active' : ''
+        ]"
+        :aria-label="`Switch to ${loc.name}`"
+        :aria-current="locale === loc.code ? 'true' : 'false'"
+      >
+        {{ loc.code.toUpperCase() }}
+      </button>
     </div>
   </div>
 </template>
@@ -40,14 +68,66 @@ const currentLocale = computed(() => {
   top: 1rem;
   right: 1rem;
   z-index: 50;
-  background-color: rgba(255, 255, 255, 0.95);
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.dark .language-selector {
+.language-toggle {
+  display: inline-flex;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+.dark .language-toggle {
   background-color: rgba(31, 41, 55, 0.95);
+  border-color: rgba(75, 85, 99, 0.8);
+}
+
+.language-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  color: #6b7280;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  min-width: 3rem;
+}
+
+.dark .language-btn {
+  color: #9ca3af;
+}
+
+.language-btn:hover:not(.active) {
+  background-color: rgba(229, 231, 235, 0.5);
+  color: #374151;
+}
+
+.dark .language-btn:hover:not(.active) {
+  background-color: rgba(75, 85, 99, 0.5);
+  color: #d1d5db;
+}
+
+.language-btn.active {
+  background-color: #3b82f6;
+  color: white;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.4);
+}
+
+.dark .language-btn.active {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.language-btn:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #3b82f6;
+  ring-offset: 2px;
 }
 
 @media print {
@@ -56,18 +136,3 @@ const currentLocale = computed(() => {
   }
 }
 </style>
-
-<i18n lang="json">
-{
-  "en": {
-    "language": {
-      "switch": "Switch Language"
-    }
-  },
-  "de": {
-    "language": {
-      "switch": "Sprache wechseln"
-    }
-  }
-}
-</i18n>
