@@ -67,9 +67,8 @@ function handleHeadingClick(elementId: string) {
         :key="exp.id" 
         :id="`experience-${exp.id}`"
         :class="{
-          'print:!shadow-none print:!border print:!border-gray-300': true,
+          'print:!shadow-none': true,
           'transition-all duration-300': true,
-          'shadow-lg': isActive(exp.id),
           'translate-x-2': isActive(exp.id)
         }"
       >
