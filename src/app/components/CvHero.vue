@@ -54,9 +54,9 @@ function scrollToContent() {
       <h1 class="hero-title">
         <!-- Option 2: Inline academic titles with name -->
         <template v-if="titleDisplayMode === 'inline'">
-          <span v-if="profile.academicTitlePrefix" class="text-5xl md:text-6xl">{{ profile.academicTitlePrefix }} </span>
+          <span v-if="profile.academicTitlePrefix" class="text-5xl md:text-6xl">{{ profile.academicTitlePrefix }}&nbsp;</span>
           <span>{{ profile.name }}</span>
-          <span v-if="profile.academicTitleSuffix" class="text-5xl md:text-6xl">, {{ profile.academicTitleSuffix }}</span>
+          <span v-if="profile.academicTitleSuffix" class="text-5xl md:text-6xl">,&nbsp;{{ profile.academicTitleSuffix }}</span>
         </template>
         <!-- Default: Just name -->
         <template v-else>

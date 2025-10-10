@@ -43,9 +43,9 @@ const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-t
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black">
         <!-- Option 2: Inline academic titles with name -->
         <template v-if="titleDisplayMode === 'inline'">
-          <span v-if="profile.academicTitlePrefix" class="text-2xl">{{ profile.academicTitlePrefix }} </span>
+          <span v-if="profile.academicTitlePrefix" class="text-2xl">{{ profile.academicTitlePrefix }}&nbsp;</span>
           <span>{{ profile.name }}</span>
-          <span v-if="profile.academicTitleSuffix" class="text-2xl">, {{ profile.academicTitleSuffix }}</span>
+          <span v-if="profile.academicTitleSuffix" class="text-2xl">,&nbsp;{{ profile.academicTitleSuffix }}</span>
         </template>
         <!-- Default: Just name -->
         <template v-else>
