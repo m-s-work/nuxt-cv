@@ -38,7 +38,7 @@ const currentLocale = computed(() => {
 .language-selector {
   position: fixed;
   top: 1rem;
-  right: 1rem;
+  left: 1rem;
   z-index: 50;
   background-color: rgba(255, 255, 255, 0.95);
   padding: 0.5rem 1rem;
