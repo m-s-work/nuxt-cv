@@ -10,7 +10,14 @@ const menuItems = [
   { id: 'other', label: 'menu.other' }
 ]
 
-function navigateTo(sectionId: string) {
+function navigateTo(event: Event, sectionId: string) {
+  event.preventDefault()
+  const hash = `#${sectionId}-section`
+  
+  // Update URL hash to add to browser history
+  window.history.pushState(null, '', hash)
+  
+  // Scroll to the section
   scrollToElementSafely(`${sectionId}-section`)
 }
 </script>
@@ -20,7 +27,7 @@ function navigateTo(sectionId: string) {
     <ul class="menu-list">
       <li v-for="item in menuItems" :key="item.id" class="menu-item">
         <a 
-          @click.prevent="navigateTo(item.id)"
+          @click="navigateTo($event, item.id)"
           class="menu-link"
           :href="`#${item.id}-section`"
         >

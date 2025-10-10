@@ -24,7 +24,9 @@ const props = withDefaults(defineProps<Props>(), {
 <template>
   <section>
     <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
-      {{ t('otherExperiences.title') }}
+      <a :href="`#other-section`" class="section-heading-link">
+        {{ t('otherExperiences.title') }}
+      </a>
     </h2>
     
     <div class="space-y-6">

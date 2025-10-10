@@ -45,7 +45,9 @@ function getProjectMedia(project: Props['projects'][0]) {
 <template>
   <section>
     <h2 class="text-3xl font-bold text-gray-900 dark:text-white print:text-black mb-6">
-      {{ t('projects.title') }}
+      <a :href="`#projects-section`" class="section-heading-link">
+        {{ t('projects.title') }}
+      </a>
     </h2>
     
     <div class="space-y-6">

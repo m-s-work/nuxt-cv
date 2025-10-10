@@ -16,7 +16,9 @@ const likedTechs = ref([
   <div class="space-y-6">
     <div>
       <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
-        {{ t('skills.skilled') }}
+        <a :href="`#skills-section`" class="section-heading-link">
+          {{ t('skills.skilled') }}
+        </a>
       </h2>
       
       <div class="flex flex-wrap gap-2">
