@@ -24,7 +24,7 @@ const profile = ref({
 
 ## Design Options
 
-The feature includes 4 different display modes controlled by the `titleDisplayMode` variable:
+The feature includes 3 different display modes controlled by the `titleDisplayMode` variable:
 
 ### 1. Inline Mode (`'inline'`)
 Academic titles are displayed inline with the name:
@@ -33,18 +33,7 @@ Academic titles are displayed inline with the name:
 - **Hero**: Slightly smaller font size for titles to maintain visual hierarchy
 - **Sidebar**: Integrated into the name heading
 
-### 2. Separate Row Mode (`'separate-row'`) - **DEFAULT**
-Academic titles are displayed in a distinct, emphasized section:
-- **Format**: 
-  ```
-  ACADEMIC TITLES
-  Dr. · Ph.D.
-  ```
-- **Best for**: Highlighting academic credentials
-- **Hero**: Displayed in a semi-transparent card with backdrop blur
-- **Sidebar**: Separated with a border-top and labeled section
-
-### 3. Above Name Mode (`'above-name'`)
+### 2. Above Name Mode (`'above-name'`) - **DEFAULT**
 Academic titles are shown in a subtle row above the name:
 - **Format**:
   ```
@@ -56,7 +45,7 @@ Academic titles are shown in a subtle row above the name:
 - **Hero**: Light blue text matching the hero color scheme
 - **Sidebar**: Medium gray text for subtlety
 
-### 4. Below Title Mode (`'below-title'`)
+### 3. Below Title Mode (`'below-title'`)
 Academic titles are shown below the job title:
 - **Format**:
   ```
@@ -73,7 +62,7 @@ Academic titles are shown below the job title:
 To change the display mode, update the `titleDisplayMode` ref in both components:
 
 ```typescript
-const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-title'>('separate-row')
+const titleDisplayMode = ref<'inline' | 'above-name' | 'below-title'>('above-name')
 ```
 
 ## Internationalization
@@ -90,13 +79,11 @@ Both components support English and German translations:
 
 ### Hero Section
 - Uses white/light blue colors to maintain contrast against the gradient background
-- Separate row mode includes a semi-transparent card effect
 - Responsive font sizes for mobile and desktop
 
 ### Sidebar Profile  
 - Uses gray tones to match the sidebar color scheme
 - Print-friendly styles included
-- Separate row mode includes subtle border separation
 
 ## Graceful Degradation
 

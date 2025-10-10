@@ -11,8 +11,8 @@ const profile = ref({
 })
 
 // Design option for displaying academic titles
-// Options: 'inline', 'separate-row', 'above-name', 'below-title'
-const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-title'>('above-name')
+// Options: 'inline', 'above-name', 'below-title'
+const titleDisplayMode = ref<'inline' | 'above-name' | 'below-title'>('above-name')
 </script>
 
 <template>
@@ -60,18 +60,6 @@ const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-t
       <!-- Option 3: Academic titles on separate row below title -->
       <div v-if="titleDisplayMode === 'below-title' && (profile.academicTitlePrefix || profile.academicTitleSuffix)" class="mt-2">
         <p class="text-sm font-medium text-gray-700 dark:text-gray-300 print:text-gray-600">
-          <span v-if="profile.academicTitlePrefix">{{ profile.academicTitlePrefix }}</span>
-          <span v-if="profile.academicTitlePrefix && profile.academicTitleSuffix"> · </span>
-          <span v-if="profile.academicTitleSuffix">{{ profile.academicTitleSuffix }}</span>
-        </p>
-      </div>
-
-      <!-- Option 4: Academic titles on completely separate row with emphasis -->
-      <div v-if="titleDisplayMode === 'separate-row' && (profile.academicTitlePrefix || profile.academicTitleSuffix)" class="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600 print:border-gray-400">
-        <p class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 print:text-gray-500 mb-1">
-          {{ t('profile.academicTitles') }}
-        </p>
-        <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 print:text-gray-700">
           <span v-if="profile.academicTitlePrefix">{{ profile.academicTitlePrefix }}</span>
           <span v-if="profile.academicTitlePrefix && profile.academicTitleSuffix"> · </span>
           <span v-if="profile.academicTitleSuffix">{{ profile.academicTitleSuffix }}</span>

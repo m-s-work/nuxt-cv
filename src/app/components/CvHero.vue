@@ -10,8 +10,8 @@ const profile = ref({
 })
 
 // Design option for displaying academic titles
-// Options: 'inline', 'separate-row', 'above-name', 'below-title'
-const titleDisplayMode = ref<'inline' | 'separate-row' | 'above-name' | 'below-title'>('above-name')
+// Options: 'inline', 'above-name', 'below-title'
+const titleDisplayMode = ref<'inline' | 'above-name' | 'below-title'>('above-name')
 
 // Function to scroll down past the hero section
 function scrollToContent() {
@@ -75,20 +75,6 @@ function scrollToContent() {
           <span v-if="profile.academicTitlePrefix && profile.academicTitleSuffix"> · </span>
           <span v-if="profile.academicTitleSuffix">{{ profile.academicTitleSuffix }}</span>
         </p>
-      </div>
-
-      <!-- Option 4: Academic titles on completely separate row with emphasis -->
-      <div v-if="titleDisplayMode === 'separate-row' && (profile.academicTitlePrefix || profile.academicTitleSuffix)" class="mb-6">
-        <div class="inline-block px-6 py-2 bg-white bg-opacity-20 rounded-lg backdrop-blur-sm">
-          <p class="text-xs uppercase tracking-wider text-blue-100 mb-1">
-            {{ t('hero.academicTitles') }}
-          </p>
-          <p class="text-lg font-semibold text-white">
-            <span v-if="profile.academicTitlePrefix">{{ profile.academicTitlePrefix }}</span>
-            <span v-if="profile.academicTitlePrefix && profile.academicTitleSuffix"> · </span>
-            <span v-if="profile.academicTitleSuffix">{{ profile.academicTitleSuffix }}</span>
-          </p>
-        </div>
       </div>
 
       <div class="scroll-indicator cursor-pointer" @click="scrollToContent">
