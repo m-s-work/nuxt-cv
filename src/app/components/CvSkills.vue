@@ -15,31 +15,32 @@ const likedTechs = ref([
 <template>
   <section id="skills-section">
     <div class="space-y-6">
-    <div>
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
-        {{ t('skills.skilled') }}
-      </h2>
-      
-      <div class="flex flex-wrap gap-2">
-        <TechBadge 
-          v-for="tech in skilledTechs" 
-          :key="tech"
-          :technology="tech"
-        />
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
+          {{ t('skills.skilled') }}
+        </h2>
+        
+        <div class="flex flex-wrap gap-2">
+          <TechBadge 
+            v-for="tech in skilledTechs" 
+            :key="tech"
+            :technology="tech"
+          />
+        </div>
       </div>
-    </div>
 
-    <div>
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
-        {{ t('skills.liked') }}
-      </h2>
-      
-      <div class="flex flex-wrap gap-2">
-        <TechBadge 
-          v-for="tech in likedTechs" 
-          :key="tech"
-          :technology="tech"
-        />
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
+          {{ t('skills.liked') }}
+        </h2>
+        
+        <div class="flex flex-wrap gap-2">
+          <TechBadge 
+            v-for="tech in likedTechs" 
+            :key="tech"
+            :technology="tech"
+          />
+        </div>
       </div>
     </div>
   </section>
