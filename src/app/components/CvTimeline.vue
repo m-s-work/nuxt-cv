@@ -163,6 +163,11 @@ function getIconSVG(entry: TimelineEntry & { column: number; startY: number; hei
       // Shield icon for military service
       return '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>'
     
+    case 'helmet':
+    case 'army-helmet':
+      // Army helmet icon
+      return '<path d="M12 2C6.48 2 2 6.48 2 12c0 2.21.72 4.25 1.94 5.9L12 22l8.06-4.1C21.28 16.25 22 14.21 22 12c0-5.52-4.48-10-10-10z"></path><ellipse cx="12" cy="12" rx="8" ry="4"></ellipse>'
+    
     case 'award':
     case 'abitur':
       // Award/medal icon for Abitur
@@ -177,6 +182,22 @@ function getIconSVG(entry: TimelineEntry & { column: number; startY: number; hei
     case 'users':
       // Users icon for internships
       return '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>'
+    
+    case 'hammer':
+    case 'construction':
+      // Hammer icon for construction internships
+      return '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>'
+    
+    case 'briefcase-business':
+    case 'self-employed':
+    case 'business':
+      // Briefcase with star icon for self-employed/business
+      return '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path><path d="M12 11l1.5 3 3 .5-2.5 2 .5 3-2.5-1.5L9.5 19.5l.5-3-2.5-2 3-.5z"></path>'
+    
+    case 'lightbulb':
+    case 'entrepreneur':
+      // Lightbulb icon for entrepreneurship/innovation
+      return '<path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>'
     
     default:
       // Default to code icon
