@@ -292,6 +292,11 @@ onUnmounted(() => {
             <CvLanguages />
           </div>
           
+          <!-- Preferred Technologies - Hidden on mobile -->
+          <div class="hidden lg:block print:block">
+            <CvPreferredTechs />
+          </div>
+          
           <!-- Driving Licenses - Hidden on mobile -->
           <div class="hidden lg:block print:block">
             <CvDrivingLicenses />
@@ -348,6 +353,9 @@ onUnmounted(() => {
               
               <!-- Languages -->
               <CvLanguages />
+              
+              <!-- Preferred Technologies -->
+              <CvPreferredTechs />
               
               <!-- Driving Licenses -->
               <CvDrivingLicenses />

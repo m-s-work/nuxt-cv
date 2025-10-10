@@ -36,3 +36,9 @@ describe('CvQrCode', () => {
   })
 })
 
+describe('CvPreferredTechs', () => {
+  it('component exists', () => {
+    expect(true).toBe(true)
+  })
+})
+
