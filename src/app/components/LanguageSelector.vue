@@ -16,12 +16,17 @@ async function switchLanguage(newLocale: string) {
   // Save current scroll position before navigation
   const savedScrollY = window.scrollY
   
+  // Get current route info to preserve query and hash
+  const route = useRoute()
+  
   // Get the path for the new locale
   const path = switchLocalePath(newLocale)
   
-  // Navigate to the new locale
+  // Navigate to the new locale, preserving query params and hash
   await router.push({
     path,
+    query: route.query,
+    hash: route.hash,
     replace: true
   })
   
