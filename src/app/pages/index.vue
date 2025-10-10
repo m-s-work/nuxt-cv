@@ -257,6 +257,9 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+    <!-- Header Navigation Menu -->
+    <CvHeaderMenu />
+    
     <!-- Hero Section - Full page height -->
     <CvHero />
     
