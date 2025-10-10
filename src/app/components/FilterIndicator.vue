@@ -15,17 +15,22 @@ const { isFiltering, selectedTechs, clearFilters } = useTechFilter()
             <UIcon name="i-heroicons-funnel" class="w-5 h-5 print:hidden" />
             <span class="font-semibold">{{ t('filter.active') }}:</span>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <!-- Screen version with badges -->
+          <div class="flex flex-wrap gap-2 print:hidden">
             <UBadge 
               v-for="tech in selectedTechs" 
               :key="tech"
               color="white"
               variant="solid"
               size="md"
-              class="px-3 py-1 print:!bg-gray-200 print:!text-black print:border print:border-gray-400"
+              class="px-3 py-1"
             >
               {{ tech }}
             </UBadge>
+          </div>
+          <!-- Print version with plain text -->
+          <div class="hidden print:block">
+            <span class="font-normal">{{ selectedTechs.join(', ') }}</span>
           </div>
         </div>
         <button
