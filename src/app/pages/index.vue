@@ -74,7 +74,8 @@ const studies = ref([
     period: '2015 - 2017',
     startDate: '2015-09-01',
     endDate: '2017-06-30',
-    focus: 'Software Engineering & Distributed Systems'
+    focus: 'Software Engineering & Distributed Systems',
+    technologies: ['Java', 'Python', 'Distributed Systems', 'Software Architecture', 'Microservices']
   },
   {
     id: 2,
@@ -83,7 +84,8 @@ const studies = ref([
     period: '2012 - 2015',
     startDate: '2012-09-01',
     endDate: '2015-06-30',
-    focus: 'Computer Science Fundamentals'
+    focus: 'Computer Science Fundamentals',
+    technologies: ['C++', 'Java', 'Algorithms', 'Data Structures', 'Databases']
   },
   {
     id: 3,
@@ -92,7 +94,8 @@ const studies = ref([
     period: '2028 - 2028',
     startDate: '2028-09-01',
     endDate: '2028-06-30',
-    focus: 'Fundamentals of Pleasure'
+    focus: 'Fundamentals of Pleasure',
+    technologies: ['Kamasutra', 'Tantra', 'Mindfulness']
   }
 ])
 

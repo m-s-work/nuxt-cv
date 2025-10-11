@@ -68,6 +68,7 @@ const filteredStudies = computed(() => {
         :subtitle="study.institution"
         :period="study.period"
         :description="`${t('studies.focus')}: ${study.focus}`"
+        :technologies="study.technologies"
         :active-ids="activeIds"
         :icon="study.icon"
         type="study"
