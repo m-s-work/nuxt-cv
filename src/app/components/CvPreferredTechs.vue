@@ -1,9 +1,10 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { toggleTech, isTechSelected } = useTechFilter()
 
 // Developer's preferred technologies
 const preferredTechs = ref([
-  'Vue.js', 'Nuxt', 'TypeScript', 'Node.js', 'Docker'
+  'C#', 'Vue.js', 'Nuxt', 'TypeScript', 'Node.js', 'Docker'
 ])
 </script>
 
@@ -18,6 +19,9 @@ const preferredTechs = ref([
         v-for="tech in preferredTechs" 
         :key="tech"
         :technology="tech"
+        clickable
+        :selected="isTechSelected(tech)"
+        @click="toggleTech(tech)"
       />
     </div>
   </div>

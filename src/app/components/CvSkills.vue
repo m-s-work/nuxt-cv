@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const { scrollToElementSafely, navigateToSection } = useSafeScroll()
+const { toggleTech, isTechSelected } = useTechFilter()
 
 // Skilled and liked technologies
 const skilledTechs = ref([
@@ -27,6 +28,9 @@ const likedTechs = ref([
           v-for="tech in skilledTechs" 
           :key="tech"
           :technology="tech"
+          clickable
+          :selected="isTechSelected(tech)"
+          @click="toggleTech(tech)"
         />
       </div>
     </div>
@@ -41,6 +45,9 @@ const likedTechs = ref([
           v-for="tech in likedTechs" 
           :key="tech"
           :technology="tech"
+          clickable
+          :selected="isTechSelected(tech)"
+          @click="toggleTech(tech)"
         />
       </div>
     </div>

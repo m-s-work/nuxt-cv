@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const { scrollToElementSafely } = useSafeScroll()
+const { isFiltering } = useTechFilter()
 
 useSeoMeta({
   title: t('cv.title'),
@@ -52,7 +53,7 @@ const experiences = ref([
     startDate: '2019-01-01',
     endDate: '2023-12-31',
     description: 'Did extensive testing of rubber materials for quality assurance',
-    technologies: ['Rubber.js', 'MongoDB']
+    technologies: ['Rubber.js', 'Python', 'MongoDB']
   },
   {
     id: 3,
@@ -75,7 +76,7 @@ const studies = ref([
     startDate: '2015-09-01',
     endDate: '2017-06-30',
     focus: 'Software Engineering & Distributed Systems',
-    technologies: ['Java', 'Python', 'Distributed Systems', 'Software Architecture', 'Microservices']
+    technologies: ['Java', 'Python', 'Docker', 'Kubernetes', 'Distributed Systems', 'Software Architecture', 'Microservices']
   },
   {
     id: 2,
@@ -85,7 +86,7 @@ const studies = ref([
     startDate: '2012-09-01',
     endDate: '2015-06-30',
     focus: 'Computer Science Fundamentals',
-    technologies: ['C++', 'Java', 'Algorithms', 'Data Structures', 'Databases']
+    technologies: ['C++', 'Java', 'SQL', 'Algorithms', 'Data Structures', 'Databases']
   },
   {
     id: 3,
@@ -95,7 +96,7 @@ const studies = ref([
     startDate: '2028-09-01',
     endDate: '2028-06-30',
     focus: 'Fundamentals of Pleasure',
-    technologies: ['Kamasutra', 'Tantra', 'Mindfulness']
+    technologies: ['Python', 'MongoDB', 'Mindfulness']
   }
 ])
 
@@ -367,14 +368,20 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+    <!-- Filter Indicator (shown when filtering is active) -->
+    <FilterIndicator />
+    
     <!-- Hero Section - Full page height -->
     <CvHero />
-    
+  
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
       <!-- Sidebar -->
       <aside 
-        class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
+        :class="[
+          'sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:self-start lg:min-h-screen lg:overflow-y-auto',
+          { 'lg:top-16': isFiltering, 'lg:top-0': !isFiltering }
+        ]"
       >
         <div class="p-6 space-y-8">
           <!-- Profile with Picture (fades in on scroll) - Hidden on mobile -->
