@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const { scrollToElementSafely } = useSafeScroll()
+const { isFiltering } = useTechFilter()
 
 useSeoMeta({
   title: t('cv.title'),
@@ -364,11 +365,14 @@ onUnmounted(() => {
 
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+    <!-- Tech Filter Bar -->
+    <TechFilterBar />
+    
     <!-- Hero Section - Full page height -->
     <CvHero />
     
     <!-- Main Content with Sidebar Layout -->
-    <div class="cv-container">
+    <div class="cv-container" :class="{ 'with-filter': isFiltering }">
       <!-- Sidebar -->
       <aside 
         class="sidebar bg-gray-100 dark:bg-gray-800 print:bg-gray-50 lg:sticky lg:top-0 lg:self-start lg:min-h-screen lg:overflow-y-auto"
@@ -479,6 +483,11 @@ onUnmounted(() => {
   grid-template-columns: 1fr;
 }
 
+/* Add padding when filter bar is active */
+.cv-container.with-filter {
+  padding-top: 80px;
+}
+
 @media (min-width: 1024px) {
   .cv-container {
     grid-template-columns: 350px 1fr;
@@ -506,6 +515,7 @@ onUnmounted(() => {
   .cv-container {
     grid-template-columns: 300px 1fr;
     min-height: 100vh;
+    padding-top: 0 !important;
   }
   
   .sidebar {
