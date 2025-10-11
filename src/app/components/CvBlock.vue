@@ -57,10 +57,16 @@ const activeColorClass = computed(() => {
 </script>
 
 <template>
+  <!-- 
+    Border removal: UCard components have default borders AND rings in Nuxt UI.
+    We override with !border-0 to remove borders and !ring-0 to remove the ring.
+    The ring creates a box-shadow that appears as a border.
+  -->
   <UCard 
     :id="`${type}-${id}`"
     :class="{
-      'print:!shadow-none print:!border print:!border-gray-300': true,
+      '!border-0 !ring-0': true,
+      'print:!shadow-none': true,
       'transition-all duration-300': true,
       'translate-x-2': isActive()
     }"
@@ -82,11 +88,15 @@ const activeColorClass = computed(() => {
             {{ subtitle }}
           </p>
         </div>
+        <!-- 
+          Period badge: Remove border and ring by adding !border-0 and !ring-0 classes.
+          UBadge with variant="subtle" may have default border/ring in Nuxt UI.
+        -->
         <UBadge 
           v-if="period && showPeriod" 
           color="primary" 
           variant="subtle" 
-          class="print:!bg-gray-100 print:!text-black"
+          class="!border-0 !ring-0 print:!bg-gray-100 print:!text-black"
         >
           {{ period }}
         </UBadge>

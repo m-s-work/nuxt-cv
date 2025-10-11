@@ -16,17 +16,21 @@ CV of a software architect built with Nuxt 4.
 
 ```
 .
-├── .github/workflows/     # CI/CD workflows
-│   ├── ci.yml            # Testing and build workflow
-│   └── deploy.yml        # GitHub Pages deployment
-└── src/                  # Nuxt 4 application
+├── .github/
+│   ├── copilot-instructions.md  # GitHub Copilot instructions
+│   └── workflows/               # CI/CD workflows
+│       ├── ci.yml              # Testing and build workflow
+│       └── deploy.yml          # GitHub Pages deployment
+├── docs/                        # Documentation files
+└── src/                         # Nuxt 4 application
     ├── app/
-    │   ├── components/   # Vue components
-    │   ├── pages/        # Application pages
-    │   └── server/       # Backend API
-    │       ├── api/      # API endpoints
-    │       └── utils/    # Server utilities (auth, tenants)
-    └── tests/            # Component and integration tests
+    │   ├── components/          # Vue components
+    │   ├── pages/               # Application pages
+    │   └── server/              # Backend API
+    │       ├── api/             # API endpoints
+    │       └── utils/           # Server utilities (auth, tenants)
+    ├── docs/                    # Technical documentation
+    └── tests/                   # Component and integration tests
 ```
 
 ## Getting Started
@@ -156,6 +160,16 @@ The application supports multiple languages using @nuxtjs/i18n:
 - German
 
 Language can be switched via URL prefix: `/de/` for German.
+
+## Documentation
+
+For more detailed information, see the documentation in the `docs/` directory:
+
+- [Implementation Details](docs/IMPLEMENTATION.md) - Complete requirements and architecture
+- [GitHub Pages Setup](docs/GITHUB_PAGES_SETUP.md) - Deployment guide
+- [Project Summary](docs/PROJECT_SUMMARY.md) - Feature overview and statistics
+- [Development Guide](src/docs/DEVELOPMENT.md) - Development workflow and best practices
+- [API Documentation](src/docs/API.md) - API endpoints and usage
 
 ## License
 
