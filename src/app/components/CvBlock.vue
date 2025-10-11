@@ -59,13 +59,12 @@ const activeColorClass = computed(() => {
 <template>
   <!-- 
     Border removal: UCard components have default borders in Nuxt UI.
-    We override this with !border-0 to remove the border in light/dark modes.
-    For print mode, we keep the border for better document structure.
+    We override this with !border-0 to remove the border in all modes (light/dark/print).
   -->
   <UCard 
     :id="`${type}-${id}`"
     :class="{
-      '!border-0 print:!border print:!border-gray-300': true,
+      '!border-0': true,
       'print:!shadow-none': true,
       'transition-all duration-300': true,
       'translate-x-2': isActive()

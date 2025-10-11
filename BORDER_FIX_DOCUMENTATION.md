@@ -13,7 +13,7 @@ The CvBlock component displayed unwanted borders on:
 
 The UCard component from Nuxt UI v4 includes a default border as part of its base styling. This border was visible on all CvBlock instances in light and dark modes.
 
-**Solution:** Added `!border-0` class to remove the border while keeping it for print mode (`print:!border`).
+**Solution:** Added `!border-0` class to remove the border in all modes (screen and print).
 
 ```vue
 <!-- Before -->
@@ -27,7 +27,7 @@ The UCard component from Nuxt UI v4 includes a default border as part of its bas
 <!-- After -->
 <UCard 
   :class="{
-    '!border-0 print:!border print:!border-gray-300': true,
+    '!border-0': true,
     'print:!shadow-none': true,
     ...
   }"
@@ -69,14 +69,14 @@ Nuxt UI v4 uses Tailwind CSS and applies default styling to components:
 The `!` (important) flag is necessary because:
 1. Nuxt UI components use inline styles with higher specificity
 2. The `!important` flag ensures our border removal takes precedence
-3. We still preserve print mode borders for better document structure
+3. Borders are removed in all modes (screen and print) for a consistent clean design
 
-### Print Mode Preservation
-The borders are intentionally kept in print mode:
-- **UCard**: `print:!border print:!border-gray-300` provides structure in PDFs
-- **UBadge**: Inherits default print styling (no explicit border removal)
+### Border Removal in All Modes
+Borders are removed in both screen and print modes:
+- **UCard**: `!border-0` removes borders completely
+- **UBadge**: `!border-0` removes borders from badges
 
-This ensures the CV prints well as a PDF while maintaining a clean, modern look in the web version.
+This ensures a consistent, clean, borderless appearance whether viewing on screen or printing to PDF.
 
 ## Visual Impact
 
@@ -85,10 +85,10 @@ This ensures the CV prints well as a PDF while maintaining a clean, modern look 
 - Visible borders around date/period badges (e.g., "2018 - Present")
 
 ### After Fix
-- Clean card appearance without borders
+- Clean card appearance without borders in all modes
 - Smooth, modern badge styling without borders
 - Better visual hierarchy and cleaner design
-- Print mode maintains borders for document structure
+- Consistent borderless appearance in screen and print modes
 
 ## Files Modified
 - `src/app/components/CvBlock.vue`: Added `!border-0` classes to UCard and UBadge components
