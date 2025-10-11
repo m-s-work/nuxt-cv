@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { t } = useI18n()
+const { getAssetPath } = useAssetPath()
 
 // Profile information with academic titles
 const profile = ref({
@@ -35,8 +36,8 @@ function scrollToContent() {
     <div class="hero-content">
       <div class="mb-8">
         <img 
-          src="/images/profile-medium.jpg"
-          srcset="/images/profile-small.jpg 160w, /images/profile-medium.jpg 192w, /images/profile-large.jpg 320w, /images/profile-xlarge.jpg 384w"
+          :src="getAssetPath('/images/profile-medium.jpg')"
+          :srcset="`${getAssetPath('/images/profile-small.jpg')} 160w, ${getAssetPath('/images/profile-medium.jpg')} 192w, ${getAssetPath('/images/profile-large.jpg')} 320w, ${getAssetPath('/images/profile-xlarge.jpg')} 384w`"
           sizes="(max-width: 640px) 160px, 192px"
           alt="Profile"
           class="profile-img"
