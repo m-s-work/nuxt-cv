@@ -17,9 +17,14 @@ export function useAssetPath() {
       return path
     }
 
-    // Remove trailing slash from baseURL and leading slash from path, then join
+    // Remove trailing slash from baseURL and leading slash from path
     const cleanBaseURL = baseURL.replace(/\/$/, '')
     const cleanPath = path.replace(/^\//, '')
+    
+    // If baseURL is root ('/'), just return the original path
+    if (cleanBaseURL === '') {
+      return path
+    }
     
     return `${cleanBaseURL}/${cleanPath}`
   }
