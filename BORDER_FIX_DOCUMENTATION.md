@@ -13,7 +13,7 @@ The CvBlock component displayed unwanted borders on:
 
 The UCard component from Nuxt UI v4 includes a default border as part of its base styling. This border was visible on all CvBlock instances in light and dark modes.
 
-**Solution:** Added `!border-0` class to remove the border in all modes (screen and print).
+**Solution:** Added `!border-0` and `!ring-0` classes to remove both border and ring (box-shadow) in all modes.
 
 ```vue
 <!-- Before -->
@@ -27,12 +27,14 @@ The UCard component from Nuxt UI v4 includes a default border as part of its bas
 <!-- After -->
 <UCard 
   :class="{
-    '!border-0': true,
+    '!border-0 !ring-0': true,
     'print:!shadow-none': true,
     ...
   }"
 >
 ```
+
+The ring utility in Tailwind creates a box-shadow that appears as a border around the element.
 
 ### 2. UBadge Subtle Variant Border
 **Component:** Nuxt UI's `UBadge` component with `variant="subtle"`  
@@ -40,7 +42,7 @@ The UCard component from Nuxt UI v4 includes a default border as part of its bas
 
 The UBadge component with the "subtle" variant includes a default border as part of the Nuxt UI v4 design system. This border was visible around period badges like "2018 - Present".
 
-**Solution:** Added `!border-0` class to remove the border from the badge.
+**Solution:** Added `!border-0` and `!ring-0` classes to remove the border and ring from the badge.
 
 ```vue
 <!-- Before -->
@@ -54,7 +56,7 @@ The UBadge component with the "subtle" variant includes a default border as part
 <UBadge 
   color="primary" 
   variant="subtle" 
-  class="!border-0 print:!bg-gray-100 print:!text-black"
+  class="!border-0 !ring-0 print:!bg-gray-100 print:!text-black"
 >
 ```
 
@@ -62,19 +64,28 @@ The UBadge component with the "subtle" variant includes a default border as part
 
 ### Nuxt UI v4 Default Styling
 Nuxt UI v4 uses Tailwind CSS and applies default styling to components:
-- **UCard**: Has a border by default for visual separation
-- **UBadge (subtle variant)**: Has a border by default to define the badge boundary
+- **UCard**: Has a border and ring (box-shadow) by default for visual separation
+- **UBadge (subtle variant)**: Has a border and potentially ring by default to define the badge boundary
+
+The `ring` utility in Tailwind CSS creates a box-shadow that appears as a border around elements.
 
 ### CSS Specificity
 The `!` (important) flag is necessary because:
 1. Nuxt UI components use inline styles with higher specificity
-2. The `!important` flag ensures our border removal takes precedence
-3. Borders are removed in all modes (screen and print) for a consistent clean design
+2. The `!important` flag ensures our border and ring removal takes precedence
+3. Both borders and rings are removed in all modes (screen and print) for a consistent clean design
+
+### Ring vs Border
+Tailwind CSS uses two different mechanisms for creating outlines:
+- **border**: Traditional CSS border property
+- **ring**: Box-shadow that appears as an outline (used by Nuxt UI for cards)
+
+Both needed to be removed to achieve a truly borderless appearance.
 
 ### Border Removal in All Modes
-Borders are removed in both screen and print modes:
-- **UCard**: `!border-0` removes borders completely
-- **UBadge**: `!border-0` removes borders from badges
+Borders and rings are removed in both screen and print modes:
+- **UCard**: `!border-0 !ring-0` removes both border and ring (box-shadow)
+- **UBadge**: `!border-0 !ring-0` removes both border and ring
 
 This ensures a consistent, clean, borderless appearance whether viewing on screen or printing to PDF.
 
