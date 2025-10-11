@@ -26,6 +26,7 @@ export interface Study {
   startDate: string  // ISO date format or year
   endDate: string  // ISO date format or year
   focus: string
+  technologies?: string[]
 }
 
 export interface Project {
@@ -77,7 +78,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2015 - 2017',
         startDate: '2015-09-01',
         endDate: '2017-06-30',
-        focus: 'Software Engineering & Distributed Systems'
+        focus: 'Software Engineering & Distributed Systems',
+        technologies: ['Java', 'Python', 'Distributed Systems', 'Software Architecture', 'Microservices']
       },
       {
         id: 2,
@@ -86,7 +88,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2012 - 2015',
         startDate: '2012-09-01',
         endDate: '2015-06-30',
-        focus: 'Computer Science Fundamentals'
+        focus: 'Computer Science Fundamentals',
+        technologies: ['C++', 'Java', 'Algorithms', 'Data Structures', 'Databases']
       }
     ],
     projects: [
