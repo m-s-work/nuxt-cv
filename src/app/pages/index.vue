@@ -370,6 +370,9 @@ onUnmounted(() => {
     <!-- Hero Section - Full page height -->
     <CvHero />
     
+    <!-- Intro Section -->
+    <CvIntro />
+    
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
       <!-- Sidebar -->
