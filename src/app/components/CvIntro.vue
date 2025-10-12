@@ -3,12 +3,14 @@ const { t } = useI18n()
 
 // Intro data - would eventually come from API/tenant config
 const introData = ref({
-  summary: 'Passionate software architect with extensive experience in building scalable cloud-native applications.',
   yearsOfExperience: 25,
   programmingSince: 2000,
   projectsCompleted: 150,
   technologiesMastered: 40,
-  companiesWorkedWith: 12
+  companiesWorkedWith: 12,
+  // Progress percentages for circular/bar animations
+  yearsProgress: 100,
+  projectsProgress: 85
 })
 
 // Animated values
@@ -21,52 +23,33 @@ const animatedCompanies = ref(0)
 const yearsProgress = ref(0)
 const projectsProgress = ref(0)
 
-// Track if component is visible
+// Track if component is visible and if animations have started
 const introRef = ref<HTMLElement | null>(null)
 const isVisible = ref(false)
+const hasAnimationsStarted = ref(false)
 
-// Animate a number from 0 to target
-function animateNumber(
-  currentRef: Ref<number>,
+// Easing function for smooth animation
+const easeOutQuad = (t: number) => t * (2 - t)
+
+// Generic animation function with easing
+function animateValue(
+  valueRef: Ref<number>,
   target: number,
-  duration: number = 2000
+  duration: number = 2000,
+  roundValue: boolean = false
 ) {
   const startTime = Date.now()
   const step = () => {
     const elapsed = Date.now() - startTime
     const progress = Math.min(elapsed / duration, 1)
     
-    // Easing function for smooth animation
-    const easeOutQuad = (t: number) => t * (2 - t)
-    currentRef.value = Math.floor(target * easeOutQuad(progress))
+    const easedValue = target * easeOutQuad(progress)
+    valueRef.value = roundValue ? Math.floor(easedValue) : easedValue
     
     if (progress < 1) {
       requestAnimationFrame(step)
     } else {
-      currentRef.value = target
-    }
-  }
-  requestAnimationFrame(step)
-}
-
-// Animate a progress value (for circles/bars)
-function animateProgress(
-  progressRef: Ref<number>,
-  target: number,
-  duration: number = 2000
-) {
-  const startTime = Date.now()
-  const step = () => {
-    const elapsed = Date.now() - startTime
-    const progress = Math.min(elapsed / duration, 1)
-    
-    const easeOutQuad = (t: number) => t * (2 - t)
-    progressRef.value = target * easeOutQuad(progress)
-    
-    if (progress < 1) {
-      requestAnimationFrame(step)
-    } else {
-      progressRef.value = target
+      valueRef.value = target
     }
   }
   requestAnimationFrame(step)
@@ -74,19 +57,20 @@ function animateProgress(
 
 // Start animations when component becomes visible
 function startAnimations() {
-  if (!isVisible.value) {
-    isVisible.value = true
-    
-    // Animate numbers with different delays
-    setTimeout(() => animateNumber(animatedYears, introData.value.yearsOfExperience, 2000), 200)
-    setTimeout(() => animateNumber(animatedProjects, introData.value.projectsCompleted, 2000), 400)
-    setTimeout(() => animateNumber(animatedTechs, introData.value.technologiesMastered, 2000), 600)
-    setTimeout(() => animateNumber(animatedCompanies, introData.value.companiesWorkedWith, 2000), 800)
-    
-    // Animate progress circles
-    setTimeout(() => animateProgress(yearsProgress, 100, 2000), 200)
-    setTimeout(() => animateProgress(projectsProgress, 85, 2000), 400)
-  }
+  if (hasAnimationsStarted.value) return
+  
+  hasAnimationsStarted.value = true
+  isVisible.value = true
+  
+  // Animate numbers with different delays (rounded to integers)
+  setTimeout(() => animateValue(animatedYears, introData.value.yearsOfExperience, 2000, true), 200)
+  setTimeout(() => animateValue(animatedProjects, introData.value.projectsCompleted, 2000, true), 400)
+  setTimeout(() => animateValue(animatedTechs, introData.value.technologiesMastered, 2000, true), 600)
+  setTimeout(() => animateValue(animatedCompanies, introData.value.companiesWorkedWith, 2000, true), 800)
+  
+  // Animate progress circles (smooth decimal values)
+  setTimeout(() => animateValue(yearsProgress, introData.value.yearsProgress, 2000), 200)
+  setTimeout(() => animateValue(projectsProgress, introData.value.projectsProgress, 2000), 400)
 }
 
 onMounted(() => {
