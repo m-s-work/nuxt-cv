@@ -20,11 +20,12 @@ const animatedStats = ref(introData.value.stats.map(stat => ({ ...stat, currentV
 
 // Intersection Observer to trigger animations
 const sectionRef = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
 
 onMounted(() => {
   if (typeof window === 'undefined') return
 
-  const observer = new IntersectionObserver(
+  observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting && !isVisible.value) {
@@ -39,11 +40,14 @@ onMounted(() => {
   if (sectionRef.value) {
     observer.observe(sectionRef.value)
   }
+})
 
-  return () => {
-    if (sectionRef.value) {
-      observer.unobserve(sectionRef.value)
-    }
+onBeforeUnmount(() => {
+  if (observer && sectionRef.value) {
+    observer.unobserve(sectionRef.value)
+  }
+  if (observer) {
+    observer.disconnect()
   }
 })
 
