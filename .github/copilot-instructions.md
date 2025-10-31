@@ -122,6 +122,40 @@ npm run dev
 - `src/.env` - Environment variables (not committed)
 - `src/.env.example` - Environment template (committed)
 
+### Git Workflow
+
+#### Branch Naming Convention
+
+All PR branches should follow this naming pattern:
+- **Format**: `<type>/<scope>/<issue-number>-<description>`
+- **Examples**:
+  - `feature/copilot/69-added-feature-xyz`
+  - `fix/ui/123-button-alignment`
+  - `docs/readme/456-update-installation-guide`
+
+The issue number should be included in the branch name to easily track the associated GitHub issue.
+
+#### Commit Messages
+
+Use **Conventional Commits** format for all commit messages following the specification at https://www.conventionalcommits.org/en/v1.0.0/.
+
+**Format**: `<type>[optional scope]: <description>`
+
+**Common types**:
+- `feat`: A new feature.
+- `fix`: A bug fix.
+- `docs`: Documentation only changes.
+- `style`: Changes that don't affect the meaning of the code (white-space, formatting, etc).
+- `refactor`: A code change that neither fixes a bug nor adds a feature.
+- `test`: Adding missing tests or correcting existing tests.
+- `chore`: Changes to the build process or auxiliary tools.
+
+**Examples**:
+- `feat(ui): add dark mode toggle`
+- `fix(api): handle null tenant query parameter`
+- `docs: update installation instructions`
+- `test(components): add tests for LanguageSwitcher`
+
 ## Key Features and Guidelines
 
 ### Multi-tenant System
@@ -159,7 +193,7 @@ npm run dev
 4. **Responsive Design** - Use Tailwind CSS classes for responsive layouts
 5. **Server Security** - Always validate and sanitize input on server endpoints
 6. **Testing** - Write tests for new features
-7. **Git Commits** - Use conventional commits format
+7. **Git Workflow** - Follow branch naming conventions and use conventional commits format (see Git Workflow section)
 
 ## Adding New Features
 
