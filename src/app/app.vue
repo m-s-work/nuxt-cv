@@ -1,5 +1,22 @@
+<script setup lang="ts">
+const { setSplashType } = useSplashScreen()
+
+// Check URL parameter for splash screen type (for testing/demo)
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search)
+    const splashParam = urlParams.get('splash')
+    const validTypes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+    if (splashParam && validTypes.includes(splashParam)) {
+      setSplashType(parseInt(splashParam) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
+    }
+  }
+})
+</script>
+
 <template>
   <div>
+    <SplashScreenManager />
     <LanguageSelector />
     <NuxtPage />
   </div>

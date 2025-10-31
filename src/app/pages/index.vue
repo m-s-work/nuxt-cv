@@ -290,41 +290,44 @@ onMounted(() => {
     }
   })
   
-  // Restore scroll position from URL hash on page load
+  // Restore scroll position from URL hash AFTER splash screen is hidden
+  const { onSplashHidden } = useSplashScreen()
   if (typeof window !== 'undefined' && window.location.hash) {
-    setTimeout(() => {
-      const hash = window.location.hash.substring(1)
-      const element = document.getElementById(hash)
-      if (element) {
-        scrollToElementSafely(hash, 'smooth')
-        // Extract ID and activate it
-        if (hash.startsWith('experience-')) {
-          const id = parseInt(hash.replace('experience-', ''))
-          if (!isNaN(id)) {
-            handleCardMouseEnter(id, 'exp')
-            clickedEntryId.value = `exp-${id}`
-          }
-        } else if (hash.startsWith('study-')) {
-          const id = parseInt(hash.replace('study-', ''))
-          if (!isNaN(id)) {
-            handleCardMouseEnter(id, 'study')
-            clickedEntryId.value = `study-${id}`
-          }
-        } else if (hash.startsWith('project-')) {
-          const id = parseInt(hash.replace('project-', ''))
-          if (!isNaN(id)) {
-            handleCardMouseEnter(id, 'project')
-            clickedEntryId.value = `project-${id}`
-          }
-        } else if (hash.startsWith('other-')) {
-          const id = parseInt(hash.replace('other-', ''))
-          if (!isNaN(id)) {
-            handleCardMouseEnter(id, 'other')
-            clickedEntryId.value = `other-${id}`
+    onSplashHidden(() => {
+      setTimeout(() => {
+        const hash = window.location.hash.substring(1)
+        const element = document.getElementById(hash)
+        if (element) {
+          scrollToElementSafely(hash, 'smooth')
+          // Extract ID and activate it
+          if (hash.startsWith('experience-')) {
+            const id = parseInt(hash.replace('experience-', ''))
+            if (!isNaN(id)) {
+              handleCardMouseEnter(id, 'exp')
+              clickedEntryId.value = `exp-${id}`
+            }
+          } else if (hash.startsWith('study-')) {
+            const id = parseInt(hash.replace('study-', ''))
+            if (!isNaN(id)) {
+              handleCardMouseEnter(id, 'study')
+              clickedEntryId.value = `study-${id}`
+            }
+          } else if (hash.startsWith('project-')) {
+            const id = parseInt(hash.replace('project-', ''))
+            if (!isNaN(id)) {
+              handleCardMouseEnter(id, 'project')
+              clickedEntryId.value = `project-${id}`
+            }
+          } else if (hash.startsWith('other-')) {
+            const id = parseInt(hash.replace('other-', ''))
+            if (!isNaN(id)) {
+              handleCardMouseEnter(id, 'other')
+              clickedEntryId.value = `other-${id}`
+            }
           }
         }
-      }
-    }, 500) // Delay to ensure page is fully loaded
+      }, 500) // Delay to ensure page is fully loaded
+    })
   }
 })
 
