@@ -24,6 +24,12 @@ const handleComplete = () => {
         <SplashScreen2 v-else-if="splashType === 2" :on-complete="handleComplete" />
         <SplashScreen3 v-else-if="splashType === 3" :on-complete="handleComplete" />
         <SplashScreen4 v-else-if="splashType === 4" :on-complete="handleComplete" />
+        <SplashScreen5 v-else-if="splashType === 5" :on-complete="handleComplete" />
+        <SplashScreen6 v-else-if="splashType === 6" :on-complete="handleComplete" />
+        <SplashScreen7 v-else-if="splashType === 7" :on-complete="handleComplete" />
+        <SplashScreen8 v-else-if="splashType === 8" :on-complete="handleComplete" />
+        <SplashScreen9 v-else-if="splashType === 9" :on-complete="handleComplete" />
+        <SplashScreen10 v-else-if="splashType === 10" :on-complete="handleComplete" />
       </div>
     </Transition>
   </Teleport>

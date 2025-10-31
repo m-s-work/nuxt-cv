@@ -6,8 +6,9 @@ onMounted(() => {
   if (typeof window !== 'undefined') {
     const urlParams = new URLSearchParams(window.location.search)
     const splashParam = urlParams.get('splash')
-    if (splashParam && ['1', '2', '3', '4'].includes(splashParam)) {
-      setSplashType(parseInt(splashParam) as 1 | 2 | 3 | 4)
+    const validTypes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+    if (splashParam && validTypes.includes(splashParam)) {
+      setSplashType(parseInt(splashParam) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
     }
   }
 })
