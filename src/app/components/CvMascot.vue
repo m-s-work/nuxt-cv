@@ -12,9 +12,11 @@ const currentSection = ref<string>('welcome')
 const showGuidance = ref(false)
 const guidanceMessage = ref('')
 const guidanceTimeout = ref<NodeJS.Timeout | null>(null)
+const hideTimeout = ref<NodeJS.Timeout | null>(null)
 
 // Track if user has seen welcome message
 const hasSeenWelcome = ref(false)
+const lastDetectedSection = ref<string>('')
 
 // Handle mouse events
 const handleMouseEnter = () => {
@@ -29,9 +31,12 @@ const handleMouseLeave = () => {
 
 // Show guidance message
 const displayGuidance = (section: string, delay = 0) => {
-  // Clear any existing timeout
+  // Clear any existing timeouts
   if (guidanceTimeout.value) {
     clearTimeout(guidanceTimeout.value)
+  }
+  if (hideTimeout.value) {
+    clearTimeout(hideTimeout.value)
   }
 
   guidanceTimeout.value = setTimeout(() => {
@@ -40,11 +45,11 @@ const displayGuidance = (section: string, delay = 0) => {
     showGuidance.value = true
     currentEmotion.value = 'happy'
 
-    // Auto-hide after 8 seconds
-    setTimeout(() => {
+    // Auto-hide after 10 seconds (increased from 8)
+    hideTimeout.value = setTimeout(() => {
       showGuidance.value = false
       currentEmotion.value = 'idle'
-    }, 8000)
+    }, 10000)
   }, delay)
 }
 
@@ -60,8 +65,11 @@ const detectCurrentSection = () => {
     'other-section'
   ]
 
-  const scrollPosition = window.scrollY + window.innerHeight / 2
+  // Use viewport center for detection
+  const scrollPosition = window.scrollY + window.innerHeight / 3
 
+  let detectedSection = ''
+  
   for (const sectionId of sections) {
     const element = document.getElementById(sectionId)
     if (element) {
@@ -70,12 +78,18 @@ const detectCurrentSection = () => {
       const elementBottom = elementTop + rect.height
 
       if (scrollPosition >= elementTop && scrollPosition <= elementBottom) {
-        const section = sectionId.replace('-section', '')
-        if (currentSection.value !== section) {
-          displayGuidance(section, 500)
-        }
+        detectedSection = sectionId.replace('-section', '')
         break
       }
+    }
+  }
+
+  // Only update if we detected a section and it's different from the last one
+  if (detectedSection && detectedSection !== lastDetectedSection.value) {
+    lastDetectedSection.value = detectedSection
+    // Only show guidance if not currently showing and section changed
+    if (!showGuidance.value || currentSection.value !== detectedSection) {
+      displayGuidance(detectedSection, 600)
     }
   }
 }
@@ -111,8 +125,26 @@ onMounted(() => {
       }
     }, 3500) // After splash screen typically finishes
 
-    // Add scroll listener for section detection
-    window.addEventListener('scroll', detectCurrentSection, { passive: true })
+    // Add scroll listener for section detection with debouncing
+    let scrollTimeout: NodeJS.Timeout | null = null
+    const debouncedDetection = () => {
+      if (scrollTimeout) clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(detectCurrentSection, 150)
+    }
+    
+    window.addEventListener('scroll', debouncedDetection, { passive: true })
+    
+    // Also listen for hash changes (URL navigation)
+    const handleHashChange = () => {
+      setTimeout(detectCurrentSection, 300)
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    
+    // Store cleanup function
+    onUnmounted(() => {
+      window.removeEventListener('scroll', debouncedDetection)
+      window.removeEventListener('hashchange', handleHashChange)
+    })
   }
 })
 
@@ -123,8 +155,8 @@ onUnmounted(() => {
   if (guidanceTimeout.value) {
     clearTimeout(guidanceTimeout.value)
   }
-  if (typeof window !== 'undefined') {
-    window.removeEventListener('scroll', detectCurrentSection)
+  if (hideTimeout.value) {
+    clearTimeout(hideTimeout.value)
   }
 })
 </script>
@@ -524,7 +556,9 @@ onUnmounted(() => {
   position: absolute;
   bottom: 100%;
   right: 0;
-  max-width: 280px;
+  min-width: 280px;
+  max-width: 350px;
+  width: max-content;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 1rem 1.25rem;
@@ -533,10 +567,12 @@ onUnmounted(() => {
   pointer-events: none;
   transition: opacity 0.4s ease, transform 0.4s ease;
   font-size: 0.875rem;
-  line-height: 1.5;
+  line-height: 1.6;
   margin-bottom: 1rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   transform: translateY(10px);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .mascot-guidance::after {
@@ -575,14 +611,29 @@ onUnmounted(() => {
 /* Adjust guidance on mobile */
 @media (max-width: 768px) {
   .mascot-guidance {
-    max-width: 200px;
-    padding: 0.75rem 1rem;
-    font-size: 0.75rem;
-    right: -20px;
+    min-width: 220px;
+    max-width: 280px;
+    padding: 0.875rem 1rem;
+    font-size: 0.8125rem;
+    right: -10px;
   }
   
   .mascot-guidance::after {
-    right: 30px;
+    right: 25px;
+  }
+}
+
+@media (max-width: 480px) {
+  .mascot-guidance {
+    min-width: 200px;
+    max-width: 240px;
+    padding: 0.75rem 0.875rem;
+    font-size: 0.75rem;
+    right: -5px;
+  }
+  
+  .mascot-guidance::after {
+    right: 20px;
   }
 }
 </style>
