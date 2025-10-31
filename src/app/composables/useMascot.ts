@@ -17,6 +17,7 @@ export const useMascot = () => {
   const currentPosition = useState<'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'>('mascot-position', () => 'bottom-right')
   const moveAroundEnabled = useState<boolean>('mascot-move-around', () => true) // Flag to enable/disable movement
   const currentIdleAnimation = useState<string | null>('mascot-idle-animation', () => null)
+  const isTransitioning = useState<boolean>('mascot-transitioning', () => false)
 
   // Show mascot after splash screen and initial scroll
   const showMascot = () => {
@@ -47,9 +48,16 @@ export const useMascot = () => {
     currentAnimation.value = animation
   }
 
-  // Change mascot position
+  // Change mascot position with transition
   const changePosition = (position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left') => {
+    // Start transition
+    isTransitioning.value = true
     currentPosition.value = position
+    
+    // End transition after animation completes
+    setTimeout(() => {
+      isTransitioning.value = false
+    }, 1800) // Match the CSS transition duration
   }
 
   // Get random position different from current
@@ -197,6 +205,7 @@ export const useMascot = () => {
     currentSection,
     currentPosition,
     currentIdleAnimation,
+    isTransitioning,
     moveAroundEnabled,
     showMascot,
     hideMascot,

@@ -66,13 +66,14 @@ The mascot responds to user interaction:
 - **Idle Animation**: Gentle floating animation when not interacting
 
 ### Position Movement
-The mascot smoothly glides between different screen positions to maintain user interest:
+The mascot smoothly flies between different screen positions to maintain user interest:
 - **Four positions**: bottom-right, bottom-left, top-right, top-left
-- **True smooth sliding**: Uses CSS custom properties (--mascot-x, --mascot-y) with transform
-- **1.5-second transition**: Animated sliding with cubic-bezier(0.34, 1.56, 0.64, 1) easing
+- **Smooth flying animation**: Uses CSS custom properties with transform and flying motion
+- **1.8-second transition**: Animated gliding with smooth easing
+- **Flapping arms**: Arms flap during flight for realistic character movement
 - **Automatic movement**: Changes position every 20 seconds (configurable)
 - **Flag-controlled**: Can be enabled/disabled via `moveAroundEnabled` state
-- **No instant jumps**: Mascot smoothly glides across the screen between corners
+- **Truly smooth**: Mascot glides across entire screen with continuous animation, no instant jumps!
 
 ## Implementation
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { currentMessage, currentAnimation, isVisible, currentPosition, triggerAnimation, currentIdleAnimation } = useMascot()
+const { currentMessage, currentAnimation, isVisible, currentPosition, triggerAnimation, currentIdleAnimation, isTransitioning } = useMascot()
 const { t } = useI18n()
 
 // Watch for animation changes to trigger CSS animations
@@ -108,7 +108,10 @@ const handleClick = () => {
     v-if="isVisible"
     ref="mascotRef"
     class="mascot-container fixed z-50 print:hidden"
-    :class="[{ 'mascot-visible': isVisible }, positionClasses]"
+    :class="[
+      { 'mascot-visible': isVisible, 'transitioning': isTransitioning }, 
+      positionClasses
+    ]"
     :style="positionStyle"
   >
       <!-- Speech Bubble -->
@@ -220,17 +223,23 @@ const handleClick = () => {
   transform: translate(var(--mascot-x), var(--mascot-y)) scale(0);
   opacity: 0;
   /* Smooth transition for transform */
-  transition: transform 1.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.8s ease-in-out;
+  transition: transform 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.8s ease-in-out;
+  will-change: transform;
 }
 
 .mascot-container.mascot-visible {
   transform: translate(var(--mascot-x), var(--mascot-y)) scale(1);
   opacity: 1;
-  /* Add floating animation after becoming visible */
+  /* Add floating animation when NOT transitioning */
   animation: float 3s ease-in-out infinite;
 }
 
-/* Floating idle animation - uses additional transform */
+/* During transition, use flying animation instead of float */
+.mascot-container.mascot-visible.transitioning {
+  animation: fly 1.8s ease-in-out;
+}
+
+/* Floating idle animation */
 @keyframes float {
   0%, 100% { 
     transform: translate(var(--mascot-x), calc(var(--mascot-y) + 0px)) scale(1); 
@@ -238,6 +247,43 @@ const handleClick = () => {
   50% { 
     transform: translate(var(--mascot-x), calc(var(--mascot-y) - 10px)) scale(1); 
   }
+}
+
+/* Flying animation during transitions - adds movement to arms/body */
+@keyframes fly {
+  0%, 100% { 
+    transform: translate(var(--mascot-x), var(--mascot-y)) scale(1);
+  }
+  25% { 
+    transform: translate(var(--mascot-x), calc(var(--mascot-y) - 15px)) scale(1.05);
+  }
+  50% { 
+    transform: translate(var(--mascot-x), var(--mascot-y)) scale(1);
+  }
+  75% { 
+    transform: translate(var(--mascot-x), calc(var(--mascot-y) - 15px)) scale(1.05);
+  }
+}
+
+/* Arm flapping during transition */
+.mascot-container.transitioning .mascot-arm-left {
+  animation: flapLeftArm 0.3s ease-in-out infinite;
+  transform-origin: 30px 55px;
+}
+
+.mascot-container.transitioning .mascot-arm-right {
+  animation: flapRightArm 0.3s ease-in-out infinite;
+  transform-origin: 70px 55px;
+}
+
+@keyframes flapLeftArm {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-30deg); }
+}
+
+@keyframes flapRightArm {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(30deg); }
 }
 
 .speech-bubble {
