@@ -115,10 +115,8 @@ function toggleColorMode() {
 }
 
 .mode-btn:focus {
-  outline: none;
-  ring: 2px;
-  ring-color: #3b82f6;
-  ring-offset: 2px;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 .icon {
@@ -181,10 +179,8 @@ function toggleColorMode() {
 }
 
 .language-btn:focus {
-  outline: none;
-  ring: 2px;
-  ring-color: #3b82f6;
-  ring-offset: 2px;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 @media print {
