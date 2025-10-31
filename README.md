@@ -11,6 +11,7 @@ CV of a software architect built with Nuxt 4.
 - **Authentication** - Token-based or Basic Auth for admin endpoints
 - **Testing** - Comprehensive test setup with Vitest
 - **GitHub Pages** - Automated deployment workflow
+- **Docker** - Docker and Docker Compose support for containerized deployment
 
 ## Project Structure
 
@@ -63,6 +64,21 @@ CV of a software architect built with Nuxt 4.
    ```
 
 The application will be available at `http://localhost:3000`
+
+### Docker Installation (Alternative)
+
+If you prefer using Docker:
+
+```bash
+# Using Docker Compose (recommended)
+docker compose up -d
+
+# Or using Docker CLI
+docker build -t nuxt-cv .
+docker run -d -p 3000:3000 --name nuxt-cv nuxt-cv
+```
+
+See the [Docker documentation](docs/DOCKER.md) for detailed instructions.
 
 ### Development
 
@@ -168,6 +184,7 @@ For more detailed information, see the documentation in the `docs/` directory:
 - [Implementation Details](docs/IMPLEMENTATION.md) - Complete requirements and architecture
 - [GitHub Pages Setup](docs/GITHUB_PAGES_SETUP.md) - Deployment guide
 - [Project Summary](docs/PROJECT_SUMMARY.md) - Feature overview and statistics
+- [Docker Guide](docs/DOCKER.md) - Docker and Docker Compose setup
 - [Development Guide](src/docs/DEVELOPMENT.md) - Development workflow and best practices
 - [API Documentation](src/docs/API.md) - API endpoints and usage
 
