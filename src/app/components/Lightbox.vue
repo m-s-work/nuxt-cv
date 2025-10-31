@@ -8,12 +8,15 @@ function handleKeydown(event: KeyboardEvent) {
   
   switch (event.key) {
     case 'Escape':
+      event.preventDefault()
       close()
       break
     case 'ArrowLeft':
+      event.preventDefault()
       prev()
       break
     case 'ArrowRight':
+      event.preventDefault()
       next()
       break
   }

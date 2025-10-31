@@ -12,7 +12,12 @@ const images = ref<LightboxImage[]>([])
 const currentGroupId = ref<string | number | undefined>(undefined)
 
 export function useLightbox() {
-  const currentImage = computed(() => images.value[currentIndex.value])
+  const currentImage = computed(() => {
+    if (images.value.length === 0 || currentIndex.value < 0 || currentIndex.value >= images.value.length) {
+      return undefined
+    }
+    return images.value[currentIndex.value]
+  })
   
   const hasNext = computed(() => currentIndex.value < images.value.length - 1)
   const hasPrev = computed(() => currentIndex.value > 0)
