@@ -232,7 +232,11 @@ docker build -f Dockerfile.dev -t nuxt-cv:dev .
 docker run -d -p 3000:3000 --name nuxt-cv-dev nuxt-cv:dev
 ```
 
-**Note**: `Dockerfile.dev` disables SSL certificate verification for npm install. This is **NOT recommended for production**.
+**⚠️ Security Warning**: `Dockerfile.dev` disables SSL certificate verification for npm install. This approach:
+- Exposes you to potential man-in-the-middle attacks
+- May allow installation of compromised dependencies
+- Should **NEVER** be used in production environments
+- Is only suitable for development/testing in trusted, controlled environments
 
 ## Troubleshooting
 
