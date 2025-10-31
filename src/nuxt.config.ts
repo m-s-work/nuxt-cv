@@ -5,8 +5,7 @@ export default defineNuxtConfig({
   
   modules: [
     '@nuxt/ui',
-    '@nuxtjs/i18n',
-    '@nuxtjs/color-mode'
+    '@nuxtjs/i18n'
   ],
 
   // Color mode configuration
