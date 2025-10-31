@@ -16,6 +16,7 @@ export interface Experience {
   endDate: string | null  // ISO date format or year, null for current
   description: string
   technologies: string[]
+  images?: string[]  // URLs to images
 }
 
 export interface Study {

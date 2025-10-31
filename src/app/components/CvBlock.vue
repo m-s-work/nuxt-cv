@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import type { LightboxImage } from '~/composables/useLightbox'
+
+const { t } = useI18n()
+
 interface Props {
   id: number | string
   title: string
@@ -14,16 +18,21 @@ interface Props {
   icon?: string
   techClickable?: boolean
   techSelected?: (tech: string) => boolean
+  imagesClickable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   activeIds: () => [],
   type: 'other',
   showPeriod: true,
-  showTechnologies: true
+  showTechnologies: true,
+  imagesClickable: true
 })
 
 const emit = defineEmits(['tech-click'])
+
+// Lightbox support
+const { open: openLightbox } = useLightbox()
 
 // Check if this block is active
 function isActive(): boolean {
@@ -54,6 +63,19 @@ const activeColorClass = computed(() => {
       return 'text-orange-600 dark:text-orange-400'
   }
 })
+
+// Handle image click to open lightbox
+function handleImageClick(index: number) {
+  if (!props.imagesClickable || !props.images || props.images.length === 0) return
+  
+  const lightboxImages: LightboxImage[] = props.images.map((src, i) => ({
+    src,
+    alt: `${props.title} image ${i + 1}`,
+    groupId: `${props.type}-${props.id}`
+  }))
+  
+  openLightbox(lightboxImages, index, `${props.type}-${props.id}`)
+}
 </script>
 
 <template>
@@ -105,14 +127,36 @@ const activeColorClass = computed(() => {
 
     <!-- Images (for projects or other entries with images) -->
     <div v-if="images && images.length > 0" class="mb-4 flex flex-wrap gap-2">
-      <img 
+      <div
         v-for="(image, index) in images" 
         :key="index"
-        :src="image"
-        :alt="`${title} image ${index + 1}`"
-        class="h-32 w-auto object-cover rounded border border-gray-200 dark:border-gray-700 print:border-gray-300"
-        loading="lazy"
-      />
+        class="relative group"
+        :class="{
+          'cursor-pointer': imagesClickable
+        }"
+        @click="handleImageClick(index)"
+      >
+        <img 
+          :src="image"
+          :alt="`${title} image ${index + 1}`"
+          class="h-32 w-auto object-cover rounded border border-gray-200 dark:border-gray-700 print:border-gray-300 transition-all duration-200"
+          :class="{
+            'group-hover:brightness-75 group-hover:scale-105': imagesClickable
+          }"
+          loading="lazy"
+        />
+        <!-- Zoom icon overlay -->
+        <div 
+          v-if="imagesClickable"
+          class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 print:hidden"
+        >
+          <div class="bg-black/50 rounded-full p-2">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Description -->

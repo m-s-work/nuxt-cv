@@ -2,6 +2,7 @@
   <div>
     <LanguageSelector />
     <NuxtPage />
+    <Lightbox />
   </div>
 </template>
 
