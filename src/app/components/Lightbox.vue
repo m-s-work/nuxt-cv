@@ -80,12 +80,13 @@ onUnmounted(() => {
         </button>
 
         <!-- Image container -->
-        <div class="relative max-w-7xl max-h-[90vh] mx-4" @click.stop>
+        <div class="relative max-w-7xl max-h-[90vh] mx-4 flex items-center justify-center" @click.stop>
           <img
             v-if="currentImage"
             :src="currentImage.src"
             :alt="currentImage.alt"
-            class="max-w-full max-h-[90vh] w-auto h-auto object-contain"
+            class="max-w-full max-h-[90vh] min-w-[400px] object-contain"
+            style="width: auto; height: auto;"
           />
         </div>
 
