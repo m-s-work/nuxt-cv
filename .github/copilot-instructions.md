@@ -127,13 +127,13 @@ npm run dev
 #### Branch Naming Convention
 
 All PR branches should follow this naming pattern:
-- **Format**: `<type>/<scope>/<pr-number>-<description>`
+- **Format**: `<type>/<scope>/<issue-number>-<description>`
 - **Examples**:
   - `feature/copilot/69-added-feature-xyz`
   - `fix/ui/123-button-alignment`
   - `docs/readme/456-update-installation-guide`
 
-The PR number should be included in the branch name to easily track the associated issue or pull request.
+The issue number should be included in the branch name to easily track the associated GitHub issue.
 
 #### Commit Messages
 
@@ -142,13 +142,13 @@ Use **Conventional Commits** format for all commit messages following the specif
 **Format**: `<type>[optional scope]: <description>`
 
 **Common types**:
-- `feat`: A new feature
-- `fix`: A bug fix
-- `docs`: Documentation only changes
-- `style`: Changes that don't affect the meaning of the code (white-space, formatting, etc)
-- `refactor`: A code change that neither fixes a bug nor adds a feature
-- `test`: Adding missing tests or correcting existing tests
-- `chore`: Changes to the build process or auxiliary tools
+- `feat`: A new feature.
+- `fix`: A bug fix.
+- `docs`: Documentation only changes.
+- `style`: Changes that don't affect the meaning of the code (white-space, formatting, etc).
+- `refactor`: A code change that neither fixes a bug nor adds a feature.
+- `test`: Adding missing tests or correcting existing tests.
+- `chore`: Changes to the build process or auxiliary tools.
 
 **Examples**:
 - `feat(ui): add dark mode toggle`
