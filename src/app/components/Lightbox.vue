@@ -84,11 +84,14 @@ onUnmounted(() => {
             :alt="currentImage.alt"
             class="max-w-full max-h-[90vh] w-auto h-auto object-contain"
           />
-          
-          <!-- Image counter -->
-          <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/50 rounded-full text-white text-sm">
-            {{ currentIndex + 1 }} / {{ images.length }}
-          </div>
+        </div>
+
+        <!-- Image counter -->
+        <div 
+          v-if="images.length > 1"
+          class="absolute bottom-28 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-black/50 rounded-full text-white text-sm"
+        >
+          {{ currentIndex + 1 }} / {{ images.length }}
         </div>
 
         <!-- Thumbnails -->
