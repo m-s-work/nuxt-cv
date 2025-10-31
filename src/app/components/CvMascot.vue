@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { currentMessage, currentAnimation, isVisible, currentPosition, triggerAnimation } = useMascot()
+const { currentMessage, currentAnimation, isVisible, currentPosition, triggerAnimation, currentIdleAnimation } = useMascot()
 const { t } = useI18n()
 
 // Watch for animation changes to trigger CSS animations
@@ -10,13 +10,20 @@ const giggleCount = ref(0)
 watch(currentAnimation, (newAnimation) => {
   if (mascotRef.value) {
     // Remove all animation classes
-    mascotRef.value.classList.remove('wave', 'bounce', 'point-up', 'point-down', 'celebrate', 'think', 'giggle')
+    mascotRef.value.classList.remove('wave', 'bounce', 'point-up', 'point-down', 'celebrate', 'think', 'giggle', 'scratch-head', 'look-around', 'workout', 'color-shift')
     // Add new animation class after a short delay
     setTimeout(() => {
       if (mascotRef.value && newAnimation) {
         mascotRef.value.classList.add(newAnimation)
       }
     }, 50)
+  }
+})
+
+// Watch idle animation changes
+watch(currentIdleAnimation, (newIdle) => {
+  if (mascotRef.value && newIdle) {
+    mascotRef.value.classList.add(newIdle)
   }
 })
 
@@ -68,13 +75,12 @@ const handleClick = () => {
 </script>
 
 <template>
-  <Transition name="mascot-slide">
-    <div
-      v-if="isVisible"
-      ref="mascotRef"
-      class="mascot-container fixed z-50 print:hidden"
-      :class="[{ 'mascot-visible': isVisible }, positionClasses]"
-    >
+  <div
+    v-if="isVisible"
+    ref="mascotRef"
+    class="mascot-container fixed z-50 print:hidden"
+    :class="[{ 'mascot-visible': isVisible }, positionClasses]"
+  >
       <!-- Speech Bubble -->
       <div
         v-if="currentMessage"
@@ -175,26 +181,14 @@ const handleClick = () => {
       <circle cx="65" cy="34" r="3" fill="#EF4444" opacity="0" class="mascot-cheek-right" />
     </svg>
   </div>
-  </Transition>
 </template>
 
 <style scoped>
-/* Smooth sliding transition between positions */
-.mascot-slide-enter-active,
-.mascot-slide-leave-active {
-  transition: all 1s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.mascot-slide-enter-from,
-.mascot-slide-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
 .mascot-container {
   transform: scale(0);
   opacity: 0;
-  transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Smooth transition for ALL property changes including top/bottom/left/right */
+  transition: all 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   animation: float 3s ease-in-out infinite;
 }
 
@@ -432,6 +426,101 @@ const handleClick = () => {
   25% { transform: translate(1px, -1px); }
   50% { transform: translate(-1px, 0); }
   75% { transform: translate(0, 1px); }
+}
+
+/* New Idle Animations */
+
+/* Scratch head animation */
+.mascot-container.scratch-head .mascot-arm-right {
+  animation: scratchHead 2s ease-in-out;
+  transform-origin: 70px 55px;
+}
+
+@keyframes scratchHead {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-100deg) translateX(-15px) translateY(-20px); }
+  40% { transform: rotate(-100deg) translateX(-12px) translateY(-20px); }
+  60% { transform: rotate(-100deg) translateX(-15px) translateY(-20px); }
+  80% { transform: rotate(-100deg) translateX(-12px) translateY(-20px); }
+}
+
+.mascot-container.scratch-head .mascot-head {
+  animation: headTilt 2s ease-in-out;
+}
+
+@keyframes headTilt {
+  0%, 100% { transform: rotate(0deg); }
+  20%, 80% { transform: rotate(-10deg); }
+}
+
+/* Look around animation */
+.mascot-container.look-around .mascot-pupil-left,
+.mascot-container.look-around .mascot-pupil-right {
+  animation: eyesLookAround 3s ease-in-out;
+}
+
+@keyframes eyesLookAround {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(2px, 0); }
+  40% { transform: translate(-2px, 0); }
+  60% { transform: translate(0, -2px); }
+  80% { transform: translate(0, 2px); }
+}
+
+.mascot-container.look-around .mascot-head {
+  animation: headLookAround 3s ease-in-out;
+}
+
+@keyframes headLookAround {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(10deg); }
+  50% { transform: rotate(-10deg); }
+  75% { transform: rotate(5deg); }
+}
+
+/* Workout animation (jumping jacks) */
+.mascot-container.workout {
+  animation: workoutBounce 1.5s ease-in-out 3;
+}
+
+@keyframes workoutBounce {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-20px) scaleY(1.1); }
+}
+
+.mascot-container.workout .mascot-arm-left {
+  animation: leftArmWorkout 1.5s ease-in-out 3;
+  transform-origin: 30px 55px;
+}
+
+@keyframes leftArmWorkout {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-80deg); }
+}
+
+.mascot-container.workout .mascot-arm-right {
+  animation: rightArmWorkout 1.5s ease-in-out 3;
+  transform-origin: 70px 55px;
+}
+
+@keyframes rightArmWorkout {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(80deg); }
+}
+
+/* Color shift animation */
+.mascot-container.color-shift .mascot-body,
+.mascot-container.color-shift .mascot-head,
+.mascot-container.color-shift .mascot-arm-left,
+.mascot-container.color-shift .mascot-arm-right {
+  animation: colorCycle 4s ease-in-out;
+}
+
+@keyframes colorCycle {
+  0%, 100% { fill: #3B82F6; stroke: #3B82F6; }
+  25% { fill: #8B5CF6; stroke: #8B5CF6; }
+  50% { fill: #EC4899; stroke: #EC4899; }
+  75% { fill: #10B981; stroke: #10B981; }
 }
 
 /* Mobile adjustments */

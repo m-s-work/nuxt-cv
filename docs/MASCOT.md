@@ -17,14 +17,21 @@ The mascot appears in the bottom-right corner of the page (bottom-left on mobile
 - **Dynamic positioning**: Mascot moves around to different corners (if enabled)
 
 ### Animations
-The mascot supports six different animations:
+The mascot supports multiple scroll-based and idle animations:
 
+**Scroll-based animations:**
 1. **Wave** - Friendly greeting animation (arm waves back and forth)
 2. **Bounce** - Energetic bouncing motion to encourage scrolling
 3. **Point-up** - Points upward to draw attention to content above
 4. **Point-down** - Points downward to encourage scrolling
 5. **Celebrate** - Celebratory animation with bouncing and arm movements
 6. **Think** - Thoughtful animation with head nodding and moving eyes
+
+**Idle animations (cycle automatically every 12 seconds):**
+1. **Scratch Head** - Mascot scratches its head while tilting, showing curiosity
+2. **Look Around** - Eyes and head move looking in different directions
+3. **Workout** - Jumping jack exercise animation with arm movements
+4. **Color Shift** - Body color cycles through blue → purple → pink → green
 
 ### Scroll-based Behavior
 The mascot automatically updates its message and animation based on the user's scroll position:
@@ -61,10 +68,10 @@ The mascot responds to user interaction:
 ### Position Movement
 The mascot can automatically move between different screen positions to maintain user interest:
 - **Four positions**: bottom-right, bottom-left, top-right, top-left
-- **Smooth transitions**: Animated sliding with bouncy easing (1s duration)
-- **Automatic movement**: Changes position every 15 seconds (configurable)
+- **Smooth CSS transitions**: 1.2-second animated sliding with cubic-bezier easing
+- **Automatic movement**: Changes position every 20 seconds (configurable)
 - **Flag-controlled**: Can be enabled/disabled via `moveAroundEnabled` state
-- **No jarring jumps**: Uses Vue transitions for smooth position changes
+- **No jarring jumps**: Position properties (top/bottom/left/right) transition smoothly with CSS
 
 ## Implementation
 

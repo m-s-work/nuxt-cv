@@ -16,6 +16,7 @@ export const useMascot = () => {
   const currentSection = useState<string>('mascot-section', () => 'hero')
   const currentPosition = useState<'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'>('mascot-position', () => 'bottom-right')
   const moveAroundEnabled = useState<boolean>('mascot-move-around', () => true) // Flag to enable/disable movement
+  const currentIdleAnimation = useState<string | null>('mascot-idle-animation', () => null)
 
   // Show mascot after splash screen and initial scroll
   const showMascot = () => {
@@ -56,6 +57,23 @@ export const useMascot = () => {
     const positions: ('bottom-right' | 'bottom-left' | 'top-right' | 'top-left')[] = ['bottom-right', 'bottom-left', 'top-right', 'top-left']
     const availablePositions = positions.filter(p => p !== currentPosition.value)
     return availablePositions[Math.floor(Math.random() * availablePositions.length)]
+  }
+
+  // Get random idle animation
+  const getRandomIdleAnimation = (): string => {
+    const idleAnimations = ['scratch-head', 'look-around', 'workout', 'color-shift']
+    return idleAnimations[Math.floor(Math.random() * idleAnimations.length)]
+  }
+
+  // Trigger idle animation
+  const triggerIdleAnimation = () => {
+    const animation = getRandomIdleAnimation()
+    currentIdleAnimation.value = animation
+    
+    // Clear after animation completes
+    setTimeout(() => {
+      currentIdleAnimation.value = null
+    }, 4000) // Most animations are 3-4 seconds
   }
 
   // Handle scroll events to update mascot behavior
@@ -151,14 +169,24 @@ export const useMascot = () => {
       positionInterval = setInterval(() => {
         const newPosition = getRandomPosition()
         changePosition(newPosition)
-      }, 15000) // Change position every 15 seconds
+      }, 20000) // Change position every 20 seconds (increased from 15)
     }
+
+    // Set up idle animation cycle
+    let idleAnimationInterval: NodeJS.Timeout | null = null
+    idleAnimationInterval = setInterval(() => {
+      // Only trigger idle animations when not in an active scroll animation
+      if (!currentAnimation.value || currentAnimation.value === 'think') {
+        triggerIdleAnimation()
+      }
+    }, 12000) // Trigger idle animation every 12 seconds
 
     // Cleanup function
     return () => {
       window.removeEventListener('scroll', throttledScroll)
       if (scrollTimeout) clearTimeout(scrollTimeout)
       if (positionInterval) clearInterval(positionInterval)
+      if (idleAnimationInterval) clearInterval(idleAnimationInterval)
     }
   }
 
@@ -168,6 +196,7 @@ export const useMascot = () => {
     currentAnimation,
     currentSection,
     currentPosition,
+    currentIdleAnimation,
     moveAroundEnabled,
     showMascot,
     hideMascot,
