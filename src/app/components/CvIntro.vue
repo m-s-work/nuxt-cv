@@ -107,11 +107,11 @@ function getCircleDasharray(progress: number): string {
 <template>
   <section 
     ref="sectionRef"
-    class="intro-section bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 py-16 px-6 print:bg-white print:py-8"
+    class="intro-section min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 py-8 px-6 print:bg-white print:py-8 print:min-h-0"
   >
-    <div class="max-w-6xl mx-auto">
+    <div class="max-w-6xl mx-auto w-full">
       <!-- Intro Text -->
-      <div class="text-center mb-12">
+      <div class="text-center mb-8">
         <h2 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white print:text-black mb-4">
           {{ t('intro.title') }}
         </h2>
@@ -121,9 +121,9 @@ function getCircleDasharray(progress: number): string {
       </div>
 
       <!-- Stats Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <!-- Years of Experience - Large Feature -->
-        <div class="md:col-span-2 lg:col-span-1 flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg print:shadow-none transition-all duration-500"
+        <div class="md:col-span-2 lg:col-span-1 flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg print:shadow-none transition-all duration-500"
           :class="{ 'translate-y-0 opacity-100': isVisible, 'translate-y-4 opacity-0': !isVisible }"
         >
           <div class="text-6xl font-bold text-blue-600 dark:text-blue-400 mb-2">
@@ -141,7 +141,7 @@ function getCircleDasharray(progress: number): string {
         <div 
           v-for="(stat, index) in animatedStats" 
           :key="index"
-          class="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg print:shadow-none transition-all duration-500"
+          class="flex flex-col items-center justify-center p-5 bg-white dark:bg-gray-800 rounded-lg shadow-lg print:shadow-none transition-all duration-500"
           :class="{ 'translate-y-0 opacity-100': isVisible, 'translate-y-4 opacity-0': !isVisible }"
           :style="{ transitionDelay: `${index * 100}ms` }"
         >
@@ -191,14 +191,14 @@ function getCircleDasharray(progress: number): string {
 
       <!-- Key Highlights with Bullet Points -->
       <div class="max-w-4xl mx-auto">
-        <h3 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-6 text-center">
+        <h3 class="text-2xl font-bold text-gray-900 dark:text-white print:text-black mb-4 text-center">
           {{ t('intro.highlightsTitle') }}
         </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div 
             v-for="(highlight, index) in 4" 
             :key="index"
-            class="flex items-start space-x-3 p-4 bg-white dark:bg-gray-800 rounded-lg transition-all duration-500 print:bg-transparent"
+            class="flex items-start space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg transition-all duration-500 print:bg-transparent"
             :class="{ 'translate-x-0 opacity-100': isVisible, '-translate-x-4 opacity-0': !isVisible }"
             :style="{ transitionDelay: `${(index + 3) * 100}ms` }"
           >
