@@ -11,8 +11,10 @@ The mascot appears in the bottom-right corner of the page (bottom-left on mobile
 ### Visual Design
 - **SVG-based**: Fully scalable vector graphics for crisp display on all screen sizes
 - **Friendly appearance**: Blue character with expressive features
+- **Larger size**: 160px on desktop (128px on mobile) for better visibility
 - **Animated elements**: Eyes, mouth, arms, and body can all animate independently
 - **Speech bubbles**: Clean, modern speech bubbles with contextual messages
+- **Dynamic positioning**: Mascot moves around to different corners (if enabled)
 
 ### Animations
 The mascot supports six different animations:
@@ -45,9 +47,17 @@ All mascot messages are fully internationalized and support:
 Messages are stored in the component's i18n block and use the Nuxt i18n system.
 
 ### Responsive Design
-- **Desktop**: Appears in bottom-right corner (80x80px)
-- **Mobile**: Appears in bottom-right corner (64x64px)
+- **Desktop**: Larger size (160px) in one of four corners
+- **Mobile**: Smaller size (80px) for better mobile experience
 - **Print**: Hidden automatically for print media
+- **Speech bubbles**: Adapt position based on mascot location
+
+### Position Movement
+The mascot can automatically move between different screen positions to maintain user interest:
+- **Four positions**: bottom-right, bottom-left, top-right, top-left
+- **Automatic movement**: Changes position every 15 seconds (configurable)
+- **Flag-controlled**: Can be enabled/disabled via `moveAroundEnabled` state
+- **Smooth transitions**: Uses CSS transitions for position changes
 - **Speech bubbles**: Responsive sizing based on screen width
 
 ## Implementation
@@ -73,6 +83,32 @@ The mascot uses Vue's `useState` composable to manage:
 - Current section detection
 
 ### Customization
+
+#### Disable Movement
+To disable the automatic position changing:
+```typescript
+// In useMascot.ts
+const moveAroundEnabled = useState<boolean>('mascot-move-around', () => false)
+```
+
+#### Change Movement Interval
+To adjust how often the mascot moves:
+```typescript
+// In useMascot.ts - initializeMascot function
+positionInterval = setInterval(() => {
+  const newPosition = getRandomPosition()
+  changePosition(newPosition)
+}, 20000) // Change to 20 seconds instead of 15
+```
+
+#### Customize Size
+To change the mascot size, edit the SVG classes in `src/app/components/CvMascot.vue`:
+```vue
+<!-- Make it even bigger on desktop -->
+<svg class="mascot-svg w-48 h-48 md:w-56 md:h-56 cursor-pointer" ...>
+```
+
+#### Customize Behavior
 To customize the mascot behavior, edit `src/app/composables/useMascot.ts`:
 
 ```typescript

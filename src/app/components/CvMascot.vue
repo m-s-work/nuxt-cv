@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { currentMessage, currentAnimation, isVisible } = useMascot()
+const { currentMessage, currentAnimation, isVisible, currentPosition } = useMascot()
 const { t } = useI18n()
 
 // Watch for animation changes to trigger CSS animations
@@ -17,6 +17,17 @@ watch(currentAnimation, (newAnimation) => {
     }, 50)
   }
 })
+
+// Compute position classes based on current position
+const positionClasses = computed(() => {
+  const positions = {
+    'bottom-right': 'bottom-8 right-8',
+    'bottom-left': 'bottom-8 left-8',
+    'top-right': 'top-24 right-8',
+    'top-left': 'top-24 left-8'
+  }
+  return positions[currentPosition.value]
+})
 </script>
 
 <template>
@@ -24,23 +35,27 @@ watch(currentAnimation, (newAnimation) => {
     v-if="isVisible"
     ref="mascotRef"
     class="mascot-container fixed z-50 print:hidden transition-all duration-500"
-    :class="{ 'mascot-visible': isVisible }"
+    :class="[{ 'mascot-visible': isVisible }, positionClasses]"
   >
     <!-- Speech Bubble -->
     <div
       v-if="currentMessage"
-      class="speech-bubble absolute bottom-full mb-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 min-w-48 max-w-64"
+      class="speech-bubble absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 min-w-48 max-w-72"
+      :class="currentPosition.includes('bottom') ? 'bottom-full mb-4' : 'top-full mt-4'"
     >
-      <p class="text-sm text-gray-800 dark:text-gray-200 text-center">
+      <p class="text-base text-gray-800 dark:text-gray-200 text-center">
         {{ t(currentMessage) }}
       </p>
       <!-- Speech bubble tail -->
-      <div class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white dark:border-t-gray-800"></div>
+      <div 
+        class="absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-transparent"
+        :class="currentPosition.includes('bottom') ? 'top-full border-t-8 border-t-white dark:border-t-gray-800' : 'bottom-full border-b-8 border-b-white dark:border-b-gray-800'"
+      ></div>
     </div>
 
     <!-- SVG Mascot -->
     <svg
-      class="mascot-svg w-20 h-20 cursor-pointer"
+      class="mascot-svg w-32 h-32 md:w-40 md:h-40 cursor-pointer"
       viewBox="0 0 100 100"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -123,15 +138,20 @@ watch(currentAnimation, (newAnimation) => {
 
 <style scoped>
 .mascot-container {
-  bottom: 2rem;
-  right: 2rem;
-  transform: translateY(120%);
+  transform: scale(0);
   opacity: 0;
+  transition: all 0.5s ease-in-out;
 }
 
 .mascot-container.mascot-visible {
-  transform: translateY(0);
+  transform: scale(1);
   opacity: 1;
+}
+
+.speech-bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .mascot-svg {
@@ -283,16 +303,11 @@ watch(currentAnimation, (newAnimation) => {
   75% { transform: translate(0, 1px); }
 }
 
-/* Mobile positioning */
+/* Mobile adjustments */
 @media (max-width: 768px) {
-  .mascot-container {
-    bottom: 1rem;
-    right: 1rem;
-  }
-
   .mascot-svg {
-    width: 64px;
-    height: 64px;
+    width: 80px !important;
+    height: 80px !important;
   }
 
   .speech-bubble {

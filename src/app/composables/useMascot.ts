@@ -14,6 +14,8 @@ export const useMascot = () => {
   const currentAnimation = useState<string | null>('mascot-animation', () => null)
   const lastScrollY = useState<number>('mascot-last-scroll', () => 0)
   const currentSection = useState<string>('mascot-section', () => 'hero')
+  const currentPosition = useState<'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'>('mascot-position', () => 'bottom-right')
+  const moveAroundEnabled = useState<boolean>('mascot-move-around', () => true) // Flag to enable/disable movement
 
   // Show mascot after splash screen and initial scroll
   const showMascot = () => {
@@ -42,6 +44,18 @@ export const useMascot = () => {
   // Trigger specific animation
   const triggerAnimation = (animation: string) => {
     currentAnimation.value = animation
+  }
+
+  // Change mascot position
+  const changePosition = (position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left') => {
+    currentPosition.value = position
+  }
+
+  // Get random position different from current
+  const getRandomPosition = (): 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' => {
+    const positions: ('bottom-right' | 'bottom-left' | 'top-right' | 'top-left')[] = ['bottom-right', 'bottom-left', 'top-right', 'top-left']
+    const availablePositions = positions.filter(p => p !== currentPosition.value)
+    return availablePositions[Math.floor(Math.random() * availablePositions.length)]
   }
 
   // Handle scroll events to update mascot behavior
@@ -131,10 +145,20 @@ export const useMascot = () => {
 
     window.addEventListener('scroll', throttledScroll, { passive: true })
 
+    // Set up position change interval if move around is enabled
+    let positionInterval: NodeJS.Timeout | null = null
+    if (moveAroundEnabled.value) {
+      positionInterval = setInterval(() => {
+        const newPosition = getRandomPosition()
+        changePosition(newPosition)
+      }, 15000) // Change position every 15 seconds
+    }
+
     // Cleanup function
     return () => {
       window.removeEventListener('scroll', throttledScroll)
       if (scrollTimeout) clearTimeout(scrollTimeout)
+      if (positionInterval) clearInterval(positionInterval)
     }
   }
 
@@ -143,11 +167,14 @@ export const useMascot = () => {
     currentMessage,
     currentAnimation,
     currentSection,
+    currentPosition,
+    moveAroundEnabled,
     showMascot,
     hideMascot,
     updateMessage,
     clearMessage,
     triggerAnimation,
+    changePosition,
     handleScroll,
     initializeMascot
   }
