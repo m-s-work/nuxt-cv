@@ -5,8 +5,14 @@ export default defineNuxtConfig({
   
   modules: [
     '@nuxt/ui',
-    '@nuxtjs/i18n'
+    '@nuxtjs/i18n',
+    '@nuxtjs/color-mode'
   ],
+
+  // Color mode configuration
+  colorMode: {
+    classSuffix: ''
+  },
 
   // Import Tailwind CSS
   css: ['~/assets/css/main.css'],
