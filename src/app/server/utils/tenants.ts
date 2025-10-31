@@ -58,7 +58,8 @@ export const tenants: Record<string, TenantConfig> = {
         startDate: '2020-01-01',
         endDate: null,
         description: 'Leading architecture design and implementation for cloud-native applications',
-        technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+        technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes'],
+        images: ['https://placehold.co/400x300/3b82f6/fff?text=Architecture+Design', 'https://placehold.co/400x300/2563eb/fff?text=Cloud+Native']
       },
       {
         id: 2,
@@ -68,7 +69,8 @@ export const tenants: Record<string, TenantConfig> = {
         startDate: '2017-03-01',
         endDate: '2019-12-31',
         description: 'Developed enterprise web applications and microservices',
-        technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+        technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis'],
+        images: ['https://placehold.co/400x300/10b981/fff?text=Enterprise+Apps']
       }
     ],
     studies: [
@@ -103,8 +105,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2021 - 2023',
         startDate: '2021-03-01',
         endDate: '2023-06-30',
-        screenshots: ['/images/projects/ecommerce-screenshot.jpg'],
-        logos: ['/images/projects/ecommerce-logo.png']
+        screenshots: ['https://placehold.co/400x300/8b5cf6/fff?text=E-Commerce+Dashboard', 'https://placehold.co/400x300/7c3aed/fff?text=Product+Catalog'],
+        logos: ['https://placehold.co/200x200/8b5cf6/fff?text=Logo']
       },
       {
         id: 2,
@@ -115,7 +117,7 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2019 - 2021',
         startDate: '2019-06-01',
         endDate: '2021-02-28',
-        screenshots: ['/images/projects/banking-app-1.jpg', '/images/projects/banking-app-2.jpg']
+        screenshots: ['https://placehold.co/300x500/f59e0b/fff?text=Login+Screen', 'https://placehold.co/300x500/f59e0b/fff?text=Dashboard', 'https://placehold.co/300x500/f59e0b/fff?text=Transactions']
       },
       {
         id: 3,
@@ -126,8 +128,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2022 - Present',
         startDate: '2022-01-01',
         endDate: null,
-        images: ['/images/projects/ai-generator.jpg'],
-        logos: ['/images/projects/ai-logo.svg']
+        images: ['https://placehold.co/400x300/ec4899/fff?text=AI+Interface', 'https://placehold.co/400x300/db2777/fff?text=Content+Editor'],
+        logos: ['https://placehold.co/200x200/ec4899/fff?text=AI+Logo']
       }
     ]
   }
