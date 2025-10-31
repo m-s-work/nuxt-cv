@@ -59,7 +59,7 @@ export const tenants: Record<string, TenantConfig> = {
         endDate: null,
         description: 'Leading architecture design and implementation for cloud-native applications',
         technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes'],
-        images: ['https://placehold.co/400x300/3b82f6/fff?text=Architecture+Design', 'https://placehold.co/400x300/2563eb/fff?text=Cloud+Native']
+        images: ['/images/placeholder.svg', '/images/placeholder.svg']
       },
       {
         id: 2,
@@ -70,7 +70,7 @@ export const tenants: Record<string, TenantConfig> = {
         endDate: '2019-12-31',
         description: 'Developed enterprise web applications and microservices',
         technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis'],
-        images: ['https://placehold.co/400x300/10b981/fff?text=Enterprise+Apps']
+        images: ['/images/placeholder.svg']
       }
     ],
     studies: [
@@ -105,8 +105,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2021 - 2023',
         startDate: '2021-03-01',
         endDate: '2023-06-30',
-        screenshots: ['https://placehold.co/400x300/8b5cf6/fff?text=E-Commerce+Dashboard', 'https://placehold.co/400x300/7c3aed/fff?text=Product+Catalog'],
-        logos: ['https://placehold.co/200x200/8b5cf6/fff?text=Logo']
+        screenshots: ['/images/placeholder.svg', '/images/placeholder.svg'],
+        logos: ['/images/placeholder-logo.svg']
       },
       {
         id: 2,
@@ -117,7 +117,7 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2019 - 2021',
         startDate: '2019-06-01',
         endDate: '2021-02-28',
-        screenshots: ['https://placehold.co/300x500/f59e0b/fff?text=Login+Screen', 'https://placehold.co/300x500/f59e0b/fff?text=Dashboard', 'https://placehold.co/300x500/f59e0b/fff?text=Transactions']
+        screenshots: ['/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg']
       },
       {
         id: 3,
@@ -128,8 +128,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2022 - Present',
         startDate: '2022-01-01',
         endDate: null,
-        images: ['https://placehold.co/400x300/ec4899/fff?text=AI+Interface', 'https://placehold.co/400x300/db2777/fff?text=Content+Editor'],
-        logos: ['https://placehold.co/200x200/ec4899/fff?text=AI+Logo']
+        images: ['/images/placeholder.svg', '/images/placeholder.svg'],
+        logos: ['/images/placeholder-logo.svg']
       }
     ]
   }
