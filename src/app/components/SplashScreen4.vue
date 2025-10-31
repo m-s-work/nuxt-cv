@@ -19,16 +19,16 @@ onMounted(() => {
     <svg class="wave-svg" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="waveGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+          <stop offset="0%" style="stop-color:rgb(59 130 246);stop-opacity:0.8" />
+          <stop offset="100%" style="stop-color:rgb(37 99 235);stop-opacity:0.8" />
         </linearGradient>
         <linearGradient id="waveGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:0.8" />
-          <stop offset="100%" style="stop-color:#ec4899;stop-opacity:0.8" />
+          <stop offset="0%" style="stop-color:rgb(96 165 250);stop-opacity:0.6" />
+          <stop offset="100%" style="stop-color:rgb(59 130 246);stop-opacity:0.6" />
         </linearGradient>
         <linearGradient id="waveGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#ec4899;stop-opacity:0.6" />
-          <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:0.6" />
+          <stop offset="0%" style="stop-color:rgb(147 197 253);stop-opacity:0.4" />
+          <stop offset="100%" style="stop-color:rgb(96 165 250);stop-opacity:0.4" />
         </linearGradient>
       </defs>
       
@@ -66,7 +66,7 @@ onMounted(() => {
 }
 
 .splash-wave {
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  background: linear-gradient(135deg, rgb(37 99 235) 0%, rgb(29 78 216) 100%);
   animation: fadeOut 3.2s ease-in-out forwards;
 }
 

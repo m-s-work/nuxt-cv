@@ -45,7 +45,7 @@ onMounted(() => {
 }
 
 .splash-particles {
-  background: radial-gradient(circle at center, #0f172a 0%, #000000 100%);
+  background: linear-gradient(135deg, rgb(29 78 216) 0%, rgb(30 64 175) 100%);
   animation: fadeOut 2.8s ease-in-out forwards;
 }
 

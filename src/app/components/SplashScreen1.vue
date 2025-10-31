@@ -44,7 +44,7 @@ onMounted(() => {
 }
 
 .splash-fade {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, rgb(37 99 235) 0%, rgb(29 78 216) 100%);
   animation: fadeOut 2.5s ease-in-out forwards;
 }
 

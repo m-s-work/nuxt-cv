@@ -47,7 +47,7 @@ onMounted(() => {
 }
 
 .splash-geometric {
-  background: linear-gradient(45deg, #1e3a8a 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, rgb(37 99 235) 0%, rgb(29 78 216) 100%);
   animation: fadeOut 3s ease-in-out forwards;
 }
 
