@@ -137,7 +137,7 @@ The PR number should be included in the branch name to easily track the associat
 
 #### Commit Messages
 
-Use **Conventional Commits** format for all commit messages following the specification at https://www.conventionalcommits.org/en/v1.0.0/
+Use **Conventional Commits** format for all commit messages following the specification at https://www.conventionalcommits.org/en/v1.0.0/.
 
 **Format**: `<type>[optional scope]: <description>`
 
