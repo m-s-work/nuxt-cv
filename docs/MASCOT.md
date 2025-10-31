@@ -52,13 +52,19 @@ Messages are stored in the component's i18n block and use the Nuxt i18n system.
 - **Print**: Hidden automatically for print media
 - **Speech bubbles**: Adapt position based on mascot location
 
+### Interactive Features
+The mascot responds to user interaction:
+- **Hover (Tickle)**: Mouse hover triggers a giggle animation with wiggling and rosy cheeks
+- **Click**: Click creates a celebratory bounce with bigger reaction
+- **Idle Animation**: Gentle floating animation when not interacting
+
 ### Position Movement
 The mascot can automatically move between different screen positions to maintain user interest:
 - **Four positions**: bottom-right, bottom-left, top-right, top-left
+- **Smooth transitions**: Animated sliding with bouncy easing (1s duration)
 - **Automatic movement**: Changes position every 15 seconds (configurable)
 - **Flag-controlled**: Can be enabled/disabled via `moveAroundEnabled` state
-- **Smooth transitions**: Uses CSS transitions for position changes
-- **Speech bubbles**: Responsive sizing based on screen width
+- **No jarring jumps**: Uses Vue transitions for smooth position changes
 
 ## Implementation
 

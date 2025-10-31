@@ -1,14 +1,16 @@
 <script setup lang="ts">
-const { currentMessage, currentAnimation, isVisible, currentPosition } = useMascot()
+const { currentMessage, currentAnimation, isVisible, currentPosition, triggerAnimation } = useMascot()
 const { t } = useI18n()
 
 // Watch for animation changes to trigger CSS animations
 const mascotRef = ref<HTMLDivElement | null>(null)
+const isHovered = ref(false)
+const giggleCount = ref(0)
 
 watch(currentAnimation, (newAnimation) => {
   if (mascotRef.value) {
     // Remove all animation classes
-    mascotRef.value.classList.remove('wave', 'bounce', 'point-up', 'point-down', 'celebrate', 'think')
+    mascotRef.value.classList.remove('wave', 'bounce', 'point-up', 'point-down', 'celebrate', 'think', 'giggle')
     // Add new animation class after a short delay
     setTimeout(() => {
       if (mascotRef.value && newAnimation) {
@@ -28,37 +30,76 @@ const positionClasses = computed(() => {
   }
   return positions[currentPosition.value]
 })
+
+// Handle mouse hover - tickle effect
+const handleMouseEnter = () => {
+  isHovered.value = true
+  giggleCount.value++
+  
+  // Trigger giggle animation
+  if (mascotRef.value) {
+    mascotRef.value.classList.add('giggle')
+  }
+}
+
+const handleMouseLeave = () => {
+  isHovered.value = false
+  
+  // Remove giggle animation
+  if (mascotRef.value) {
+    mascotRef.value.classList.remove('giggle')
+  }
+}
+
+// Handle click - stronger reaction
+const handleClick = () => {
+  triggerAnimation('celebrate')
+  
+  // Add a temporary bounce
+  if (mascotRef.value) {
+    mascotRef.value.classList.add('tickled')
+    setTimeout(() => {
+      if (mascotRef.value) {
+        mascotRef.value.classList.remove('tickled')
+      }
+    }, 600)
+  }
+}
 </script>
 
 <template>
-  <div
-    v-if="isVisible"
-    ref="mascotRef"
-    class="mascot-container fixed z-50 print:hidden transition-all duration-500"
-    :class="[{ 'mascot-visible': isVisible }, positionClasses]"
-  >
-    <!-- Speech Bubble -->
+  <Transition name="mascot-slide">
     <div
-      v-if="currentMessage"
-      class="speech-bubble absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 min-w-48 max-w-72"
-      :class="currentPosition.includes('bottom') ? 'bottom-full mb-4' : 'top-full mt-4'"
+      v-if="isVisible"
+      ref="mascotRef"
+      class="mascot-container fixed z-50 print:hidden"
+      :class="[{ 'mascot-visible': isVisible }, positionClasses]"
     >
-      <p class="text-base text-gray-800 dark:text-gray-200 text-center">
-        {{ t(currentMessage) }}
-      </p>
-      <!-- Speech bubble tail -->
-      <div 
-        class="absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-transparent"
-        :class="currentPosition.includes('bottom') ? 'top-full border-t-8 border-t-white dark:border-t-gray-800' : 'bottom-full border-b-8 border-b-white dark:border-b-gray-800'"
-      ></div>
-    </div>
+      <!-- Speech Bubble -->
+      <div
+        v-if="currentMessage"
+        class="speech-bubble absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 min-w-48 max-w-72"
+        :class="currentPosition.includes('bottom') ? 'bottom-full mb-4' : 'top-full mt-4'"
+      >
+        <p class="text-base text-gray-800 dark:text-gray-200 text-center">
+          {{ t(currentMessage) }}
+        </p>
+        <!-- Speech bubble tail -->
+        <div 
+          class="absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-transparent"
+          :class="currentPosition.includes('bottom') ? 'top-full border-t-8 border-t-white dark:border-t-gray-800' : 'bottom-full border-b-8 border-b-white dark:border-b-gray-800'"
+        ></div>
+      </div>
 
-    <!-- SVG Mascot -->
-    <svg
-      class="mascot-svg w-32 h-32 md:w-40 md:h-40 cursor-pointer"
-      viewBox="0 0 100 100"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+      <!-- SVG Mascot -->
+      <svg
+        class="mascot-svg w-32 h-32 md:w-40 md:h-40 cursor-pointer"
+        viewBox="0 0 100 100"
+        xmlns="http://www.w3.org/2000/svg"
+        @mouseenter="handleMouseEnter"
+        @mouseleave="handleMouseLeave"
+        @click="handleClick"
+      >
       <!-- Shadow -->
       <ellipse
         cx="50"
@@ -134,13 +175,33 @@ const positionClasses = computed(() => {
       <circle cx="65" cy="34" r="3" fill="#EF4444" opacity="0" class="mascot-cheek-right" />
     </svg>
   </div>
+  </Transition>
 </template>
 
 <style scoped>
+/* Smooth sliding transition between positions */
+.mascot-slide-enter-active,
+.mascot-slide-leave-active {
+  transition: all 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mascot-slide-enter-from,
+.mascot-slide-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
 .mascot-container {
   transform: scale(0);
   opacity: 0;
-  transition: all 0.5s ease-in-out;
+  transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Floating idle animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-10px) scale(1); }
 }
 
 .mascot-container.mascot-visible {
@@ -152,6 +213,21 @@ const positionClasses = computed(() => {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
+  animation: fadeInBounce 0.4s ease-out;
+}
+
+@keyframes fadeInBounce {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  50% {
+    transform: translate(-50%, -5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .mascot-svg {
@@ -160,7 +236,62 @@ const positionClasses = computed(() => {
 }
 
 .mascot-svg:hover {
-  transform: scale(1.1);
+  transform: scale(1.15) rotate(2deg);
+}
+
+/* Giggle animation on hover */
+.mascot-container.giggle {
+  animation: giggle 0.5s ease-in-out infinite, float 3s ease-in-out infinite;
+}
+
+@keyframes giggle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-5px) rotate(-3deg); }
+  75% { transform: translateY(-5px) rotate(3deg); }
+}
+
+.mascot-container.giggle .mascot-body,
+.mascot-container.giggle .mascot-head {
+  animation: wiggle 0.3s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(2px); }
+}
+
+.mascot-container.giggle .mascot-cheek-left,
+.mascot-container.giggle .mascot-cheek-right {
+  opacity: 0.6 !important;
+}
+
+/* Tickled animation on click */
+.mascot-container.tickled {
+  animation: tickleBounce 0.6s ease-out !important;
+}
+
+@keyframes tickleBounce {
+  0% { transform: translateY(0) scale(1) rotate(0deg); }
+  20% { transform: translateY(-30px) scale(1.15) rotate(-10deg); }
+  40% { transform: translateY(-20px) scale(1.1) rotate(10deg); }
+  60% { transform: translateY(-25px) scale(1.12) rotate(-5deg); }
+  80% { transform: translateY(-15px) scale(1.05) rotate(5deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+.mascot-container.tickled .mascot-mouth {
+  d: path("M 40 32 Q 50 42 60 32");
+}
+
+.mascot-container.tickled .mascot-cheek-left,
+.mascot-container.tickled .mascot-cheek-right {
+  opacity: 1 !important;
+  animation: blush 0.6s ease-out;
+}
+
+@keyframes blush {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
 }
 
 /* Speech bubble animation */
