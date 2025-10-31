@@ -27,15 +27,44 @@ watch(currentIdleAnimation, (newIdle) => {
   }
 })
 
-// Compute position classes based on current position
+// Compute position classes and transforms based on current position
 const positionClasses = computed(() => {
-  const positions = {
-    'bottom-right': 'bottom-8 right-8',
-    'bottom-left': 'bottom-8 left-8',
-    'top-right': 'top-24 right-8',
-    'top-left': 'top-24 left-8'
+  // Always use fixed bottom-right as base position
+  return 'bottom-8 right-8'
+})
+
+// Compute CSS variables for smooth position transitions
+const positionStyle = computed(() => {
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080
+  
+  // Calculate offsets from bottom-right
+  let translateX = 0
+  let translateY = 0
+  
+  switch (currentPosition.value) {
+    case 'bottom-right':
+      translateX = 0
+      translateY = 0
+      break
+    case 'bottom-left':
+      translateX = -(viewportWidth - 200)
+      translateY = 0
+      break
+    case 'top-right':
+      translateX = 0
+      translateY = -(viewportHeight - 200)
+      break
+    case 'top-left':
+      translateX = -(viewportWidth - 200)
+      translateY = -(viewportHeight - 200)
+      break
   }
-  return positions[currentPosition.value]
+  
+  return {
+    '--mascot-x': `${translateX}px`,
+    '--mascot-y': `${translateY}px`
+  }
 })
 
 // Handle mouse hover - tickle effect
@@ -80,6 +109,7 @@ const handleClick = () => {
     ref="mascotRef"
     class="mascot-container fixed z-50 print:hidden"
     :class="[{ 'mascot-visible': isVisible }, positionClasses]"
+    :style="positionStyle"
   >
       <!-- Speech Bubble -->
       <div
@@ -185,22 +215,29 @@ const handleClick = () => {
 
 <style scoped>
 .mascot-container {
-  transform: scale(0);
+  --mascot-x: 0px;
+  --mascot-y: 0px;
+  transform: translate(var(--mascot-x), var(--mascot-y)) scale(0);
   opacity: 0;
-  /* Smooth transition for ALL property changes including top/bottom/left/right */
-  transition: all 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  animation: float 3s ease-in-out infinite;
-}
-
-/* Floating idle animation */
-@keyframes float {
-  0%, 100% { transform: translateY(0px) scale(1); }
-  50% { transform: translateY(-10px) scale(1); }
+  /* Smooth transition for transform */
+  transition: transform 1.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.8s ease-in-out;
 }
 
 .mascot-container.mascot-visible {
-  transform: scale(1);
+  transform: translate(var(--mascot-x), var(--mascot-y)) scale(1);
   opacity: 1;
+  /* Add floating animation after becoming visible */
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Floating idle animation - uses additional transform */
+@keyframes float {
+  0%, 100% { 
+    transform: translate(var(--mascot-x), calc(var(--mascot-y) + 0px)) scale(1); 
+  }
+  50% { 
+    transform: translate(var(--mascot-x), calc(var(--mascot-y) - 10px)) scale(1); 
+  }
 }
 
 .speech-bubble {
@@ -453,7 +490,7 @@ const handleClick = () => {
   20%, 80% { transform: rotate(-10deg); }
 }
 
-/* Look around animation */
+/* Look around animation - only eyes, no head rotation */
 .mascot-container.look-around .mascot-pupil-left,
 .mascot-container.look-around .mascot-pupil-right {
   animation: eyesLookAround 3s ease-in-out;
@@ -461,21 +498,12 @@ const handleClick = () => {
 
 @keyframes eyesLookAround {
   0%, 100% { transform: translate(0, 0); }
-  20% { transform: translate(2px, 0); }
-  40% { transform: translate(-2px, 0); }
-  60% { transform: translate(0, -2px); }
-  80% { transform: translate(0, 2px); }
-}
-
-.mascot-container.look-around .mascot-head {
-  animation: headLookAround 3s ease-in-out;
-}
-
-@keyframes headLookAround {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(10deg); }
-  50% { transform: rotate(-10deg); }
-  75% { transform: rotate(5deg); }
+  15% { transform: translate(2px, 0); }
+  30% { transform: translate(-2px, 0); }
+  45% { transform: translate(0, -2px); }
+  60% { transform: translate(0, 2px); }
+  75% { transform: translate(1px, 1px); }
+  90% { transform: translate(-1px, -1px); }
 }
 
 /* Workout animation (jumping jacks) */

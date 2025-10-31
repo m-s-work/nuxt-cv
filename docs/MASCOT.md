@@ -29,7 +29,7 @@ The mascot supports multiple scroll-based and idle animations:
 
 **Idle animations (cycle automatically every 12 seconds):**
 1. **Scratch Head** - Mascot scratches its head while tilting, showing curiosity
-2. **Look Around** - Eyes and head move looking in different directions
+2. **Look Around** - Eyes move looking in different directions (no head movement)
 3. **Workout** - Jumping jack exercise animation with arm movements
 4. **Color Shift** - Body color cycles through blue → purple → pink → green
 
@@ -66,12 +66,13 @@ The mascot responds to user interaction:
 - **Idle Animation**: Gentle floating animation when not interacting
 
 ### Position Movement
-The mascot can automatically move between different screen positions to maintain user interest:
+The mascot smoothly glides between different screen positions to maintain user interest:
 - **Four positions**: bottom-right, bottom-left, top-right, top-left
-- **Smooth CSS transitions**: 1.2-second animated sliding with cubic-bezier easing
+- **True smooth sliding**: Uses CSS custom properties (--mascot-x, --mascot-y) with transform
+- **1.5-second transition**: Animated sliding with cubic-bezier(0.34, 1.56, 0.64, 1) easing
 - **Automatic movement**: Changes position every 20 seconds (configurable)
 - **Flag-controlled**: Can be enabled/disabled via `moveAroundEnabled` state
-- **No jarring jumps**: Position properties (top/bottom/left/right) transition smoothly with CSS
+- **No instant jumps**: Mascot smoothly glides across the screen between corners
 
 ## Implementation
 
