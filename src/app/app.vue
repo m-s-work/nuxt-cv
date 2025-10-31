@@ -18,6 +18,7 @@ onMounted(() => {
   <div>
     <SplashScreenManager />
     <LanguageSelector />
+    <CvMascot />
     <NuxtPage />
   </div>
 </template>
