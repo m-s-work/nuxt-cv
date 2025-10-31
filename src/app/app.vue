@@ -2,6 +2,8 @@
 const { setSplashType } = useSplashScreen()
 const { initializeMascot } = useMascot()
 
+let cleanup: (() => void) | undefined
+
 // Check URL parameter for splash screen type (for testing/demo)
 onMounted(() => {
   if (typeof window !== 'undefined') {
@@ -13,13 +15,13 @@ onMounted(() => {
     }
 
     // Initialize mascot
-    const cleanup = initializeMascot()
-    
-    // Cleanup on unmount
-    onUnmounted(() => {
-      if (cleanup) cleanup()
-    })
+    cleanup = initializeMascot()
   }
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (cleanup) cleanup()
 })
 </script>
 
