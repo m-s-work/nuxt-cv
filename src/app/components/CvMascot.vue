@@ -7,6 +7,15 @@ const currentEmotion = ref<'idle' | 'happy' | 'excited'>('idle')
 const blinkInterval = ref<NodeJS.Timeout | null>(null)
 const shouldBlink = ref(false)
 
+// Navigation guidance
+const currentSection = ref<string>('welcome')
+const showGuidance = ref(false)
+const guidanceMessage = ref('')
+const guidanceTimeout = ref<NodeJS.Timeout | null>(null)
+
+// Track if user has seen welcome message
+const hasSeenWelcome = ref(false)
+
 // Handle mouse events
 const handleMouseEnter = () => {
   isHovered.value = true
@@ -16,6 +25,59 @@ const handleMouseEnter = () => {
 const handleMouseLeave = () => {
   isHovered.value = false
   currentEmotion.value = 'idle'
+}
+
+// Show guidance message
+const displayGuidance = (section: string, delay = 0) => {
+  // Clear any existing timeout
+  if (guidanceTimeout.value) {
+    clearTimeout(guidanceTimeout.value)
+  }
+
+  guidanceTimeout.value = setTimeout(() => {
+    currentSection.value = section
+    guidanceMessage.value = t(`mascot.guidance.${section}`)
+    showGuidance.value = true
+    currentEmotion.value = 'happy'
+
+    // Auto-hide after 8 seconds
+    setTimeout(() => {
+      showGuidance.value = false
+      currentEmotion.value = 'idle'
+    }, 8000)
+  }, delay)
+}
+
+// Detect section changes via scroll
+const detectCurrentSection = () => {
+  if (typeof window === 'undefined') return
+
+  const sections = [
+    'skills-section',
+    'experiences-section',
+    'studies-section',
+    'projects-section',
+    'other-section'
+  ]
+
+  const scrollPosition = window.scrollY + window.innerHeight / 2
+
+  for (const sectionId of sections) {
+    const element = document.getElementById(sectionId)
+    if (element) {
+      const rect = element.getBoundingClientRect()
+      const elementTop = rect.top + window.scrollY
+      const elementBottom = elementTop + rect.height
+
+      if (scrollPosition >= elementTop && scrollPosition <= elementBottom) {
+        const section = sectionId.replace('-section', '')
+        if (currentSection.value !== section) {
+          displayGuidance(section, 500)
+        }
+        break
+      }
+    }
+  }
 }
 
 // Blink animation logic
@@ -28,13 +90,41 @@ const startBlinking = () => {
   }, 3000 + Math.random() * 2000) // Random blink every 3-5 seconds
 }
 
+// Handle mascot click to show navigation tips
+const handleMascotClick = () => {
+  if (currentSection.value === 'welcome') {
+    displayGuidance('navigation', 0)
+  } else {
+    displayGuidance(currentSection.value, 0)
+  }
+}
+
 onMounted(() => {
   startBlinking()
+
+  // Show welcome message after splash screen
+  if (typeof window !== 'undefined') {
+    setTimeout(() => {
+      if (!hasSeenWelcome.value) {
+        displayGuidance('welcome', 0)
+        hasSeenWelcome.value = true
+      }
+    }, 3500) // After splash screen typically finishes
+
+    // Add scroll listener for section detection
+    window.addEventListener('scroll', detectCurrentSection, { passive: true })
+  }
 })
 
 onUnmounted(() => {
   if (blinkInterval.value) {
     clearInterval(blinkInterval.value)
+  }
+  if (guidanceTimeout.value) {
+    clearTimeout(guidanceTimeout.value)
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('scroll', detectCurrentSection)
   }
 })
 </script>
@@ -42,9 +132,10 @@ onUnmounted(() => {
 <template>
   <div 
     class="mascot-container no-print"
-    :class="{ 'is-hovered': isHovered }"
+    :class="{ 'is-hovered': isHovered, 'has-guidance': showGuidance }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
+    @click="handleMascotClick"
   >
     <svg 
       class="mascot-svg"
@@ -61,6 +152,10 @@ onUnmounted(() => {
         <linearGradient id="bodyGradientHover" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
           <stop offset="100%" style="stop-color:#ef4444;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="bodyGradientHappy" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
         </linearGradient>
       </defs>
 
@@ -80,7 +175,7 @@ onUnmounted(() => {
         cx="100" 
         cy="100" 
         r="60" 
-        :fill="isHovered ? 'url(#bodyGradientHover)' : 'url(#bodyGradient)'"
+        :fill="isHovered ? 'url(#bodyGradientHover)' : (currentEmotion === 'happy' ? 'url(#bodyGradientHappy)' : 'url(#bodyGradient)')"
       />
 
       <!-- Arms -->
@@ -92,7 +187,7 @@ onUnmounted(() => {
           cy="100" 
           rx="12" 
           ry="30" 
-          :fill="isHovered ? '#f59e0b' : '#667eea'"
+          :fill="isHovered ? '#f59e0b' : (currentEmotion === 'happy' ? '#10b981' : '#667eea')"
         />
         <!-- Right arm -->
         <ellipse 
@@ -101,7 +196,7 @@ onUnmounted(() => {
           cy="100" 
           rx="12" 
           ry="30" 
-          :fill="isHovered ? '#f59e0b' : '#667eea'"
+          :fill="isHovered ? '#f59e0b' : (currentEmotion === 'happy' ? '#10b981' : '#667eea')"
         />
       </g>
 
@@ -180,6 +275,14 @@ onUnmounted(() => {
           stroke-width="3" 
           stroke-linecap="round"
         />
+        <path 
+          v-else-if="currentEmotion === 'happy'"
+          d="M 80 110 Q 100 125 120 110" 
+          fill="none" 
+          stroke="white" 
+          stroke-width="3" 
+          stroke-linecap="round"
+        />
       </g>
 
       <!-- Sparkles when hovered -->
@@ -191,9 +294,16 @@ onUnmounted(() => {
       </g>
     </svg>
 
-    <!-- Optional tooltip -->
-    <div class="mascot-tooltip" :class="{ 'show': isHovered }">
+    <!-- Tooltip on hover -->
+    <div class="mascot-tooltip" :class="{ 'show': isHovered && !showGuidance }">
       {{ t('mascot.tooltip') }}
+    </div>
+
+    <!-- Guidance message bubble -->
+    <div class="mascot-guidance" :class="{ 'show': showGuidance }">
+      <div class="guidance-content">
+        {{ guidanceMessage }}
+      </div>
     </div>
   </div>
 </template>
@@ -408,6 +518,73 @@ onUnmounted(() => {
     display: none !important;
   }
 }
+
+/* Guidance message bubble */
+.mascot-guidance {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  max-width: 280px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  transform: translateY(10px);
+}
+
+.mascot-guidance::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 2rem;
+  border: 10px solid transparent;
+  border-top-color: #764ba2;
+}
+
+.mascot-guidance.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.guidance-content {
+  font-weight: 500;
+  text-align: left;
+}
+
+/* Pulse animation when guidance is shown */
+.has-guidance .mascot-svg {
+  animation: guidance-pulse 2s ease-in-out infinite;
+}
+
+@keyframes guidance-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Adjust guidance on mobile */
+@media (max-width: 768px) {
+  .mascot-guidance {
+    max-width: 200px;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    right: -20px;
+  }
+  
+  .mascot-guidance::after {
+    right: 30px;
+  }
+}
 </style>
 
 <i18n lang="json">
@@ -415,13 +592,31 @@ onUnmounted(() => {
   "en": {
     "mascot": {
       "aria": "Friendly CV mascot companion",
-      "tooltip": "Hi! I'm your CV guide 👋"
+      "tooltip": "Click me for tips! 💡",
+      "guidance": {
+        "welcome": "Welcome! 👋 Scroll down to explore my professional journey. Use the navigation menu at the top to jump to specific sections.",
+        "navigation": "💡 Tip: Click the navigation links at the top to quickly jump between sections like Skills, Experience, and Projects!",
+        "skills": "🎯 Here you'll find my core competencies and technologies I work with. Hover over badges to see more details!",
+        "experiences": "💼 This section showcases my professional experience. Click on any timeline entry to see full details!",
+        "studies": "🎓 Check out my educational background and academic achievements here.",
+        "projects": "🚀 Explore the projects I've worked on. Each one demonstrates different skills and technologies!",
+        "other": "📚 Additional experiences and qualifications that round out my profile."
+      }
     }
   },
   "de": {
     "mascot": {
       "aria": "Freundliches CV-Maskottchen",
-      "tooltip": "Hallo! Ich bin dein CV-Begleiter 👋"
+      "tooltip": "Klick mich für Tipps! 💡",
+      "guidance": {
+        "welcome": "Willkommen! 👋 Scrolle nach unten, um meine berufliche Reise zu erkunden. Nutze das Navigationsmenü oben, um zu bestimmten Abschnitten zu springen.",
+        "navigation": "💡 Tipp: Klicke auf die Navigationslinks oben, um schnell zwischen Abschnitten wie Fähigkeiten, Erfahrung und Projekten zu wechseln!",
+        "skills": "🎯 Hier findest du meine Kernkompetenzen und Technologien, mit denen ich arbeite. Bewege die Maus über die Badges für mehr Details!",
+        "experiences": "💼 Dieser Abschnitt zeigt meine berufliche Erfahrung. Klicke auf einen Zeitleisteneintrag, um alle Details zu sehen!",
+        "studies": "🎓 Schau dir hier meinen Bildungshintergrund und akademischen Erfolge an.",
+        "projects": "🚀 Erkunde die Projekte, an denen ich gearbeitet habe. Jedes zeigt verschiedene Fähigkeiten und Technologien!",
+        "other": "📚 Zusätzliche Erfahrungen und Qualifikationen, die mein Profil abrunden."
+      }
     }
   }
 }

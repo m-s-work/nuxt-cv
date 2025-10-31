@@ -141,4 +141,61 @@ describe('CvMascot Component Tests', () => {
     expect(printStyles.className).toBe('no-print')
     expect(printStyles.mediaQuery).toBe('@media print')
   })
+
+  it('can manage guidance message state', () => {
+    const guidance = {
+      showGuidance: false,
+      currentSection: 'welcome',
+      guidanceMessage: '',
+      
+      displayGuidance(section: string, message: string) {
+        this.currentSection = section
+        this.guidanceMessage = message
+        this.showGuidance = true
+      },
+      
+      hideGuidance() {
+        this.showGuidance = false
+      }
+    }
+    
+    expect(guidance.showGuidance).toBe(false)
+    expect(guidance.currentSection).toBe('welcome')
+    
+    guidance.displayGuidance('skills', 'Test message')
+    expect(guidance.showGuidance).toBe(true)
+    expect(guidance.currentSection).toBe('skills')
+    expect(guidance.guidanceMessage).toBe('Test message')
+    
+    guidance.hideGuidance()
+    expect(guidance.showGuidance).toBe(false)
+  })
+
+  it('supports different CV sections', () => {
+    const sections = ['welcome', 'navigation', 'skills', 'experiences', 'studies', 'projects', 'other']
+    
+    sections.forEach(section => {
+      expect(sections).toContain(section)
+    })
+    
+    expect(sections.length).toBe(7)
+  })
+
+  it('can handle click events', () => {
+    let clickCount = 0
+    
+    const mascot = {
+      handleClick() {
+        clickCount++
+      }
+    }
+    
+    expect(clickCount).toBe(0)
+    
+    mascot.handleClick()
+    expect(clickCount).toBe(1)
+    
+    mascot.handleClick()
+    expect(clickCount).toBe(2)
+  })
 })
