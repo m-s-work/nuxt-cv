@@ -2,6 +2,7 @@
 import type { LightboxImage } from '~/composables/useLightbox'
 
 const { t } = useI18n()
+const { getAssetPath } = useAssetPath()
 
 interface Props {
   id: number | string
@@ -69,7 +70,7 @@ function handleImageClick(index: number) {
   if (!props.imagesClickable || !props.images || props.images.length === 0) return
   
   const lightboxImages: LightboxImage[] = props.images.map((src, i) => ({
-    src,
+    src: getAssetPath(src),
     alt: `${props.title} image ${i + 1}`,
     groupId: `${props.type}-${props.id}`
   }))
@@ -137,7 +138,7 @@ function handleImageClick(index: number) {
         @click="handleImageClick(index)"
       >
         <img 
-          :src="image"
+          :src="getAssetPath(image)"
           :alt="`${title} image ${index + 1}`"
           class="h-32 w-auto object-cover rounded border border-gray-200 dark:border-gray-700 print:border-gray-300 transition-all duration-200"
           :class="{
