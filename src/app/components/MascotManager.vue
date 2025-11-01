@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import MascotCat from './mascots/MascotCat.vue'
+import MascotRobot from './mascots/MascotRobot.vue'
+import MascotOwl from './mascots/MascotOwl.vue'
+
 const { t } = useI18n()
 const mascot = useMascot()
 
