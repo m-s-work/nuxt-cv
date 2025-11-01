@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { MascotDesign } from '~/types/mascot'
+import MascotRobot from '~/components/mascots/MascotRobot.vue'
+import MascotOwl from '~/components/mascots/MascotOwl.vue'
 
 const { t } = useI18n()
 const { 
@@ -77,18 +79,6 @@ const positionClass = computed(() => {
   }
 })
 
-// Get the appropriate mascot component
-const mascotComponent = computed(() => {
-  switch (config.value.design) {
-    case 'owl':
-      return resolveComponent('MascotOwl')
-    case 'cat':
-      return resolveComponent('MascotRobot') // TODO: Create cat mascot
-    default:
-      return resolveComponent('MascotRobot')
-  }
-})
-
 // Set up scroll listener
 onMounted(() => {
   if (typeof window !== 'undefined') {
@@ -132,8 +122,15 @@ onUnmounted(() => {
       @keydown.enter="onMascotClick"
       @keydown.space.prevent="onMascotClick"
     >
-      <component
-        :is="mascotComponent"
+      <MascotOwl
+        v-if="config.design === 'owl'"
+        :theme="config.theme"
+        :animation-state="animationState"
+        :scroll-context="scrollContext"
+        :size="120"
+      />
+      <MascotRobot
+        v-else
         :theme="config.theme"
         :animation-state="animationState"
         :scroll-context="scrollContext"
