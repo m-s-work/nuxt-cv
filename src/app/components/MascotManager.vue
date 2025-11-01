@@ -3,6 +3,8 @@ import MascotCat from './mascots/MascotCat.vue'
 import MascotRobot from './mascots/MascotRobot.vue'
 import MascotOwl from './mascots/MascotOwl.vue'
 
+import type { MascotPosition } from '~/types/mascot'
+
 const { t } = useI18n()
 const mascot = useMascot()
 
@@ -33,7 +35,7 @@ onMounted(() => {
   const positionParam = urlParams.get('mascotPosition')
   const validPositions = ['bottom-right', 'bottom-left', 'top-right', 'top-left']
   if (positionParam && validPositions.includes(positionParam)) {
-    mascot.setPosition(positionParam as any)
+    mascot.setPosition(positionParam as MascotPosition)
   }
   
   window.addEventListener('scroll', updateScroll, { passive: true })
