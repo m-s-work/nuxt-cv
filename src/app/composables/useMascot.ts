@@ -108,6 +108,7 @@ export const useMascot = () => {
     const scrollY = window.scrollY
     const documentHeight = document.documentElement.scrollHeight - window.innerHeight
     const scrollPercent = documentHeight > 0 ? (scrollY / documentHeight) * 100 : 0
+    const previousScrollY = (scrollContext.value.scrollPercent * documentHeight / 100)
 
     // Determine current section
     let section: MascotScrollContext['section'] = 'top'
@@ -121,8 +122,8 @@ export const useMascot = () => {
     else section = 'footer'
 
     // Determine scroll direction
-    const direction = scrollY > (scrollContext.value.scrollPercent * documentHeight / 100) ? 'down' : 
-                     scrollY < (scrollContext.value.scrollPercent * documentHeight / 100) ? 'up' : 'none'
+    const direction = scrollY > previousScrollY ? 'down' : 
+                     scrollY < previousScrollY ? 'up' : 'none'
 
     updateScrollContext({
       scrollPercent,

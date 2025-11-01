@@ -16,7 +16,16 @@ const {
 
 // Track if mouse is hovering over mascot
 const isHovering = ref(false)
-const hoverTimer = ref<NodeJS.Timeout | null>(null)
+const hoverTimer = ref<number | null>(null)
+const idleTimer = ref<number | null>(null)
+
+// Helper function to clear and set a timer
+const setTimer = (timerRef: Ref<number | null>, callback: () => void, delay: number): void => {
+  if (timerRef.value !== null) {
+    clearTimeout(timerRef.value)
+  }
+  timerRef.value = window.setTimeout(callback, delay)
+}
 
 // Handle mouse enter - tickle effect
 const onMouseEnter = () => {
@@ -24,8 +33,7 @@ const onMouseEnter = () => {
   setAnimationState('hover')
   
   // Show a random message after a brief hover
-  if (hoverTimer.value) clearTimeout(hoverTimer.value)
-  hoverTimer.value = setTimeout(() => {
+  setTimer(hoverTimer, () => {
     if (isHovering.value && config.value.showMessages) {
       const messages = t('mascot.hoverMessages', { returnObjects: true }) as string[]
       const randomMessage = messages[Math.floor(Math.random() * messages.length)]
@@ -37,12 +45,12 @@ const onMouseEnter = () => {
 // Handle mouse leave
 const onMouseLeave = () => {
   isHovering.value = false
-  if (hoverTimer.value) {
+  if (hoverTimer.value !== null) {
     clearTimeout(hoverTimer.value)
     hoverTimer.value = null
   }
   // Return to idle after a brief delay
-  setTimeout(() => {
+  setTimer(idleTimer, () => {
     if (!isHovering.value) {
       setAnimationState('idle')
     }
@@ -58,7 +66,7 @@ const onMascotClick = () => {
     showMessage(randomMessage, 3000)
   }
   // Return to idle after animation
-  setTimeout(() => {
+  setTimer(idleTimer, () => {
     if (!isHovering.value) {
       setAnimationState('idle')
     }
@@ -98,8 +106,11 @@ onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('scroll', handleScroll)
   }
-  if (hoverTimer.value) {
+  if (hoverTimer.value !== null) {
     clearTimeout(hoverTimer.value)
+  }
+  if (idleTimer.value !== null) {
+    clearTimeout(idleTimer.value)
   }
 })
 </script>

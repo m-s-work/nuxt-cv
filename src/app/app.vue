@@ -1,6 +1,11 @@
 <script setup lang="ts">
+import type { MascotDesign } from '~/types/mascot'
+
 const { setSplashType } = useSplashScreen()
 const { updateConfig } = useMascot()
+
+const validMascotDesigns: MascotDesign[] = ['robot', 'owl']
+const validMascotThemes = ['default', 'dark', 'colorful'] as const
 
 // Check URL parameter for splash screen type (for testing/demo)
 onMounted(() => {
@@ -15,10 +20,10 @@ onMounted(() => {
     // Check for mascot configuration in URL parameters
     const mascotDesign = urlParams.get('mascot')
     const mascotTheme = urlParams.get('mascotTheme')
-    if (mascotDesign && ['robot', 'owl', 'cat'].includes(mascotDesign)) {
-      updateConfig({ design: mascotDesign as 'robot' | 'owl' | 'cat' })
+    if (mascotDesign && validMascotDesigns.includes(mascotDesign as MascotDesign)) {
+      updateConfig({ design: mascotDesign as MascotDesign })
     }
-    if (mascotTheme && ['default', 'dark', 'colorful'].includes(mascotTheme)) {
+    if (mascotTheme && validMascotThemes.includes(mascotTheme as any)) {
       updateConfig({ theme: mascotTheme as 'default' | 'dark' | 'colorful' })
     }
   }

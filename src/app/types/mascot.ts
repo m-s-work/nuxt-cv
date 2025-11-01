@@ -5,7 +5,7 @@
 /**
  * Available mascot designs
  */
-export type MascotDesign = 'robot' | 'owl' | 'cat'
+export type MascotDesign = 'robot' | 'owl'
 
 /**
  * Available mascot themes
