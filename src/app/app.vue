@@ -1,5 +1,8 @@
 <script setup lang="ts">
 const { setSplashType } = useSplashScreen()
+const { initializeMascot } = useMascot()
+
+let cleanup: (() => void) | undefined
 
 // Check URL parameter for splash screen type (for testing/demo)
 onMounted(() => {
@@ -10,7 +13,15 @@ onMounted(() => {
     if (splashParam && validTypes.includes(splashParam)) {
       setSplashType(parseInt(splashParam) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
     }
+
+    // Initialize mascot
+    cleanup = initializeMascot()
   }
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (cleanup) cleanup()
 })
 </script>
 
@@ -18,6 +29,7 @@ onMounted(() => {
   <div>
     <SplashScreenManager />
     <LanguageSelector />
+    <CvMascot />
     <NuxtPage />
     <Lightbox />
   </div>
