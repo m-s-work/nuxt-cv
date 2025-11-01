@@ -12,6 +12,7 @@ interface Props {
     period: string
     description: string
     technologies?: string[]
+    images?: string[]
   }>
   activeIds?: (number | string)[]
 }
@@ -70,6 +71,7 @@ const filteredExperiences = computed(() => {
         :period="exp.period"
         :description="exp.description"
         :technologies="exp.technologies"
+        :images="exp.images"
         :active-ids="activeIds"
         :icon="exp.icon"
         type="experience"

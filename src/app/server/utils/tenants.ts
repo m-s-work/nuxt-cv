@@ -16,6 +16,7 @@ export interface Experience {
   endDate: string | null  // ISO date format or year, null for current
   description: string
   technologies: string[]
+  images?: string[]  // URLs to images
 }
 
 export interface Study {
@@ -57,7 +58,8 @@ export const tenants: Record<string, TenantConfig> = {
         startDate: '2020-01-01',
         endDate: null,
         description: 'Leading architecture design and implementation for cloud-native applications',
-        technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
+        technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes'],
+        images: ['/images/placeholder.svg', '/images/placeholder.svg']
       },
       {
         id: 2,
@@ -67,7 +69,8 @@ export const tenants: Record<string, TenantConfig> = {
         startDate: '2017-03-01',
         endDate: '2019-12-31',
         description: 'Developed enterprise web applications and microservices',
-        technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
+        technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis'],
+        images: ['/images/placeholder.svg']
       }
     ],
     studies: [
@@ -102,8 +105,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2021 - 2023',
         startDate: '2021-03-01',
         endDate: '2023-06-30',
-        screenshots: ['/images/projects/ecommerce-screenshot.jpg'],
-        logos: ['/images/projects/ecommerce-logo.png']
+        screenshots: ['/images/placeholder.svg', '/images/placeholder.svg'],
+        logos: ['/images/placeholder-logo.svg']
       },
       {
         id: 2,
@@ -114,7 +117,7 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2019 - 2021',
         startDate: '2019-06-01',
         endDate: '2021-02-28',
-        screenshots: ['/images/projects/banking-app-1.jpg', '/images/projects/banking-app-2.jpg']
+        screenshots: ['/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg']
       },
       {
         id: 3,
@@ -125,8 +128,8 @@ export const tenants: Record<string, TenantConfig> = {
         period: '2022 - Present',
         startDate: '2022-01-01',
         endDate: null,
-        images: ['/images/projects/ai-generator.jpg'],
-        logos: ['/images/projects/ai-logo.svg']
+        images: ['/images/placeholder.svg', '/images/placeholder.svg'],
+        logos: ['/images/placeholder-logo.svg']
       }
     ]
   }

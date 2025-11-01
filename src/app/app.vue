@@ -19,6 +19,7 @@ onMounted(() => {
     <SplashScreenManager />
     <LanguageSelector />
     <NuxtPage />
+    <Lightbox />
   </div>
 </template>
 
