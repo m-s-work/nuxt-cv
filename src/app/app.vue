@@ -18,6 +18,7 @@ onMounted(() => {
   <div>
     <SplashScreenManager />
     <LanguageSelector />
+    <MascotManager />
     <NuxtPage />
     <Lightbox />
   </div>
