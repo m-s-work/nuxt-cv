@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { setSplashType } = useSplashScreen()
+const { updateConfig } = useMascot()
 
 // Check URL parameter for splash screen type (for testing/demo)
 onMounted(() => {
@@ -10,6 +11,16 @@ onMounted(() => {
     if (splashParam && validTypes.includes(splashParam)) {
       setSplashType(parseInt(splashParam) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10)
     }
+    
+    // Check for mascot configuration in URL parameters
+    const mascotDesign = urlParams.get('mascot')
+    const mascotTheme = urlParams.get('mascotTheme')
+    if (mascotDesign && ['robot', 'owl', 'cat'].includes(mascotDesign)) {
+      updateConfig({ design: mascotDesign as 'robot' | 'owl' | 'cat' })
+    }
+    if (mascotTheme && ['default', 'dark', 'colorful'].includes(mascotTheme)) {
+      updateConfig({ theme: mascotTheme as 'default' | 'dark' | 'colorful' })
+    }
   }
 })
 </script>
@@ -18,6 +29,7 @@ onMounted(() => {
   <div>
     <SplashScreenManager />
     <LanguageSelector />
+    <Mascot />
     <NuxtPage />
     <Lightbox />
   </div>
