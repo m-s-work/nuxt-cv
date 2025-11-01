@@ -32,11 +32,9 @@ export const useMascot = () => {
     const currentScrollY = window.scrollY
     const newDirection = currentScrollY > lastScrollY ? 'down' : 'up'
     
-    // Detect scroll direction change
-    if (scrollDirection !== newDirection) {
-      scrollDirection = newDirection
-      lastScrollY = currentScrollY
-    }
+    // Update scroll direction
+    scrollDirection = newDirection
+    lastScrollY = currentScrollY
 
     // Set scrolling state
     setState('scrolling')

@@ -7,6 +7,7 @@ const { t } = useI18n()
 const mascotRef = ref<HTMLDivElement | null>(null)
 const showTextBubble = ref(false)
 const textBubbleContent = ref<string | null>(null)
+let textBubbleTimeout: NodeJS.Timeout | null = null
 
 // Get current mascot design
 const currentDesign = computed(() => {
@@ -36,12 +37,19 @@ const positionClass = computed(() => {
 
 // Watch state changes to show text bubbles
 watch(state, (newState) => {
+  // Clear existing timeout
+  if (textBubbleTimeout) {
+    clearTimeout(textBubbleTimeout)
+    textBubbleTimeout = null
+  }
+
   const text = currentDesign.value?.getText?.(newState, config.value.texts)
   if (text) {
     textBubbleContent.value = text
     showTextBubble.value = true
-    setTimeout(() => {
+    textBubbleTimeout = setTimeout(() => {
       showTextBubble.value = false
+      textBubbleTimeout = null
     }, 2500)
   } else {
     showTextBubble.value = false
@@ -66,6 +74,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   cleanupScrollListener()
+  
+  // Clear text bubble timeout on unmount
+  if (textBubbleTimeout) {
+    clearTimeout(textBubbleTimeout)
+    textBubbleTimeout = null
+  }
 })
 </script>
 
