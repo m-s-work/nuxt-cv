@@ -1,0 +1,136 @@
+name: Export PDF
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: "pdf-export"
+  cancel-in-progress: true
+
+jobs:
+  build-and-export-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'src/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./src
+
+      - name: Build with Nuxt
+        run: npm run generate
+        working-directory: ./src
+        env:
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
+
+      - name: Install Playwright and Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate PDF
+        run: |
+          cat > export-pdf.mjs << 'EOF'
+          import { chromium } from 'playwright-core';
+          import { join } from 'path';
+          import http from 'http';
+          import fs from 'fs';
+          
+          const cwd = process.cwd();
+          
+          const baseUrl = process.env.NUXT_APP_BASE_URL || '/';
+          const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] || '';
+          const basePath = baseUrl === '/' ? '' : `/${repoName}/`;
+          
+          function startServer() {
+            return new Promise((resolve) => {
+              const server = http.createServer((req, res) => {
+                let filePath = join(cwd, '.output', 'public', req.url.split('?')[0]);
+                
+                if (filePath.endsWith('/')) {
+                  filePath += 'index.html';
+                }
+                
+                const extname = filePath.split('.').pop();
+                const contentTypes = {
+                  'html': 'text/html',
+                  'js': 'text/javascript',
+                  'css': 'text/css',
+                  'json': 'application/json',
+                  'png': 'image/png',
+                  'jpg': 'image/jpeg',
+                  'svg': 'image/svg+xml',
+                  'ico': 'image/x-icon'
+                };
+                
+                const contentType = contentTypes[extname] || 'application/octet-stream';
+                
+                fs.readFile(filePath, (err, content) => {
+                  if (err) {
+                    if (err.code === 'ENOENT') {
+                      fs.readFile(join(cwd, '.output', 'public', 'index.html'), (err, content) => {
+                        res.writeHead(200, { 'Content-Type': 'text/html' });
+                        res.end(content, 'utf-8');
+                      });
+                    } else {
+                      res.writeHead(500);
+                      res.end('Server Error');
+                    }
+                  } else {
+                    res.writeHead(200, { 'Content-Type': contentType });
+                    res.end(content, 'utf-8');
+                  }
+                });
+              });
+              
+              server.listen(3000, () => {
+                console.log('Server started on port 3000');
+                resolve(server);
+              });
+            });
+          }
+          
+          async function exportPdf() {
+            const server = await startServer();
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            
+            const url = `http://localhost:3000${basePath}`;
+            console.log(`Navigating to ${url}`);
+            
+            await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+            await page.waitForTimeout(3000);
+            
+            await page.pdf({
+              path: 'cv.pdf',
+              format: 'A4',
+              printBackground: true,
+              margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' }
+            });
+            
+            await browser.close();
+            server.close();
+            console.log('PDF exported successfully');
+          }
+          
+          exportPdf().catch((err) => {
+            console.error(err);
+            process.exit(1);
+          });
+          EOF
+          node export-pdf.mjs
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cv-pdf
+          path: ./src/cv.pdf
