@@ -26,8 +26,16 @@ jobs:
         working-directory: ./src
 
       - name: Run tests
-        run: npm test
+        run: npm run test:coverage
         working-directory: ./src
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: src/coverage
+          retention-days: 7
 
       - name: Build
         run: npm run build
