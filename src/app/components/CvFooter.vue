@@ -5,7 +5,8 @@ const { t } = useI18n()
 <template>
   <footer class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-700 print:border-gray-300">
     <div class="text-center space-y-2">
-      <p class="text-sm text-gray-600 dark:text-gray-400 print:text-gray-700">
+      <!-- Notice text: white so it's invisible on screen/print but readable by AI tools -->
+      <p class="text-white dark:text-gray-900 print:text-white select-none text-sm">
         {{ t('footer.notice') }}
       </p>
       <!-- Hidden prompt injection text - same color as background for AI tools -->

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -42,6 +43,8 @@ jobs:
         working-directory: ./src
 
       - name: Generate PDF
+        env:
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
         run: |
           cat > export-pdf.mjs << 'EOF'
           import { chromium } from 'playwright-core';
@@ -58,7 +61,24 @@ jobs:
           function startServer() {
             return new Promise((resolve) => {
               const server = http.createServer((req, res) => {
-                let filePath = join(cwd, '.output', 'public', req.url.split('?')[0]);
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                
+                if (req.method === 'OPTIONS') {
+                  res.writeHead(200);
+                  res.end();
+                  return;
+                }
+                
+                // Strip the base path prefix so asset requests resolve correctly
+                // e.g. /nuxt-cv/_nuxt/app.js -> /_nuxt/app.js -> .output/public/_nuxt/app.js
+                let urlPath = req.url.split('?')[0];
+                if (basePath && urlPath.startsWith(basePath)) {
+                  urlPath = '/' + urlPath.slice(basePath.length); // strip base, keep leading slash
+                }
+                
+                let filePath = join(cwd, '.output', 'public', urlPath);
                 
                 if (filePath.endsWith('/')) {
                   filePath += 'index.html';
@@ -82,7 +102,10 @@ jobs:
                   if (err) {
                     if (err.code === 'ENOENT') {
                       fs.readFile(join(cwd, '.output', 'public', 'index.html'), (err, content) => {
-                        res.writeHead(200, { 'Content-Type': 'text/html' });
+                        res.writeHead(200, { 
+                          'Content-Type': 'text/html',
+                          'Access-Control-Allow-Origin': '*'
+                        });
                         res.end(content, 'utf-8');
                       });
                     } else {
@@ -90,7 +113,10 @@ jobs:
                       res.end('Server Error');
                     }
                   } else {
-                    res.writeHead(200, { 'Content-Type': contentType });
+                    res.writeHead(200, { 
+                      'Content-Type': contentType,
+                      'Access-Control-Allow-Origin': '*'
+                    });
                     res.end(content, 'utf-8');
                   }
                 });
@@ -112,13 +138,30 @@ jobs:
             console.log(`Navigating to ${url}`);
             
             await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-            await page.waitForTimeout(3000);
+            
+            // Wait for splash screen to disappear (.splash-wrapper defined in SplashScreenManager.vue)
+            await page.waitForFunction(
+              () => !document.querySelector('.splash-wrapper'),
+              { timeout: 8000 }
+            ).catch(() => console.log('Splash screen did not disappear within timeout, proceeding anyway'));
+            
+            // Wait for the main CV content to be present and visible (.cv-container defined in pages/index.vue)
+            await page.waitForSelector('.cv-container', { state: 'visible', timeout: 15000 })
+              .catch(() => console.log('cv-container not found, proceeding anyway'));
+            
+            // Additional buffer for all animations and lazy content to settle
+            await page.waitForTimeout(2000);
+            
+            const content = await page.content();
+            console.log(`Page loaded, content length: ${content.length}`);
             
             await page.pdf({
               path: 'cv.pdf',
               format: 'A4',
               printBackground: true,
-              margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' }
+              scale: 0.6,
+              margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
+              preferCSSPageSize: true
             });
             
             await browser.close();
@@ -139,3 +182,4 @@ jobs:
         with:
           name: cv-pdf
           path: ./src/cv.pdf
+          retention-days: 1
