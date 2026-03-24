@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -172,3 +173,4 @@ jobs:
         with:
           name: cv-pdf
           path: ./src/cv.pdf
+          retention-days: 1
