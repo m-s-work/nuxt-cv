@@ -128,6 +128,7 @@ jobs:
           });
           EOF
           node export-pdf.mjs
+        working-directory: ./src
 
       - name: Upload PDF artifact
         uses: actions/upload-artifact@v7
