@@ -43,6 +43,8 @@ jobs:
         working-directory: ./src
 
       - name: Generate PDF
+        env:
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
         run: |
           cat > export-pdf.mjs << 'EOF'
           import { chromium } from 'playwright-core';
