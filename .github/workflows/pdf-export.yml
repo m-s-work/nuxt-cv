@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -42,6 +43,8 @@ jobs:
         working-directory: ./src
 
       - name: Generate PDF
+        env:
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
         run: |
           cat > export-pdf.mjs << 'EOF'
           import { chromium } from 'playwright-core';
@@ -68,7 +71,14 @@ jobs:
                   return;
                 }
                 
-                let filePath = join(cwd, '.output', 'public', req.url.split('?')[0]);
+                // Strip the base path prefix so asset requests resolve correctly
+                // e.g. /nuxt-cv/_nuxt/app.js -> /_nuxt/app.js -> .output/public/_nuxt/app.js
+                let urlPath = req.url.split('?')[0];
+                if (basePath && urlPath.startsWith(basePath)) {
+                  urlPath = '/' + urlPath.slice(basePath.length); // strip base, keep leading slash
+                }
+                
+                let filePath = join(cwd, '.output', 'public', urlPath);
                 
                 if (filePath.endsWith('/')) {
                   filePath += 'index.html';
@@ -128,7 +138,19 @@ jobs:
             console.log(`Navigating to ${url}`);
             
             await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-            await page.waitForTimeout(3000);
+            
+            // Wait for splash screen to disappear (.splash-wrapper defined in SplashScreenManager.vue)
+            await page.waitForFunction(
+              () => !document.querySelector('.splash-wrapper'),
+              { timeout: 8000 }
+            ).catch(() => console.log('Splash screen did not disappear within timeout, proceeding anyway'));
+            
+            // Wait for the main CV content to be present and visible (.cv-container defined in pages/index.vue)
+            await page.waitForSelector('.cv-container', { state: 'visible', timeout: 15000 })
+              .catch(() => console.log('cv-container not found, proceeding anyway'));
+            
+            // Additional buffer for all animations and lazy content to settle
+            await page.waitForTimeout(2000);
             
             const content = await page.content();
             console.log(`Page loaded, content length: ${content.length}`);
@@ -137,6 +159,7 @@ jobs:
               path: 'cv.pdf',
               format: 'A4',
               printBackground: true,
+              scale: 0.6,
               margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
               preferCSSPageSize: true
             });
@@ -159,3 +182,4 @@ jobs:
         with:
           name: cv-pdf
           path: ./src/cv.pdf
+          retention-days: 1
