@@ -58,6 +58,16 @@ jobs:
           function startServer() {
             return new Promise((resolve) => {
               const server = http.createServer((req, res) => {
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+                
+                if (req.method === 'OPTIONS') {
+                  res.writeHead(200);
+                  res.end();
+                  return;
+                }
+                
                 let filePath = join(cwd, '.output', 'public', req.url.split('?')[0]);
                 
                 if (filePath.endsWith('/')) {
@@ -82,7 +92,10 @@ jobs:
                   if (err) {
                     if (err.code === 'ENOENT') {
                       fs.readFile(join(cwd, '.output', 'public', 'index.html'), (err, content) => {
-                        res.writeHead(200, { 'Content-Type': 'text/html' });
+                        res.writeHead(200, { 
+                          'Content-Type': 'text/html',
+                          'Access-Control-Allow-Origin': '*'
+                        });
                         res.end(content, 'utf-8');
                       });
                     } else {
@@ -90,7 +103,10 @@ jobs:
                       res.end('Server Error');
                     }
                   } else {
-                    res.writeHead(200, { 'Content-Type': contentType });
+                    res.writeHead(200, { 
+                      'Content-Type': contentType,
+                      'Access-Control-Allow-Origin': '*'
+                    });
                     res.end(content, 'utf-8');
                   }
                 });
@@ -114,11 +130,15 @@ jobs:
             await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
             await page.waitForTimeout(3000);
             
+            const content = await page.content();
+            console.log(`Page loaded, content length: ${content.length}`);
+            
             await page.pdf({
               path: 'cv.pdf',
               format: 'A4',
               printBackground: true,
-              margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' }
+              margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
+              preferCSSPageSize: true
             });
             
             await browser.close();
