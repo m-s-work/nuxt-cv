@@ -36,6 +36,7 @@ jobs:
 
       - name: Install Playwright and Chromium
         run: npx playwright install --with-deps chromium
+        working-directory: ./src
 
       - name: Generate PDF
         run: |
