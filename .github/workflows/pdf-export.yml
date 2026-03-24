@@ -69,7 +69,14 @@ jobs:
                   return;
                 }
                 
-                let filePath = join(cwd, '.output', 'public', req.url.split('?')[0]);
+                // Strip the base path prefix so asset requests resolve correctly
+                // e.g. /nuxt-cv/_nuxt/app.js -> /_nuxt/app.js -> .output/public/_nuxt/app.js
+                let urlPath = req.url.split('?')[0];
+                if (basePath && urlPath.startsWith(basePath)) {
+                  urlPath = '/' + urlPath.slice(basePath.length); // strip base, keep leading slash
+                }
+                
+                let filePath = join(cwd, '.output', 'public', urlPath);
                 
                 if (filePath.endsWith('/')) {
                   filePath += 'index.html';
