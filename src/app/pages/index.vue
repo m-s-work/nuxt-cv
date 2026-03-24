@@ -1,210 +1,34 @@
 <script setup lang="ts">
 const { t } = useI18n()
 const { scrollToElementSafely } = useSafeScroll()
+const route = useRoute()
 
 useSeoMeta({
   title: t('cv.title'),
   description: t('cv.description')
 })
 
-// Data for timeline - would eventually come from API
-const experiences = ref([
-  
-  // self employed entry for testing overlapping periods
-  {
-    id: 5,
-    company: 'Freelance Developer',
-    position: 'Self-Employed',
-    period: '2018 - Present',
-    startDate: '2018-05-01',
-    endDate: null,
-    description: 'Providing freelance software development services to various clients',
-    technologies: ['JavaScript', 'Python', 'Django', 'React'],
-    icon: 'lightbulb'
-  },
+const cvDataName = computed(() => {
+  return route.query.cv as string || 'default'
+})
 
-  {
-    id: 1,
-    company: 'Tech Company Inc.',
-    position: 'Senior Software Architect',
-    period: '2020 - Present',
-    startDate: '2020-01-01',
-    endDate: null,
-    description: 'Leading architecture design and implementation for cloud-native applications',
-    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
-  },
-  {
-    id: 4,
-    company: 'Software Solutions Ltd.',
-    position: 'Full Stack Developer',
-    period: '2017 - 2020',
-    startDate: '2017-03-01',
-    endDate: '2019-12-31',
-    description: 'Developed enterprise web applications and microservices',
-    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
-  },
-  
-  {
-    id: 2,
-    company: 'Peter Enis KG',
-    position: 'Rubber Tester',
-    period: '2019 - 2023',
-    startDate: '2019-01-01',
-    endDate: '2023-12-31',
-    description: 'Did extensive testing of rubber materials for quality assurance',
-    technologies: ['Rubber.js', 'MongoDB']
-  },
-  {
-    id: 3,
-    company: 'Auto GmbH',
-    position: 'Car Mechanic',
-    period: '2015 - 2018',
-    startDate: '2015-06-01',
-    endDate: '2018-11-30',
-    description: 'Performed maintenance and repairs on various car models',
-    technologies: ['AutoCAD', 'Diagnostic Tools']
-  },
-])
+const { data: cvData, refresh } = useFetch(() => `/data/${cvDataName.value}.json`, {
+  default: () => ({
+    experiences: [],
+    studies: [],
+    projects: [],
+    otherEntries: []
+  })
+})
 
-const studies = ref([
-  {
-    id: 1,
-    institution: 'Technical University',
-    degree: 'Master of Science in Computer Science',
-    period: '2015 - 2017',
-    startDate: '2015-09-01',
-    endDate: '2017-06-30',
-    focus: 'Software Engineering & Distributed Systems',
-    technologies: ['Java', 'Python', 'Distributed Systems', 'Software Architecture', 'Microservices']
-  },
-  {
-    id: 2,
-    institution: 'University of Technology',
-    degree: 'Bachelor of Science in Computer Science',
-    period: '2012 - 2015',
-    startDate: '2012-09-01',
-    endDate: '2015-06-30',
-    focus: 'Computer Science Fundamentals',
-    technologies: ['C++', 'Java', 'Algorithms', 'Data Structures', 'Databases']
-  },
-  {
-    id: 3,
-    institution: 'University of Kamasutra',
-    degree: 'Master of Arts in Love Studies',
-    period: '2028 - 2028',
-    startDate: '2028-09-01',
-    endDate: '2028-06-30',
-    focus: 'Fundamentals of Pleasure',
-    technologies: ['Kamasutra', 'Tantra', 'Mindfulness']
-  }
-])
+watch(cvDataName, () => {
+  refresh()
+})
 
-const projects = ref([
-  {
-    id: 1,
-    name: 'E-Commerce Platform',
-    type: 'Web Application',
-    description: 'Built a scalable e-commerce platform with microservices architecture, handling thousands of transactions daily',
-    technologies: ['Vue.js', 'Node.js', 'PostgreSQL', 'Redis', 'Docker'],
-    period: '2021 - 2023',
-    startDate: '2021-03-01',
-    endDate: '2023-06-30',
-    screenshots: ['/images/placeholder.svg', '/images/placeholder.svg'],
-    logos: ['/images/placeholder-logo.svg']
-  },
-  {
-    id: 2,
-    name: 'Mobile Banking App',
-    type: 'Mobile Application',
-    description: 'Developed a secure mobile banking application with biometric authentication and real-time transaction processing',
-    technologies: ['React Native', 'TypeScript', 'Firebase', 'REST API'],
-    period: '2019 - 2021',
-    startDate: '2019-06-01',
-    endDate: '2021-02-28',
-    screenshots: ['/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg']
-  },
-  {
-    id: 3,
-    name: 'AI Content Generator',
-    type: 'SaaS Platform',
-    description: 'Created an AI-powered content generation tool using machine learning models for automated content creation',
-    technologies: ['Python', 'TensorFlow', 'FastAPI', 'React', 'AWS'],
-    period: '2022 - Present',
-    startDate: '2022-01-01',
-    endDate: null,
-    images: ['/images/placeholder.svg', '/images/placeholder.svg'],
-    logos: ['/images/placeholder-logo.svg']
-  }
-])
-
-const otherEntries = ref([
-  {
-    id: 1,
-    title: 'Mandatory Military Service',
-    institution: 'Armed Forces',
-    period: '2011 - 2012',
-    startDate: '2011-07-01',
-    endDate: '2012-06-30',
-    description: 'Completed mandatory military service',
-    showPeriod: true,
-    icon: 'shield'
-  },
-  {
-    id: 1,
-    title: 'Mandatory Military Service',
-    institution: 'Armed Forces',
-    period: '2011 - 2012',
-    startDate: '2011-07-01',
-    endDate: '2012-06-30',
-    description: 'Completed mandatory military service',
-    showPeriod: true,
-    icon: 'helmet'
-  },
-  {
-    id: 2,
-    title: 'Abitur',
-    institution: 'High School',
-    period: '2011',
-    startDate: '2011-01-01',
-    endDate: '2011-06-30',
-    description: 'High school diploma (Abitur)',
-    showPeriod: true,
-    icon: 'award'
-  },
-  {
-    id: 3,
-    title: 'School',
-    institution: 'Secondary School',
-    period: '2005 - 2011',
-    startDate: '2005-09-01',
-    endDate: '2011-06-30',
-    description: 'Secondary education',
-    showPeriod: false,
-    icon: 'book-open'
-  },
-  {
-    id: 4,
-    title: 'Summer Internship',
-    institution: 'Tech Startup Inc.',
-    period: 'Jul 2010',
-    startDate: '2010-07-01',
-    endDate: '2010-07-31',
-    description: 'One-month internship in web development',
-    showPeriod: true,
-    icon: 'users'
-  },
-  {
-    id: 5,
-    title: 'Summer Internship',
-    institution: 'Local Engineering Firm',
-    period: 'Aug 2009 - Sep 2009',
-    startDate: '2009-08-01',
-    endDate: '2009-09-30',
-    description: 'Two-month internship in software engineering',
-    showPeriod: true,
-    icon: 'hammer'
-  }
-])
+const experiences = computed(() => cvData.value?.experiences || [])
+const studies = computed(() => cvData.value?.studies || [])
+const projects = computed(() => cvData.value?.projects || [])
+const otherEntries = computed(() => cvData.value?.otherEntries || [])
 
 // Track active entries based on scroll position
 const activeEntryIds = ref<(number | string)[]>([])
@@ -251,10 +75,9 @@ function handleTimelineClick(entryId: number | string) {
   activeEntryIds.value = [entryId]
 }
 
-onMounted(() => {
+function setupEventListeners() {
   if (typeof window === 'undefined') return
   
-  // Add hover listeners to all experience cards
   experiences.value.forEach(exp => {
     const element = document.getElementById(`experience-${exp.id}`)
     if (element) {
@@ -263,7 +86,6 @@ onMounted(() => {
     }
   })
   
-  // Add hover listeners to all study cards
   studies.value.forEach(study => {
     const element = document.getElementById(`study-${study.id}`)
     if (element) {
@@ -272,7 +94,6 @@ onMounted(() => {
     }
   })
 
-  // Add hover listeners to all project cards
   projects.value.forEach(project => {
     const element = document.getElementById(`project-${project.id}`)
     if (element) {
@@ -281,7 +102,6 @@ onMounted(() => {
     }
   })
 
-  // Add hover listeners to all other entry cards
   otherEntries.value.forEach(entry => {
     const element = document.getElementById(`other-${entry.id}`)
     if (element) {
@@ -289,6 +109,18 @@ onMounted(() => {
       element.addEventListener('mouseleave', handleCardMouseLeave)
     }
   })
+}
+
+watch([experiences, studies, projects, otherEntries], () => {
+  nextTick(() => {
+    setupEventListeners()
+  })
+}, { deep: true })
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  
+  setupEventListeners()
   
   // Restore scroll position from URL hash AFTER splash screen is hidden
   const { onSplashHidden } = useSplashScreen()
