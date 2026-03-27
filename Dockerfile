@@ -1,0 +1,43 @@
+# Multi-stage Dockerfile for Nuxt CV application
+# Stage 1: Builder
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copy package files
+COPY src/package*.json ./
+
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
+
+# Copy source files
+COPY src/ ./
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Runner
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+# Set to production
+ENV NODE_ENV=production
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nuxtjs
+
+# Copy built application and its dependencies from builder
+COPY --from=builder --chown=nuxtjs:nodejs /app/.output /app/.output
+
+# Switch to non-root user
+USER nuxtjs
+
+# Expose port (Nitro default is 3000)
+EXPOSE 3000
+
+# Set default environment variables
+ENV NUXT_HOST=0.0.0.0
+ENV NUXT_PORT=3000
+
+# Start the server
+CMD ["node", ".output/server/index.mjs"]
