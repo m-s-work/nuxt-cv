@@ -20,6 +20,7 @@ onMounted(() => {
     <LanguageSelector />
     <NuxtPage />
     <Lightbox />
+    <CvMascot />
   </div>
 </template>
 

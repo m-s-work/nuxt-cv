@@ -11,6 +11,7 @@ CV of a software architect built with Nuxt 4.
 - **Authentication** - Token-based or Basic Auth for admin endpoints
 - **Testing** - Comprehensive test setup with Vitest
 - **GitHub Pages** - Automated deployment workflow
+- **Interactive Mascot** - SVG-based animated mascot with scroll interactions and customizable designs
 
 ## Project Structure
 
@@ -168,6 +169,7 @@ For more detailed information, see the documentation in the `docs/` directory:
 - [Implementation Details](docs/IMPLEMENTATION.md) - Complete requirements and architecture
 - [GitHub Pages Setup](docs/GITHUB_PAGES_SETUP.md) - Deployment guide
 - [Project Summary](docs/PROJECT_SUMMARY.md) - Feature overview and statistics
+- [Mascot System](docs/MASCOT.md) - Interactive mascot documentation and customization guide
 - [Development Guide](src/docs/DEVELOPMENT.md) - Development workflow and best practices
 - [API Documentation](src/docs/API.md) - API endpoints and usage
 
