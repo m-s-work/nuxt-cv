@@ -7,6 +7,7 @@ CV of a software architect built with Nuxt 4.
 - **Nuxt 4** - Latest version of Nuxt with Vue 3
 - **Nuxt UI** - Beautiful and accessible UI components
 - **Nuxt i18n** - Internationalization support (English & German)
+- **Animated Mascot** - SVG-based interactive guide that helps users navigate through the CV
 - **Multi-tenant** - Support for different CV variants
 - **Authentication** - Token-based or Basic Auth for admin endpoints
 - **Testing** - Comprehensive test setup with Vitest
@@ -79,6 +80,7 @@ npm run test:ui      # Run tests with UI
 
 ### Frontend Components
 
+- **CvMascot** - Animated SVG mascot that guides users through the CV with contextual messages
 - **CvExperiences** - Display professional experience/jobs
 - **CvStudies** - Display education/studies
 
