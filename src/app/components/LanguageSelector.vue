@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { locale, locales } = useI18n()
 const switchLocalePath = useSwitchLocalePath()
+const colorMode = useColorMode()
 
 // Switch language without triggering navigation
 function switchLanguage(newLocale: string) {
@@ -32,25 +33,42 @@ function switchLanguage(newLocale: string) {
   // Update the locale (this will update all i18n content)
   locale.value = newLocale
 }
+
+// Toggle color mode
+function toggleColorMode() {
+  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+}
 </script>
 
 <template>
   <div class="language-selector print:hidden">
-    <div class="language-toggle">
-      <!-- Language buttons with active state -->
+    <div class="controls-container">
+      <!-- Dark/Light mode toggle -->
       <button
-        v-for="loc in locales"
-        :key="loc.code"
-        @click="switchLanguage(loc.code)"
-        :class="[
-          'language-btn',
-          locale === loc.code ? 'active' : ''
-        ]"
-        :aria-label="`Switch to ${loc.name}`"
-        :aria-current="locale === loc.code ? 'true' : 'false'"
+        @click="toggleColorMode"
+        class="mode-btn"
+        :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
       >
-        {{ loc.code.toUpperCase() }}
+        <span v-if="colorMode.value === 'dark'" class="icon">☀️</span>
+        <span v-else class="icon">🌙</span>
       </button>
+      
+      <!-- Language buttons with active state -->
+      <div class="language-toggle">
+        <button
+          v-for="loc in locales"
+          :key="loc.code"
+          @click="switchLanguage(loc.code)"
+          :class="[
+            'language-btn',
+            locale === loc.code ? 'active' : ''
+          ]"
+          :aria-label="`Switch to ${loc.name}`"
+          :aria-current="locale === loc.code ? 'true' : 'false'"
+        >
+          {{ loc.code.toUpperCase() }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -59,8 +77,52 @@ function switchLanguage(newLocale: string) {
 .language-selector {
   position: fixed;
   top: 1rem;
-  right: 1rem;
+  left: 1rem;
   z-index: 50;
+}
+
+.controls-container {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1.25rem;
+  padding: 0;
+}
+
+.dark .mode-btn {
+  background-color: rgba(31, 41, 55, 0.95);
+  border-color: rgba(75, 85, 99, 0.8);
+}
+
+.mode-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.mode-btn:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .language-toggle {
@@ -117,10 +179,8 @@ function switchLanguage(newLocale: string) {
 }
 
 .language-btn:focus {
-  outline: none;
-  ring: 2px;
-  ring-color: #3b82f6;
-  ring-offset: 2px;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 @media print {

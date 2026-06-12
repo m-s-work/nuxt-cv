@@ -8,6 +8,11 @@ export default defineNuxtConfig({
     '@nuxtjs/i18n'
   ],
 
+  // Color mode configuration
+  colorMode: {
+    classSuffix: ''
+  },
+
   // Import Tailwind CSS
   css: ['~/assets/css/main.css'],
 
