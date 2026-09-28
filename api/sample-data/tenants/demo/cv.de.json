@@ -1,0 +1,332 @@
+{
+  "profile": {
+    "name": "Max Mustermann",
+    "title": "Software-Architekt",
+    "photoUrl": "/api/assets/profile-small.jpg",
+    "photoUrlLarge": "/api/assets/profile-xlarge.jpg",
+    "academicTitlePrefix": "Dr.",
+    "academicTitleSuffix": "Ph.D."
+  },
+  "details": {
+    "location": "Berlin, Deutschland",
+    "citizenship": "Deutsch",
+    "email": "max.mustermann@example.com",
+    "phone": "+49 123 456789",
+    "birthDate": "1990-01-01",
+    "fieldRequires": {
+      "email": [
+        "contact"
+      ],
+      "phone": [
+        "contact"
+      ]
+    }
+  },
+  "intro": {
+    "text": "",
+    "yearsOfExperience": 25,
+    "programmingSince": 2000,
+    "stats": [
+      {
+        "label": "",
+        "value": 100,
+        "max": 100,
+        "suffix": "+",
+        "icon": "briefcase"
+      },
+      {
+        "label": "",
+        "value": 50,
+        "max": 50,
+        "suffix": "+",
+        "icon": "users"
+      },
+      {
+        "label": "",
+        "value": 15,
+        "max": 20,
+        "suffix": "",
+        "icon": "code"
+      }
+    ]
+  },
+  "skills": {
+    "skilled": [
+      "Vue.js",
+      "Nuxt",
+      "TypeScript",
+      "Node.js",
+      "Docker",
+      "Kubernetes",
+      "PostgreSQL",
+      "Redis"
+    ],
+    "liked": [
+      "Python",
+      "Go",
+      "React",
+      "AWS",
+      "GraphQL"
+    ]
+  },
+  "preferredTechs": [
+    "Vue.js",
+    "Nuxt",
+    "TypeScript",
+    "Node.js",
+    "Docker"
+  ],
+  "languages": [
+    {
+      "name": "Deutsch",
+      "level": "Muttersprache",
+      "code": "de"
+    },
+    {
+      "name": "Englisch",
+      "level": "Fließend (C1)",
+      "code": "en"
+    },
+    {
+      "name": "Französisch",
+      "level": "Mittelstufe (B1)",
+      "code": "fr"
+    }
+  ],
+  "drivingLicenses": [
+    {
+      "type": "B",
+      "description": "PKW"
+    },
+    {
+      "type": "BE",
+      "description": "PKW mit Anhänger"
+    }
+  ],
+  "experiences": [
+    {
+      "id": 5,
+      "company": "Freelance Developer",
+      "position": "Self-Employed",
+      "startDate": "2018-05-01",
+      "endDate": null,
+      "description": "Providing freelance software development services to various clients",
+      "technologies": [
+        "JavaScript",
+        "Python",
+        "Django",
+        "React"
+      ],
+      "icon": "lightbulb"
+    },
+    {
+      "id": 1,
+      "company": "Tech Company Inc.",
+      "position": "Senior Software Architect",
+      "startDate": "2020-01-01",
+      "endDate": null,
+      "description": "Leading architecture design and implementation for cloud-native applications",
+      "technologies": [
+        "Nuxt",
+        "Vue.js",
+        "Node.js",
+        "Docker",
+        "Kubernetes"
+      ],
+      "companyAlias": "Cloud software vendor"
+    },
+    {
+      "id": 4,
+      "company": "Software Solutions Ltd.",
+      "position": "Full Stack Developer",
+      "startDate": "2017-03-01",
+      "endDate": "2019-12-31",
+      "description": "Developed enterprise web applications and microservices",
+      "technologies": [
+        "Vue.js",
+        "Express",
+        "PostgreSQL",
+        "Redis"
+      ],
+      "companyAlias": "Enterprise software agency"
+    },
+    {
+      "id": 2,
+      "company": "Confidential Client GmbH",
+      "position": "Berater Plattformarchitektur",
+      "startDate": "2019-01-01",
+      "endDate": "2023-12-31",
+      "description": "Beratung zur Migration einer Legacy-Plattform in die Cloud",
+      "technologies": [
+        "Azure",
+        "Terraform",
+        "C#"
+      ],
+      "requires": [
+        "private"
+      ]
+    },
+    {
+      "id": 3,
+      "company": "Auto GmbH",
+      "position": "Car Mechanic",
+      "startDate": "2015-06-01",
+      "endDate": "2018-11-30",
+      "description": "Performed maintenance and repairs on various car models",
+      "technologies": [
+        "AutoCAD",
+        "Diagnostic Tools"
+      ],
+      "companyAlias": "Car workshop"
+    }
+  ],
+  "studies": [
+    {
+      "id": 1,
+      "institution": "Technical University",
+      "degree": "Master of Science in Computer Science",
+      "startDate": "2015-09-01",
+      "endDate": "2017-06-30",
+      "focus": "Software Engineering & Distributed Systems",
+      "technologies": [
+        "Java",
+        "Python",
+        "Distributed Systems",
+        "Software Architecture",
+        "Microservices"
+      ]
+    },
+    {
+      "id": 2,
+      "institution": "University of Technology",
+      "degree": "Bachelor of Science in Computer Science",
+      "startDate": "2012-09-01",
+      "endDate": "2015-06-30",
+      "focus": "Computer Science Fundamentals",
+      "technologies": [
+        "C++",
+        "Java",
+        "Algorithms",
+        "Data Structures",
+        "Databases"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "id": 1,
+      "name": "E-Commerce Platform",
+      "type": "Web Application",
+      "description": "Built a scalable e-commerce platform with microservices architecture, handling thousands of transactions daily",
+      "technologies": [
+        "Vue.js",
+        "Node.js",
+        "PostgreSQL",
+        "Redis",
+        "Docker"
+      ],
+      "startDate": "2021-03-01",
+      "endDate": "2023-06-30",
+      "screenshots": [
+        "/api/assets/placeholder.svg",
+        "/api/assets/placeholder.svg"
+      ],
+      "logos": [
+        "/api/assets/placeholder-logo.svg"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Mobile Banking App",
+      "type": "Mobile Application",
+      "description": "Developed a secure mobile banking application with biometric authentication and real-time transaction processing",
+      "technologies": [
+        "React Native",
+        "TypeScript",
+        "Firebase",
+        "REST API"
+      ],
+      "startDate": "2019-06-01",
+      "endDate": "2021-02-28",
+      "screenshots": [
+        "/api/assets/placeholder-mobile.svg",
+        "/api/assets/placeholder-mobile.svg",
+        "/api/assets/placeholder-mobile.svg"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "AI Content Generator",
+      "type": "SaaS Platform",
+      "description": "Created an AI-powered content generation tool using machine learning models for automated content creation",
+      "technologies": [
+        "Python",
+        "TensorFlow",
+        "FastAPI",
+        "React",
+        "AWS"
+      ],
+      "startDate": "2022-01-01",
+      "endDate": null,
+      "images": [
+        "/api/assets/placeholder.svg",
+        "/api/assets/placeholder.svg"
+      ],
+      "logos": [
+        "/api/assets/placeholder-logo.svg"
+      ]
+    }
+  ],
+  "otherEntries": [
+    {
+      "id": 1,
+      "title": "Mandatory Military Service",
+      "institution": "Armed Forces",
+      "startDate": "2011-07-01",
+      "endDate": "2012-06-30",
+      "description": "Completed mandatory military service",
+      "showPeriod": true,
+      "icon": "shield"
+    },
+    {
+      "id": 2,
+      "title": "Abitur",
+      "institution": "High School",
+      "startDate": "2011-01-01",
+      "endDate": "2011-06-30",
+      "description": "High school diploma (Abitur)",
+      "showPeriod": true,
+      "icon": "award"
+    },
+    {
+      "id": 3,
+      "title": "School",
+      "institution": "Secondary School",
+      "startDate": "2005-09-01",
+      "endDate": "2011-06-30",
+      "description": "Secondary education",
+      "showPeriod": false,
+      "icon": "book-open"
+    },
+    {
+      "id": 4,
+      "title": "Summer Internship",
+      "institution": "Tech Startup Inc.",
+      "startDate": "2010-07-01",
+      "endDate": "2010-07-31",
+      "description": "One-month internship in web development",
+      "showPeriod": true,
+      "icon": "users"
+    },
+    {
+      "id": 5,
+      "title": "Summer Internship",
+      "institution": "Local Engineering Firm",
+      "startDate": "2009-08-01",
+      "endDate": "2009-09-30",
+      "description": "Two-month internship in software engineering",
+      "showPeriod": true,
+      "icon": "hammer"
+    }
+  ]
+}

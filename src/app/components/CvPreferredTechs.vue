@@ -1,10 +1,8 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// Developer's preferred technologies
-const preferredTechs = ref([
-  'Vue.js', 'Nuxt', 'TypeScript', 'Node.js', 'Docker'
-])
+const { cv } = useCv()
+const preferredTechs = computed(() => cv.value?.preferredTechs ?? [])
 </script>
 
 <template>

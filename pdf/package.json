@@ -1,0 +1,12 @@
+{
+  "name": "cv-pdf-renderer",
+  "private": true,
+  "type": "module",
+  "description": "Renders CV pages to PDF with Chromium (internal service, called by the API)",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.55.1"
+  }
+}

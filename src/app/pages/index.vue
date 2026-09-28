@@ -7,204 +7,32 @@ useSeoMeta({
   description: t('cv.description')
 })
 
-// Data for timeline - would eventually come from API
-const experiences = ref([
-  
-  // self employed entry for testing overlapping periods
-  {
-    id: 5,
-    company: 'Freelance Developer',
-    position: 'Self-Employed',
-    period: '2018 - Present',
-    startDate: '2018-05-01',
-    endDate: null,
-    description: 'Providing freelance software development services to various clients',
-    technologies: ['JavaScript', 'Python', 'Django', 'React'],
-    icon: 'lightbulb'
-  },
+// CV data comes from the API; tenant and visible fields are decided server-side.
+const { locale } = useI18n()
+const { cv, status, hostKind, ensure } = useCv()
 
-  {
-    id: 1,
-    company: 'Tech Company Inc.',
-    position: 'Senior Software Architect',
-    period: '2020 - Present',
-    startDate: '2020-01-01',
-    endDate: null,
-    description: 'Leading architecture design and implementation for cloud-native applications',
-    technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
-  },
-  {
-    id: 4,
-    company: 'Software Solutions Ltd.',
-    position: 'Full Stack Developer',
-    period: '2017 - 2020',
-    startDate: '2017-03-01',
-    endDate: '2019-12-31',
-    description: 'Developed enterprise web applications and microservices',
-    technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
-  },
-  
-  {
-    id: 2,
-    company: 'Peter Enis KG',
-    position: 'Rubber Tester',
-    period: '2019 - 2023',
-    startDate: '2019-01-01',
-    endDate: '2023-12-31',
-    description: 'Did extensive testing of rubber materials for quality assurance',
-    technologies: ['Rubber.js', 'MongoDB']
-  },
-  {
-    id: 3,
-    company: 'Auto GmbH',
-    position: 'Car Mechanic',
-    period: '2015 - 2018',
-    startDate: '2015-06-01',
-    endDate: '2018-11-30',
-    description: 'Performed maintenance and repairs on various car models',
-    technologies: ['AutoCAD', 'Diagnostic Tools']
-  },
-])
+const experiences = computed(() => cv.value?.experiences ?? [])
+const studies = computed(() => cv.value?.studies ?? [])
+const projects = computed(() => cv.value?.projects ?? [])
+const otherEntries = computed(() => cv.value?.otherEntries ?? [])
 
-const studies = ref([
-  {
-    id: 1,
-    institution: 'Technical University',
-    degree: 'Master of Science in Computer Science',
-    period: '2015 - 2017',
-    startDate: '2015-09-01',
-    endDate: '2017-06-30',
-    focus: 'Software Engineering & Distributed Systems',
-    technologies: ['Java', 'Python', 'Distributed Systems', 'Software Architecture', 'Microservices']
-  },
-  {
-    id: 2,
-    institution: 'University of Technology',
-    degree: 'Bachelor of Science in Computer Science',
-    period: '2012 - 2015',
-    startDate: '2012-09-01',
-    endDate: '2015-06-30',
-    focus: 'Computer Science Fundamentals',
-    technologies: ['C++', 'Java', 'Algorithms', 'Data Structures', 'Databases']
-  },
-  {
-    id: 3,
-    institution: 'University of Kamasutra',
-    degree: 'Master of Arts in Love Studies',
-    period: '2028 - 2028',
-    startDate: '2028-09-01',
-    endDate: '2028-06-30',
-    focus: 'Fundamentals of Pleasure',
-    technologies: ['Kamasutra', 'Tantra', 'Mindfulness']
-  }
-])
+await ensure(locale.value)
+watch(locale, newLocale => ensure(newLocale))
 
-const projects = ref([
-  {
-    id: 1,
-    name: 'E-Commerce Platform',
-    type: 'Web Application',
-    description: 'Built a scalable e-commerce platform with microservices architecture, handling thousands of transactions daily',
-    technologies: ['Vue.js', 'Node.js', 'PostgreSQL', 'Redis', 'Docker'],
-    period: '2021 - 2023',
-    startDate: '2021-03-01',
-    endDate: '2023-06-30',
-    screenshots: ['/images/placeholder.svg', '/images/placeholder.svg'],
-    logos: ['/images/placeholder-logo.svg']
-  },
-  {
-    id: 2,
-    name: 'Mobile Banking App',
-    type: 'Mobile Application',
-    description: 'Developed a secure mobile banking application with biometric authentication and real-time transaction processing',
-    technologies: ['React Native', 'TypeScript', 'Firebase', 'REST API'],
-    period: '2019 - 2021',
-    startDate: '2019-06-01',
-    endDate: '2021-02-28',
-    screenshots: ['/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg', '/images/placeholder-mobile.svg']
-  },
-  {
-    id: 3,
-    name: 'AI Content Generator',
-    type: 'SaaS Platform',
-    description: 'Created an AI-powered content generation tool using machine learning models for automated content creation',
-    technologies: ['Python', 'TensorFlow', 'FastAPI', 'React', 'AWS'],
-    period: '2022 - Present',
-    startDate: '2022-01-01',
-    endDate: null,
-    images: ['/images/placeholder.svg', '/images/placeholder.svg'],
-    logos: ['/images/placeholder-logo.svg']
-  }
-])
-
-const otherEntries = ref([
-  {
-    id: 1,
-    title: 'Mandatory Military Service',
-    institution: 'Armed Forces',
-    period: '2011 - 2012',
-    startDate: '2011-07-01',
-    endDate: '2012-06-30',
-    description: 'Completed mandatory military service',
-    showPeriod: true,
-    icon: 'shield'
-  },
-  {
-    id: 1,
-    title: 'Mandatory Military Service',
-    institution: 'Armed Forces',
-    period: '2011 - 2012',
-    startDate: '2011-07-01',
-    endDate: '2012-06-30',
-    description: 'Completed mandatory military service',
-    showPeriod: true,
-    icon: 'helmet'
-  },
-  {
-    id: 2,
-    title: 'Abitur',
-    institution: 'High School',
-    period: '2011',
-    startDate: '2011-01-01',
-    endDate: '2011-06-30',
-    description: 'High school diploma (Abitur)',
-    showPeriod: true,
-    icon: 'award'
-  },
-  {
-    id: 3,
-    title: 'School',
-    institution: 'Secondary School',
-    period: '2005 - 2011',
-    startDate: '2005-09-01',
-    endDate: '2011-06-30',
-    description: 'Secondary education',
-    showPeriod: false,
-    icon: 'book-open'
-  },
-  {
-    id: 4,
-    title: 'Summer Internship',
-    institution: 'Tech Startup Inc.',
-    period: 'Jul 2010',
-    startDate: '2010-07-01',
-    endDate: '2010-07-31',
-    description: 'One-month internship in web development',
-    showPeriod: true,
-    icon: 'users'
-  },
-  {
-    id: 5,
-    title: 'Summer Internship',
-    institution: 'Local Engineering Firm',
-    period: 'Aug 2009 - Sep 2009',
-    startDate: '2009-08-01',
-    endDate: '2009-09-30',
-    description: 'Two-month internship in software engineering',
-    showPeriod: true,
-    icon: 'hammer'
-  }
-])
+// PDF renderer mode (?print=1): tell the renderer when the page is complete.
+// window.__CV_READY__ = 'ready' | 'no-access' | 'error' (see pdf/server.mjs)
+onMounted(async () => {
+  if (!new URLSearchParams(window.location.search).has('print')) return
+  await nextTick()
+  // Wait for visible images only (lazy images of the hidden screen layout never load), at most 10 s.
+  const pending = Array.from(document.images)
+    .filter(img => !img.complete && img.getClientRects().length > 0)
+    .map(img => new Promise(resolve => { img.onload = img.onerror = resolve }))
+  await Promise.race([Promise.all(pending), new Promise(resolve => setTimeout(resolve, 10_000))])
+  // Let the intro counters finish animating.
+  await new Promise(resolve => setTimeout(resolve, 2500))
+  ;(window as unknown as { __CV_READY__?: string }).__CV_READY__ = status.value === 'ready' ? 'ready' : status.value
+})
 
 // Track active entries based on scroll position
 const activeEntryIds = ref<(number | string)[]>([])
@@ -369,12 +197,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+  <CvShowcase v-if="status === 'no-access' && hostKind === 'shared'" />
+  <CvNoAccess v-else-if="status === 'no-access' || status === 'error'" :error="status === 'error'" />
+  <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
+  <div v-else>
+    <!-- Typeset A4 layout for print / PDF; the screen layout below is hidden in print -->
+    <CvPrint />
+    <div class="min-h-screen bg-white dark:bg-gray-900 print:hidden">
     <!-- Hero Section - Full page height -->
     <CvHero />
     
     <!-- Intro Section - Between hero and main content -->
-    <CvIntro />
+    <CvIntro v-if="cv?.intro" />
     
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
@@ -406,6 +240,11 @@ onUnmounted(() => {
           <!-- Driving Licenses - Hidden on mobile -->
           <div class="hidden lg:block print:block">
             <CvDrivingLicenses />
+          </div>
+
+          <!-- PDF download (hidden when the PDF renderer is not configured) -->
+          <div class="hidden lg:block">
+            <CvPdfButton />
           </div>
 
           <!-- Spacer to push QR code to bottom on print -->
@@ -441,27 +280,29 @@ onUnmounted(() => {
             </div>
             
             <!-- Experiences Section -->
-            <div id="experiences-section" ref="experienceSectionRef">
+            <div v-if="experiences.length" id="experiences-section" ref="experienceSectionRef">
               <CvExperiences :experiences="experiences" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Studies Section -->
-            <div id="studies-section" ref="studiesSectionRef">
+            <div v-if="studies.length" id="studies-section" ref="studiesSectionRef">
               <CvStudies :studies="studies" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Projects Section -->
-            <div id="projects-section" ref="projectsSectionRef">
+            <div v-if="projects.length" id="projects-section" ref="projectsSectionRef">
               <CvProjects :projects="projects" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Other Experiences Section -->
-            <div id="other-section" ref="otherEntriesSectionRef">
+            <div v-if="otherEntries.length" id="other-section" ref="otherEntriesSectionRef">
               <CvOtherExperiences :entries="otherEntries" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Sidebar sections on mobile (shown at end) -->
             <div class="lg:hidden print:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+              <CvPdfButton />
+
               <!-- Personal Details -->
               <CvDetails />
               
@@ -481,6 +322,7 @@ onUnmounted(() => {
         </div>
       </main>
     </div>
+  </div>
   </div>
 </template>
 

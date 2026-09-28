@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a CV (Curriculum Vitae) application built with Nuxt 4, featuring internationalization, multi-tenant support, and GitHub Pages deployment.
+This is a CV (Curriculum Vitae) application built with Nuxt 4, featuring internationalization, multi-tenant invite-gated access via a C# API, and Coolify deployment.
 
 ## Technology Stack
 
@@ -10,7 +10,8 @@ This is a CV (Curriculum Vitae) application built with Nuxt 4, featuring interna
 - **UI**: Nuxt UI components
 - **Internationalization**: @nuxtjs/i18n (English and German)
 - **Testing**: Vitest with @nuxt/test-utils
-- **Deployment**: GitHub Pages (static site generation)
+- **Backend**: ASP.NET Core (.NET 10) in `api/`
+- **Deployment**: Coolify via `docker-compose.yml` (nginx + API)
 - **Languages**: TypeScript, Vue
 
 ## Project Structure
@@ -80,18 +81,16 @@ When creating new documentation:
 
 ### Server-Side Code
 
-- Location: `src/app/server/`
-- API endpoints: Use `defineEventHandler`
-- Utilities: Place in `src/app/server/utils/`
-- Multi-tenant: Configure in `src/app/server/utils/tenants.ts`
-- Authentication: Implement in `src/app/server/utils/auth.ts`
+- Backend is the C# API in `api/CvApi/` (no Nuxt server routes; the SPA is static)
+- The frontend contains no CV data; load it via `useCv()` (`src/app/composables/useCv.ts`)
+- Tenants, invites and redaction: see `docs/REQUIREMENTS_ACCESS_AND_TENANCY.md`
 
 ### Testing
 
 - Framework: Vitest with @nuxt/test-utils
 - Test location: `src/tests/`
 - Component tests: `src/tests/components/`
-- Server tests: `src/tests/server/`
+- API tests: `api/CvApi.Tests/` (`dotnet test`)
 - Always write tests for new features
 - Ensure Nuxt context is properly mocked for i18n components
 
@@ -111,7 +110,7 @@ npm run dev
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
-- `npm run generate` - Generate static site for GitHub Pages
+- `npm run generate` - Generate the static SPA (served by nginx)
 - `npm test` - Run all tests
 - `npm run test:ui` - Run tests with UI
 
@@ -126,10 +125,9 @@ npm run dev
 
 ### Multi-tenant System
 
-- Configure tenants in `src/app/server/utils/tenants.ts`
-- Each tenant has its own CV data (experiences, studies)
-- Access via query parameter: `?tenant=<id>`
-- Default tenant is used when no tenant is specified
+- Tenants live in `/data/tenants/<id>/` (sample: `api/sample-data/`)
+- Hostname and/or invite code (`?c=<code>`) decide the tenant; no CV is public by default
+- Profiles control redaction (per-field `requires`, `hiddenFields`, global flags)
 
 ### Authentication
 
@@ -176,7 +174,7 @@ npm run dev
 2. Use `defineEventHandler`
 3. Support multi-tenant via query parameters
 4. Add tests in `src/tests/server/`
-5. Update API documentation in `src/docs/API.md`
+5. Update API documentation in `docs/REQUIREMENTS_ACCESS_AND_TENANCY.md` (§8)
 
 ### New Page
 
@@ -189,7 +187,7 @@ npm run dev
 
 When making significant changes:
 
-- Update `src/docs/API.md` for API changes
+- Update `docs/REQUIREMENTS_ACCESS_AND_TENANCY.md` for API changes
 - Update `src/docs/DEVELOPMENT.md` for development workflow changes
 - Keep root `README.md` current with feature overview
 - Place new general documentation in `./docs/`

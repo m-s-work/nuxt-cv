@@ -1,5 +1,10 @@
 <script setup lang="ts">
-const { setSplashType } = useSplashScreen()
+const { setSplashType, hideSplash } = useSplashScreen()
+
+// PDF renderer mode (?print=1): no splash screen.
+if (import.meta.client && new URLSearchParams(window.location.search).has('print')) {
+  hideSplash()
+}
 
 // Check URL parameter for splash screen type (for testing/demo)
 onMounted(() => {
@@ -28,7 +33,7 @@ onMounted(() => {
 @media print {
   @page {
     size: A4;
-    margin: 1cm;
+    margin: 16mm 15mm 18mm 15mm;
   }
   
   body {
@@ -39,11 +44,6 @@ onMounted(() => {
   /* Hide elements that shouldn't be printed */
   .no-print {
     display: none !important;
-  }
-  
-  /* Ensure content fits on page */
-  * {
-    page-break-inside: avoid;
   }
   
   h1, h2, h3 {

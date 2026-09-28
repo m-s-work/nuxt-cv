@@ -18,28 +18,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  experiences: () => [
-    {
-      id: 1,
-      company: 'Tech Company Inc.',
-      position: 'Senior Software Architect',
-      period: '2020 - Present',
-      startDate: '2020-01-01',
-      endDate: null,
-      description: 'Leading architecture design and implementation for cloud-native applications',
-      technologies: ['Nuxt', 'Vue.js', 'Node.js', 'Docker', 'Kubernetes']
-    },
-    {
-      id: 2,
-      company: 'Software Solutions Ltd.',
-      position: 'Full Stack Developer',
-      period: '2017 - 2020',
-      startDate: '2017-03-01',
-      endDate: '2019-12-31',
-      description: 'Developed enterprise web applications and microservices',
-      technologies: ['Vue.js', 'Express', 'PostgreSQL', 'Redis']
-    }
-  ],
+  experiences: () => [],
   activeIds: () => []
 })
 

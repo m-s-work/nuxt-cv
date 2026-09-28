@@ -2,15 +2,10 @@
 const { t } = useI18n()
 const { scrollToElementSafely, navigateToSection } = useSafeScroll()
 
-// Skilled and liked technologies
-const skilledTechs = ref([
-  'Vue.js', 'Nuxt', 'TypeScript', 'Node.js', 
-  'Docker', 'Kubernetes', 'PostgreSQL', 'Redis'
-])
+const { cv } = useCv()
+const skilledTechs = computed(() => cv.value?.skills?.skilled ?? [])
 
-const likedTechs = ref([
-  'Python', 'Go', 'React', 'AWS', 'GraphQL'
-])
+const likedTechs = computed(() => cv.value?.skills?.liked ?? [])
 </script>
 
 <template>

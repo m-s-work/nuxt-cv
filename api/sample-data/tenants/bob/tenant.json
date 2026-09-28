@@ -1,0 +1,10 @@
+{
+  // Tenant without own hostname: only reachable on the shared host via invite (?c=...).
+  "name": "Bob Builder",
+  "hosts": [],
+  "defaultLocale": "en",
+  "profiles": {
+    "anonymous": { "flags": { "hideCompanies": true, "hideContactDetails": true } },
+    "full": { "grants": ["contact"] }
+  }
+}

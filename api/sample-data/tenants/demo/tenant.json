@@ -1,0 +1,28 @@
+{
+  // Sample tenant used for local development (npm run dev + dotnet run).
+  "name": "Max Mustermann (demo)",
+  // Hosts that open this tenant without an invite code. "localhost" makes local dev work out of the box.
+  "hosts": ["localhost"],
+  "defaultLocale": "en",
+  // Profile shown on the hosts above without a (valid) invite. Omit or set null to require an invite.
+  "publicProfile": "public",
+  "profiles": {
+    "public": {
+      "flags": {
+        "hideCompanies": true,
+        "hideTimeframeMonths": true,
+        "hidePhoto": true,
+        "hideContactDetails": true,
+        "hideBirthDate": true
+      },
+      "hiddenFields": ["projects", "details.citizenship"]
+    },
+    "recruiter": {
+      "grants": ["contact"],
+      "flags": { "hideTimeframeDays": true, "hideBirthDate": true }
+    },
+    "full": {
+      "grants": ["contact", "private"]
+    }
+  }
+}

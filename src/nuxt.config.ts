@@ -9,15 +9,34 @@ export default defineNuxtConfig({
   ],
 
   // Import Tailwind CSS
-  css: ['~/assets/css/main.css'],
+  css: [
+    '~/assets/css/main.css',
+    // Bundled fonts for the print/PDF layout (no network needed in the PDF renderer)
+    '@fontsource-variable/inter',
+    '@fontsource-variable/source-serif-4'
+  ],
 
-  // Static site generation for GitHub Pages
+  // Static SPA; served by nginx in the web container (see Dockerfile)
   ssr: false,
-  
-  // GitHub Pages deployment configuration
+
   app: {
     baseURL: process.env.NUXT_APP_BASE_URL || '/',
     buildAssetsDir: '_nuxt/',
+  },
+
+  runtimeConfig: {
+    public: {
+      // Base path of the C# API. Same origin in production (nginx proxies /api to the API container).
+      apiBase: '/api'
+    }
+  },
+
+  // Local development: forward /api to `dotnet run` (api/CvApi). Host header is kept,
+  // so the API resolves the tenant from "localhost" like it would from a real hostname.
+  nitro: {
+    devProxy: {
+      '/api': { target: process.env.CV_API_URL || 'http://localhost:5080/api', changeOrigin: false }
+    }
   },
 
   // i18n configuration

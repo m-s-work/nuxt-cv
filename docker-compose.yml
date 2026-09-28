@@ -1,0 +1,51 @@
+# Coolify: create a "Docker Compose" resource pointing at this repo (compose file: /docker-compose.yml).
+# Assign domains ONLY to the `web` service (e.g. https://cv.velarix.space,https://bob-cv.velarix.space).
+# The API and the PDF renderer are not exposed publicly; nginx in `web` proxies /api to the API.
+services:
+  web:
+    build:
+      context: ./src
+      args:
+        NUXT_APP_BASE_URL: /
+    environment:
+      API_UPSTREAM: http://api:8080
+    expose:
+      - "80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+    environment:
+      # Required for the admin API (invites, uploads). Leave empty to disable admin endpoints.
+      Admin__ApiKey: ${CV_ADMIN_API_KEY:-}
+      # Base URL used for invite links of tenants without an own hostname.
+      Cv__SharedBaseUrl: ${CV_SHARED_BASE_URL:-}
+      # Behind a Cloudflare Tunnel set to CF-Connecting-IP (real client IP for rate limiting).
+      Cv__ClientIpHeader: ${CV_CLIENT_IP_HEADER:-}
+      # PDF rendering: the renderer opens the app via the internal "web" service.
+      # Set CV_PDF_RENDERER_URL to an empty value to disable PDFs.
+      Pdf__RendererUrl: ${CV_PDF_RENDERER_URL-http://pdf:3000}
+      Pdf__AppBaseUrl: http://web
+      # Bump after layout changes so cached PDFs are re-rendered.
+      Pdf__LayoutVersion: ${CV_PDF_LAYOUT_VERSION:-1}
+    volumes:
+      - cv-data:/data
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  # Headless Chromium that turns the CV page into a PDF (internal only, called by the API).
+  pdf:
+    build:
+      context: ./pdf
+    environment:
+      MAX_CONCURRENT: "2"
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+volumes:
+  cv-data:
