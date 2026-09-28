@@ -26,6 +26,8 @@ public sealed class AccessTests : IDisposable
         var response = await _factory.ClientFor(ApiFactory.SharedHost).GetAsync("/api/cv");
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.True(response.Headers.CacheControl is { NoStore: true, Private: true });
+        var body = await response.Content.ReadFromJsonAsync<JsonObject>();
+        Assert.Equal("shared", body!["host"]!.GetValue<string>());
     }
 
     [Fact]
@@ -33,6 +35,9 @@ public sealed class AccessTests : IDisposable
     {
         var response = await _factory.ClientFor(ApiFactory.AliceHost).GetAsync("/api/cv");
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonObject>();
+        Assert.Equal("tenant", body!["host"]!.GetValue<string>());
+        Assert.DoesNotContain("alice", body.ToJsonString());
     }
 
     [Fact]

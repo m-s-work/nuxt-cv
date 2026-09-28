@@ -35,10 +35,10 @@ public static class PublicEndpoints
         {
             NoStore(ctx);
             var grant = await access.ResolveAsync(ctx, ct);
-            if (grant is null) return NoAccess();
+            if (grant is null) return NoAccess(ctx, tenants);
 
             var loaded = tenants.LoadCv(grant.Tenant, locale);
-            if (loaded is null) return NoAccess();
+            if (loaded is null) return NoAccess(ctx, tenants);
 
             var (master, resolvedLocale) = loaded.Value;
             return Results.Ok(new
@@ -86,8 +86,16 @@ public static class PublicEndpoints
         return false;
     }
 
-    private static IResult NoAccess() =>
-        Results.Json(new { error = "no_access" }, statusCode: StatusCodes.Status403Forbidden);
+    /// <summary>
+    /// 403 with the kind of host: "shared" (frontend shows the showcase) or "tenant"
+    /// (neutral invitation page). Never names the tenant.
+    /// </summary>
+    private static IResult NoAccess(HttpContext ctx, TenantStore tenants) =>
+        Results.Json(new
+        {
+            error = "no_access",
+            host = tenants.FindByHost(ctx.Request.Host.Host) is null ? "shared" : "tenant",
+        }, statusCode: StatusCodes.Status403Forbidden);
 
     private static void NoStore(HttpContext ctx)
     {

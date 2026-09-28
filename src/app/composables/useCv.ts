@@ -105,6 +105,9 @@ export interface CvAccess {
 
 export type CvStatus = 'idle' | 'loading' | 'ready' | 'no-access' | 'error'
 
+/** "shared": host without own tenant (shows the showcase); "tenant": a tenant's own host. */
+export type CvHostKind = 'shared' | 'tenant'
+
 interface CvResponse {
   access: CvAccess
   locale: string
@@ -148,6 +151,7 @@ export function useCv() {
   const status = useState<CvStatus>('cv-status', () => 'idle')
   const inviteRejected = useState<boolean>('cv-invite-rejected', () => false)
   const loadedLocale = useState<string | null>('cv-locale', () => null)
+  const hostKind = useState<CvHostKind>('cv-host-kind', () => 'tenant')
 
   const apiBase = useRuntimeConfig().public.apiBase as string
 
@@ -170,8 +174,9 @@ export function useCv() {
     } catch (error: unknown) {
       cv.value = null
       access.value = null
-      const statusCode = (error as { statusCode?: number })?.statusCode
-      status.value = statusCode === 403 ? 'no-access' : 'error'
+      const fetchError = error as { statusCode?: number, data?: { host?: CvHostKind } }
+      status.value = fetchError?.statusCode === 403 ? 'no-access' : 'error'
+      hostKind.value = fetchError?.data?.host === 'shared' ? 'shared' : 'tenant'
     }
   }
 
@@ -218,6 +223,7 @@ export function useCv() {
     cv,
     access,
     status,
+    hostKind,
     inviteRejected,
     init,
     load,

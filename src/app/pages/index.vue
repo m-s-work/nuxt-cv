@@ -9,7 +9,7 @@ useSeoMeta({
 
 // CV data comes from the API; tenant and visible fields are decided server-side.
 const { locale } = useI18n()
-const { cv, status, ensure } = useCv()
+const { cv, status, hostKind, ensure } = useCv()
 
 const experiences = computed(() => cv.value?.experiences ?? [])
 const studies = computed(() => cv.value?.studies ?? [])
@@ -182,7 +182,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <CvNoAccess v-if="status === 'no-access' || status === 'error'" :error="status === 'error'" />
+  <CvShowcase v-if="status === 'no-access' && hostKind === 'shared'" />
+  <CvNoAccess v-else-if="status === 'no-access' || status === 'error'" :error="status === 'error'" />
   <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
   <div v-else class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
     <!-- Hero Section - Full page height -->
