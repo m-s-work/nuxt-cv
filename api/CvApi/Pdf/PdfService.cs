@@ -72,7 +72,8 @@ public sealed class PdfService(
         var renderUrl = await RenderUrlAsync(grant, locale, ct);
         var redacted = CvRedactor.Redact(master, grant.Policy);
         var fileName = PdfFileName.For(redacted["profile"]?["name"]?.GetValue<string>(), locale);
-        var hash = ContentHash(redacted.ToJsonString(), locale, renderUrl, grant.Templates.Pdf);
+        var hash = ContentHash(redacted.ToJsonString(), locale, renderUrl,
+            grant.Templates.Pdf + System.Text.Json.JsonSerializer.Serialize(grant.Templates.PdfVars));
         var file = CacheFile(grant, locale);
         var hashFile = file + ".sha256";
 

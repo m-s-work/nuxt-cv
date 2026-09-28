@@ -78,7 +78,7 @@ public static class PublicEndpoints
                 },
                 locale = resolvedLocale,
                 features = new { pdf = pdf.Enabled },
-                templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html },
+                templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html, pdfVars = grant.Templates.PdfVars },
                 // Platform site for the "Created with …" credit (shared base URL, if configured).
                 links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
                 // SHA-256 of exactly this redacted CV (the "cv" value below) – for tests and deployment checks.

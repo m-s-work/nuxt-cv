@@ -15,7 +15,9 @@ Catalogue of the product's features. **Visibility** says where a feature may be 
 | Personal invite links (expiry, usage limit, instant revocation) | public | ✅ |
 | Multiple people (own subdomain or shared host + invite code) | public | ✅ |
 | [PDF per invite](#pdf-per-invite) | public | ✅ implemented, not yet deployed |
-| Selectable PDF templates (per person, profile or invite) | public | ✅ `editorial`, `classic` |
+| Selectable PDF templates (per person, profile or invite) | public | ✅ `editorial`, `classic`, `banner` |
+| Template variables: colour sets, colours, toggles (e.g. chapter colours) | public | ✅ |
+| Template builder UI | owner | 📝 planned (#87) |
 | Selectable web templates | public | 📝 planned (#77) |
 | Multilingual content and UI (EN/DE) | public | ✅ |
 | Interactive timeline, technology filter | public | ✅ |

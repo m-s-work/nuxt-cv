@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // Print/PDF template "classic": single column, black and white, no photo. Compact and easy for
 // applicant tracking systems to parse (linear reading order, real text, no multi-column flow).
+defineProps<{ vars?: Record<string, unknown> }>()
+
 const {
   locale, label, qrDataUrl, qrUrl, onlineHost, platformUrl, platformHost, profile, intro, contact, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries

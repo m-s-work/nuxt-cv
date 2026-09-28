@@ -121,6 +121,8 @@ export interface CvLinks {
 export interface CvTemplates {
   pdf?: string | null
   html?: string | null
+  /** Template variables chosen by the owner (colours, toggles, preset); validated by the template. */
+  pdfVars?: Record<string, unknown> | null
 }
 
 interface CvResponse {

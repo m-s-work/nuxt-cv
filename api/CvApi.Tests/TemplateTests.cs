@@ -99,3 +99,35 @@ public sealed class TemplateApiTests : IDisposable
             (await Admin().GetAsync("/api/admin/tenants/alice/pdf-preview?profile=full&template=../x")).StatusCode);
     }
 }
+
+public sealed class TemplateVarsTests
+{
+    private static Dictionary<string, System.Text.Json.JsonElement> Vars(string json) =>
+        System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(json)!;
+
+    [Fact]
+    public void Vars_are_merged_per_key_with_invite_winning()
+    {
+        var tenant = new TenantConfig { Templates = new TemplateSelection { Pdf = "banner", PdfVars = Vars("""{ "preset": "navy", "accent": "#111111" }""") } };
+        var profile = new AccessPolicy { Templates = new TemplateSelection { PdfVars = Vars("""{ "chapterColors": true }""") } };
+        var invite = new AccessPolicy { Templates = new TemplateSelection { PdfVars = Vars("""{ "accent": "#222222" }""") } };
+
+        var vars = TemplateResolver.Resolve(tenant, profile, invite).PdfVars!;
+        Assert.Equal("navy", vars["preset"].GetString());
+        Assert.Equal("#222222", vars["accent"].GetString());
+        Assert.True(vars["chapterColors"].GetBoolean());
+
+        tenant.AllowInviteTemplateOverride = false;
+        Assert.Equal("#111111", TemplateResolver.Resolve(tenant, profile, invite).PdfVars!["accent"].GetString());
+    }
+
+    [Fact]
+    public void Invalid_keys_and_values_are_dropped()
+    {
+        var merged = TemplateResolver.MergeVars(Vars("""
+            { "ok": "#abc", "bad key": "#fff", "css": "red;}body{x", "obj": { "a": 1 }, "list": ["#fff", "#000"], "num": 3 }
+            """))!;
+        Assert.Equal(["ok", "list", "num"], merged.Keys.ToArray());
+        Assert.Null(TemplateResolver.MergeVars(null, Vars("{}")));
+    }
+}

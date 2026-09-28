@@ -13,7 +13,10 @@ export default defineNuxtConfig({
     '~/assets/css/main.css',
     // Bundled fonts for the print/PDF layout (no network needed in the PDF renderer)
     '@fontsource-variable/inter',
-    '@fontsource-variable/source-serif-4'
+    '@fontsource-variable/source-serif-4',
+    '@fontsource/lato/300.css',
+    '@fontsource/lato/400.css',
+    '@fontsource/lato/700.css'
   ],
 
   // Static SPA; served by nginx in the web container (see Dockerfile)
