@@ -7,6 +7,8 @@ services:
       context: ./src
       args:
         NUXT_APP_BASE_URL: /
+        # Showcase "Try the demo" link (/?c=<code>); leave empty to hide it.
+        NUXT_PUBLIC_DEMO_INVITE_CODE: ${CV_DEMO_INVITE_CODE:-}
     environment:
       API_UPSTREAM: http://api:8080
     expose:

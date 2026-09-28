@@ -39,6 +39,8 @@ const steps = ['maintain', 'invite', 'open'] as const
 
 const { t } = useI18n()
 const { getAssetPath } = useAssetPath()
+const demoCode = useRuntimeConfig().public.demoInviteCode as string
+const demoLink = computed(() => demoCode ? `/?c=${encodeURIComponent(demoCode)}` : '')
 const { open: openLightbox } = useLightbox()
 
 useSeoMeta({
@@ -70,9 +72,14 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
           <p class="text-lg text-blue-100 max-w-2xl">
             {{ t('showcase.subtitle') }}
           </p>
-          <a href="#showcase-features" class="inline-block rounded-lg bg-white/10 px-4 py-2 font-medium hover:bg-white/20">
-            {{ t('showcase.seeFeatures') }}
-          </a>
+          <div class="flex flex-wrap gap-3">
+            <a v-if="demoLink" :href="demoLink" class="inline-block rounded-lg bg-white px-4 py-2 font-medium text-blue-700 hover:bg-blue-50">
+              {{ t('showcase.tryDemo') }}
+            </a>
+            <a href="#showcase-features" class="inline-block rounded-lg bg-white/10 px-4 py-2 font-medium hover:bg-white/20">
+              {{ t('showcase.seeFeatures') }}
+            </a>
+          </div>
         </div>
 
         <div class="rounded-xl bg-white p-6 text-gray-900 shadow-xl dark:bg-gray-800 dark:text-white">
@@ -254,7 +261,8 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
           "text": "The link unlocks exactly the parts of the CV that the invite allows – online and as matching PDF."
         }
       },
-      "footer": "Invite-only CV hosting · self-hosted"
+      "footer": "Invite-only CV hosting · self-hosted",
+      "tryDemo": "Try the demo CV"
     }
   },
   "de": {
@@ -349,7 +357,8 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
           "text": "Der Link schaltet genau die Teile des Lebenslaufs frei, die die Einladung erlaubt – online und als passendes PDF."
         }
       },
-      "footer": "Lebensläufe nur auf Einladung · selbst gehostet"
+      "footer": "Lebensläufe nur auf Einladung · selbst gehostet",
+      "tryDemo": "Demo-Lebenslauf ansehen"
     }
   }
 }

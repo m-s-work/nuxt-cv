@@ -27,7 +27,8 @@ public static partial class AdminEndpoints
         DateTimeOffset? ExpiresAt,
         int? ExpiresInDays,
         int? MaxUses,
-        AccessPolicy? Overrides);
+        AccessPolicy? Overrides,
+        string? Code = null);
 
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
@@ -61,7 +62,18 @@ public static partial class AdminEndpoints
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
 
             var now = time.GetUtcNow();
-            var code = InviteCodes.Generate();
+            var code = body.Code?.Trim() is { Length: > 0 } custom ? custom : InviteCodes.Generate();
+            if (body.Code is not null)
+            {
+                if (!InviteCodes.IsValidCustom(code))
+                    return Results.BadRequest(new { error = "invalid_code", rule = "4-64 characters: A-Z a-z 0-9 - _" });
+                var hash = InviteCodes.Hash(code);
+                var existing = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
+                if (existing is not null && existing.RevokedAt is null)
+                    return Results.Conflict(new { error = "code_taken" });
+                // A revoked invite releases its code (e.g. re-create "demo" with other settings).
+                if (existing is not null) existing.CodeHash = $"released:{existing.Id:N}";
+            }
             var invite = new Invite
             {
                 TenantId = tenant.Id,
