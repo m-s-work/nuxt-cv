@@ -4,17 +4,22 @@ WORKDIR /src
 COPY CvApi/CvApi.csproj CvApi/
 RUN dotnet restore CvApi/CvApi.csproj
 COPY CvApi/ CvApi/
-RUN dotnet publish CvApi/CvApi.csproj -c Release -o /out --no-restore
+RUN dotnet publish CvApi/CvApi.csproj -c Release -o /out --no-restore \
+ && date -u +%Y-%m-%dT%H:%M:%SZ > /out/BUILD_TIME
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /out .
-# /data holds tenants, invites (SQLite) and cookie-signing keys. Owned by the non-root app user,
-# so a fresh named volume inherits the permissions.
 # git: fetches pinned CV revisions from the CV repository again after they were pruned (§14).
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+# /data holds tenants, invites (SQLite) and cookie-signing keys. Owned by the non-root app user,
+# so a fresh named volume inherits the permissions.
 RUN mkdir -p /data/tenants && chown -R $APP_UID /data
+# Build identity for GET /api/version (Coolify passes SOURCE_COMMIT as build arg). Written to a file,
+# because Coolify's runtime environment may override an ENV of the same name.
+ARG SOURCE_COMMIT=unknown
+RUN echo "$SOURCE_COMMIT" > /app/SOURCE_COMMIT
 USER $APP_UID
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     Cv__DataPath=/data

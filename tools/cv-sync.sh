@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # CV as Code: deploy a tenant folder from a Git repository to the CV API.
 #
-#   tools/cv-sync.sh [--check] <tenant-dir> [tenant-id]
+#   tools/cv-sync.sh [--check|--verify] <tenant-dir> [tenant-id]
 #
 # <tenant-dir> contains tenant.json, cv.<locale>.json and optionally assets/.
 # tenant-id defaults to the folder name.
 #
 #   --check   validate only (JSON syntax, required files, referenced assets); nothing is uploaded
+#   --verify  compare the SHA-256 of every local file with the server (GET /admin/tenants/<id>/hash);
+#             exit 1 if anything differs – e.g. to check that a deployment is up to date
 #
 # Environment (not needed for --check):
 #   CV_API_URL         e.g. https://cv.velarix.space/api
@@ -22,7 +24,9 @@
 set -euo pipefail
 
 check_only=false
+verify_only=false
 if [[ "${1:-}" == "--check" ]]; then check_only=true; shift; fi
+if [[ "${1:-}" == "--verify" ]]; then verify_only=true; shift; fi
 
 dir="${1:?usage: cv-sync.sh [--check] <tenant-dir> [tenant-id]}"
 dir="${dir%/}"
@@ -74,6 +78,25 @@ $check_only && exit 0
 
 : "${CV_API_URL:?CV_API_URL not set}"
 : "${CV_ADMIN_API_KEY:?CV_ADMIN_API_KEY not set}"
+
+if $verify_only; then
+  remote=$(curl -sS -f -H "X-Admin-Key: $CV_ADMIN_API_KEY" "${CV_API_URL%/}/admin/tenants/$tenant/hash") \
+    || fail "could not read hashes of tenant '$tenant' from the server"
+  local_list=$(for f in "${files[@]}"; do printf '%s %s\n' "$f" "$(sha256sum "$dir/$f" | cut -d' ' -f1)"; done)
+  LOCAL="$local_list" REMOTE="$remote" node -e '
+    const remote = JSON.parse(process.env.REMOTE).files
+    const local = Object.fromEntries(process.env.LOCAL.trim().split("\n").map(l => l.split(" ")))
+    let diff = 0
+    for (const [path, hash] of Object.entries(local)) {
+      if (!remote[path]) { console.log(`missing on server: ${path}`); diff++ }
+      else if (remote[path] !== hash) { console.log(`differs:           ${path}`); diff++ }
+    }
+    for (const path of Object.keys(remote)) if (!local[path]) console.log(`only on server:    ${path}`)
+    process.exit(diff ? 1 : 0)
+  ' || fail "server data of tenant '$tenant' is not up to date"
+  echo "tenant '$tenant': server matches local files"
+  exit 0
+fi
 
 # Assets first, tenant.json last: the CV never references an asset that is not uploaded yet.
 ordered=()

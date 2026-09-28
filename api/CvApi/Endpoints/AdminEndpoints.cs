@@ -6,6 +6,7 @@ using CvApi.Access;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
+using CvApi.Versioning;
 using Microsoft.EntityFrameworkCore;
 
 namespace CvApi.Endpoints;
@@ -35,7 +36,8 @@ public static partial class AdminEndpoints
         DateTimeOffset? ExpiresAt,
         int? ExpiresInDays,
         int? MaxUses,
-        AccessPolicy? Overrides);
+        AccessPolicy? Overrides,
+        string? Code = null);
 
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
@@ -53,7 +55,16 @@ public static partial class AdminEndpoints
             // Profiles pinned to a CV revision in tenant.json.
             pins = t.Config.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.Value.Revision))
                 .ToDictionary(p => p.Key, p => p.Value.Revision!.Trim()),
+            dataHash = TenantHashes.Compute(t).Combined,
         }));
+
+        // SHA-256 of every data file of a tenant (compare with `sha256sum` in the CV repository).
+        admin.MapGet("/tenants/{tenantId}/hash", (string tenantId, TenantStore tenants) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var hashes = TenantHashes.Compute(tenant);
+            return Results.Ok(new { tenant = tenant.Id, combined = hashes.Combined, files = hashes.Files });
+        });
 
         // CV revisions (git commits registered by tools/cv-sync.sh). "outdated" = the current CV differs from it.
         admin.MapGet("/tenants/{tenantId}/revisions", (string tenantId, TenantStore tenants) =>
@@ -136,7 +147,18 @@ public static partial class AdminEndpoints
             }
 
             var now = time.GetUtcNow();
-            var code = InviteCodes.Generate();
+            var code = body.Code?.Trim() is { Length: > 0 } custom ? custom : InviteCodes.Generate();
+            if (body.Code is not null)
+            {
+                if (!InviteCodes.IsValidCustom(code))
+                    return Results.BadRequest(new { error = "invalid_code", rule = "4-64 characters: A-Z a-z 0-9 - _" });
+                var hash = InviteCodes.Hash(code);
+                var existing = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
+                if (existing is not null && existing.RevokedAt is null)
+                    return Results.Conflict(new { error = "code_taken" });
+                // A revoked invite releases its code (e.g. re-create "demo" with other settings).
+                if (existing is not null) existing.CodeHash = $"released:{existing.Id:N}";
+            }
             var invite = new Invite
             {
                 TenantId = tenant.Id,
@@ -301,6 +323,31 @@ public static partial class AdminEndpoints
             File.Delete(file);
             tenants.Invalidate();
             return Results.NoContent();
+        });
+
+        // PDF preview of a profile in any template (not cached), e.g. to choose a template.
+        admin.MapGet("/tenants/{tenantId}/pdf-preview", async (string tenantId, string profile, string? template, string? locale,
+            string? vars, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+        {
+            if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
+            var tenant = tenants.Get(tenantId);
+            if (tenant is null) return Results.NotFound();
+            if (template is not null && TemplateResolver.Valid(template) is null)
+                return Results.BadRequest(new { error = "invalid_template" });
+            // vars: JSON object of template variables, e.g. {"preset":"graphite","chapterColors":true}
+            Dictionary<string, JsonElement>? pdfVars = null;
+            if (!string.IsNullOrEmpty(vars))
+            {
+                try { pdfVars = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(vars); }
+                catch (JsonException) { return Results.BadRequest(new { error = "invalid_vars" }); }
+            }
+            if (AccessService.GrantForProfile(tenant, profile, template, pdfVars) is not { } grant)
+                return Results.BadRequest(new { error = "unknown_profile" });
+
+            var content = await pdf.RenderPreviewAsync(grant, locale, ct);
+            return content is null
+                ? Results.NotFound()
+                : Results.File(content, "application/pdf", $"preview-{profile}-{grant.Templates.Pdf ?? "default"}.pdf");
         });
 
         admin.MapGet("/tenants/{tenantId}/preview", (string tenantId, string profile, string? locale, string? revision, TenantStore tenants) =>

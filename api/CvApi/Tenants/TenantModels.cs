@@ -11,6 +11,25 @@ public sealed class TenantConfig
     public string? PublicProfile { get; set; }
 
     public Dictionary<string, AccessPolicy> Profiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Default templates of this person's CV (PDF and, later, web).</summary>
+    public TemplateSelection? Templates { get; set; }
+
+    /// <summary>Whether invites may override the template (default: allowed).</summary>
+    public bool AllowInviteTemplateOverride { get; set; } = true;
+}
+
+/// <summary>Template names per output. Null = not set at this level.</summary>
+public sealed class TemplateSelection
+{
+    public string? Pdf { get; set; }
+    public string? Html { get; set; }
+
+    /// <summary>
+    /// Variables of the PDF template (colours, toggles, preset …), e.g. { "preset": "graphite", "accent": "#29a8e0" }.
+    /// Merged per key across levels; the template defines names, types and defaults.
+    /// </summary>
+    public Dictionary<string, System.Text.Json.JsonElement>? PdfVars { get; set; }
 }
 
 /// <summary>A redaction policy. Used for profiles and (as partial override) for invites.</summary>
@@ -25,6 +44,9 @@ public sealed class AccessPolicy
     /// In invite overrides it replaces the profile's pin; "" there means "current CV".
     /// </summary>
     public string? Revision { get; set; }
+
+    /// <summary>Template choice for this profile / invite (overrides the tenant default).</summary>
+    public TemplateSelection? Templates { get; set; }
 }
 
 /// <summary>Global redaction flags. Null means "not set" (relevant for invite overrides).</summary>

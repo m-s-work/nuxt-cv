@@ -6,7 +6,12 @@ RUN npm ci --ignore-scripts
 COPY . .
 ARG NUXT_APP_BASE_URL=/
 ENV NUXT_APP_BASE_URL=$NUXT_APP_BASE_URL
+ARG NUXT_PUBLIC_DEMO_INVITE_CODE=
+ENV NUXT_PUBLIC_DEMO_INVITE_CODE=$NUXT_PUBLIC_DEMO_INVITE_CODE
 RUN npm run generate
+# Build identity, served as /version.json (Coolify passes SOURCE_COMMIT).
+ARG SOURCE_COMMIT=unknown
+RUN printf '{"commit":"%s","builtAt":"%s"}\n' "$SOURCE_COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .output/public/version.json
 
 FROM nginx:1.29-alpine
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template

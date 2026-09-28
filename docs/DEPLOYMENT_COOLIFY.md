@@ -34,6 +34,7 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    | `CV_ADMIN_API_KEY` | long random string (`openssl rand -base64 32`) | Enables the admin API. Mark as secret. Empty = admin API disabled. |
    | `CV_SHARED_BASE_URL` | `https://cv.velarix.space` | Used for invite links of tenants that have no own host. |
    | `CV_CLIENT_IP_HEADER` | `CF-Connecting-IP` | Set when traffic arrives through a Cloudflare Tunnel (see below). |
+   | `CV_DEMO_INVITE_CODE` | `demo` | Build time: shows a "Try the demo CV" button on the showcase linking to `/?c=demo`. Create the invite with that code (below). |
    | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
    | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
    | `CV_GIT_TOKEN` | fine-grained GitHub token, *Contents: read* on the CV repo | Lets the API fetch pinned CV versions from a private CV repository again. Mark as secret. Not needed for public repos. |
@@ -109,6 +110,11 @@ curl -X POST -H "X-Admin-Key: $KEY" -H "Content-Type: application/json" \
 # "pdf" shows immediately whether the PDFs could be rendered. Retry a failed render:
 curl -X POST -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>/pdf
 
+# fixed, guessable code for a public demo (only for fictional/public content)
+curl -X POST -H "X-Admin-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{ "profile": "full", "label": "Public demo", "code": "demo" }' \
+  $API/admin/tenants/demo/invites
+
 # list / revoke
 curl -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites
 curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
@@ -116,7 +122,32 @@ curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
 
 ---
 
-## 4. Security notes
+## 4. Is the deployment up to date?
+
+**Software.** Each image carries the Git commit it was built from (Coolify: *Configuration → Advanced →
+Include Source Commit in Build* must be on; otherwise the commit reads `unknown`).
+
+```bash
+curl -s https://cv.velarix.space/version.json        # web (Nuxt build)
+curl -s https://cv.velarix.space/api/version         # api + pdf renderer
+git rev-parse origin/main                            # expected commit
+```
+
+**CV data.** Hashes of the files on the server, comparable with `sha256sum` on the files in Git:
+
+```bash
+curl -s -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/hash
+tools/cv-sync.sh --verify tenants/bob     # exit 1 and a list of differing files if not up to date
+
+# combined hash, reproducible in the shell (same value as "combined"):
+cd tenants/bob && find . -type f \( -name tenant.json -o -name 'cv.*.json' -o -path './assets/*' \) \
+  | sed 's#^\./##' | LC_ALL=C sort | xargs sha256sum | sha256sum
+```
+
+`GET /api/admin/tenants` lists the combined `dataHash` of every tenant. `/api/cv` returns `cvHash`, the hash of
+exactly the redacted CV the visitor receives.
+
+## 5. Security notes
 
 - The admin API is reachable through the public domain but requires `X-Admin-Key`. Use a long random key.
   To keep it off the internet entirely, leave `CV_ADMIN_API_KEY` empty and only set it temporarily when needed.
@@ -129,7 +160,7 @@ curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
 
 ---
 
-## 5. Local development
+## 6. Local development
 
 ```bash
 # API (sample tenants "demo" on localhost and "bob" via invite; admin key "dev-admin-key")

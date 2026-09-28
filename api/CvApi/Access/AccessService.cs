@@ -7,12 +7,13 @@ using Microsoft.EntityFrameworkCore;
 namespace CvApi.Access;
 
 /// <summary>What the current visitor may see: a tenant, a profile and the merged redaction policy.</summary>
-public sealed record AccessGrant(Tenant Tenant, string ProfileName, EffectivePolicy Policy, Invite? Invite);
+public sealed record AccessGrant(Tenant Tenant, string ProfileName, EffectivePolicy Policy, Invite? Invite, TemplateSelection Templates);
 
 public enum RedeemResult { Ok, Invalid }
 
 /// <summary>Short-lived, signed permission for the PDF renderer to open exactly one grant's view.</summary>
-public sealed record RenderTicket(string TenantId, string Profile, Guid? InviteId);
+public sealed record RenderTicket(string TenantId, string Profile, Guid? InviteId, string? PdfTemplate = null,
+    Dictionary<string, JsonElement>? PdfVars = null);
 
 /// <summary>
 /// Resolves tenant + profile from hostname and access cookie (see docs/REQUIREMENTS_ACCESS_AND_TENANCY.md §2–§4).
@@ -50,7 +51,8 @@ public sealed class AccessService(
         // Public access only on the tenant's own hosts and only if explicitly configured.
         if (hostTenant?.Config.PublicProfile is { } publicName &&
             hostTenant.Config.Profiles.TryGetValue(publicName, out var publicProfile))
-            return new AccessGrant(hostTenant, publicName, hostTenant.PolicyFor(publicName, publicProfile), null);
+            return new AccessGrant(hostTenant, publicName, hostTenant.PolicyFor(publicName, publicProfile), null,
+                TemplateResolver.Resolve(hostTenant.Config, publicProfile, null));
 
         return null;
     }
@@ -147,13 +149,22 @@ public sealed class AccessService(
     public AccessGrant? GrantFor(Invite invite)
     {
         var tenant = tenants.Get(invite.TenantId);
-        return tenant is not null && tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile)
-            ? new AccessGrant(tenant, invite.Profile, tenant.PolicyFor(invite.Profile, profile, ParseOverrides(invite.OverridesJson)), invite)
-            : null;
+        if (tenant is null || !tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile)) return null;
+        var overrides = ParseOverrides(invite.OverridesJson);
+        return new AccessGrant(tenant, invite.Profile, tenant.PolicyFor(invite.Profile, profile, overrides), invite,
+            TemplateResolver.Resolve(tenant.Config, profile, overrides));
     }
 
+    /// <summary>Grant of a profile without invite (public profile, admin preview).</summary>
+    public static AccessGrant? GrantForProfile(Tenant tenant, string profileName, string? pdfTemplate = null,
+        IReadOnlyDictionary<string, JsonElement>? pdfVars = null) =>
+        tenant.Config.Profiles.TryGetValue(profileName, out var profile)
+            ? new AccessGrant(tenant, profileName, tenant.PolicyFor(profileName, profile), null,
+                TemplateResolver.Resolve(tenant.Config, profile, null, pdfTemplate, pdfVars))
+            : null;
+
     public string CreateRenderTicket(AccessGrant grant) => _renderProtector.Protect(
-        JsonSerializer.Serialize(new RenderTicket(grant.Tenant.Id, grant.ProfileName, grant.Invite?.Id)),
+        JsonSerializer.Serialize(new RenderTicket(grant.Tenant.Id, grant.ProfileName, grant.Invite?.Id, grant.Templates.Pdf, grant.Templates.PdfVars)),
         RenderTicketLifetime);
 
     private async Task<AccessGrant?> ReadRenderTicketAsync(HttpContext context, CancellationToken ct)
@@ -173,13 +184,12 @@ public sealed class AccessService(
         if (ticket.InviteId is { } inviteId)
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == inviteId, ct);
-            return invite is not null && await IsActiveAsync(invite, time.GetUtcNow(), ct) ? GrantFor(invite) : null;
+            if (invite is null || !await IsActiveAsync(invite, time.GetUtcNow(), ct) || GrantFor(invite) is not { } g) return null;
+            return g with { Templates = new TemplateSelection { Pdf = ticket.PdfTemplate ?? g.Templates.Pdf, Html = g.Templates.Html, PdfVars = ticket.PdfVars ?? g.Templates.PdfVars } };
         }
 
         var tenant = tenants.Get(ticket.TenantId);
-        return tenant is not null && tenant.Config.Profiles.TryGetValue(ticket.Profile, out var profile)
-            ? new AccessGrant(tenant, ticket.Profile, tenant.PolicyFor(ticket.Profile, profile), null)
-            : null;
+        return tenant is null ? null : GrantForProfile(tenant, ticket.Profile, ticket.PdfTemplate, ticket.PdfVars);
     }
 
     public static void ClearCookie(HttpContext context) =>

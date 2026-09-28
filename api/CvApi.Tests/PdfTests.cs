@@ -15,6 +15,9 @@ public sealed class FakeRenderer : IPdfRenderer
     public List<(Uri Url, IReadOnlyDictionary<string, string> Cookies)> Calls { get; } = [];
     public bool Fail { get; set; }
 
+    public Task<JsonObject?> VersionAsync(CancellationToken ct) =>
+        Task.FromResult<JsonObject?>(new JsonObject { ["commit"] = "renderer-sha", ["builtAt"] = "2026-01-01T00:00:00Z" });
+
     public Task<byte[]> RenderAsync(Uri url, IReadOnlyDictionary<string, string> cookies, CancellationToken ct)
     {
         Calls.Add((url, cookies));
@@ -112,6 +115,7 @@ public sealed class PdfTests : IDisposable
         var cached = await client.GetAsync("/api/pdf?locale=en");
         Assert.Equal(HttpStatusCode.OK, cached.StatusCode);
         Assert.Equal("application/pdf", cached.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("cv-alice-en.pdf", cached.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         Assert.Equal("hit", cached.Headers.GetValues("X-Pdf-Cache").Single());
         Assert.Equal(rendersAfterCreation, _factory.Renderer.Calls.Count);
 

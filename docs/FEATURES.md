@@ -15,6 +15,10 @@ Catalogue of the product's features. **Visibility** says where a feature may be 
 | Personal invite links (expiry, usage limit, instant revocation) | public | ✅ |
 | Multiple people (own subdomain or shared host + invite code) | public | ✅ |
 | [PDF per invite](#pdf-per-invite) | public | ✅ implemented, not yet deployed |
+| Selectable PDF templates (per person, profile or invite) | public | ✅ `editorial`, `classic`, `banner` |
+| Template variables: colour sets, colours, toggles (e.g. chapter colours) | public | ✅ |
+| Template builder UI | owner | 📝 planned (#87) |
+| Selectable web templates | public | 📝 planned (#77) |
 | Multilingual content and UI (EN/DE) | public | ✅ |
 | Interactive timeline, technology filter | public | ✅ |
 | Print layout with QR code | public | ✅ (print layout needs polish, see PDF follow-ups) |
@@ -23,6 +27,7 @@ Catalogue of the product's features. **Visibility** says where a feature may be 
 | QR code in PDF opens the same view (linked QR invite) | public | ✅ implemented, not yet deployed |
 | QR scan tracking per invite (`source: "pdf-qr"`, use count) | owner | ✅ admin API only |
 | Admin API (tenants, files, invites, preview, PDF re-render) | owner | ✅ |
+| Deployment checks: software version (`/api/version`, `/version.json`) and CV data hashes (`cv-sync.sh --verify`) | owner | ✅ |
 | Admin web interface | owner | ⏳ not started |
 | Analytics (e.g. heatmap tracking, invite usage insights) | owner | ⏳ planned, must stay hidden |
 
@@ -45,6 +50,8 @@ Properties:
   *derived* by the API at request time, nothing is copied or maintained twice.
 - **Declarative redaction**: what a recipient sees is declared (`hideCompanies: true`,
   `requires: ["private"]`), not hand-edited per recipient.
+- **Verifiable deployment**: `tools/cv-sync.sh --verify` compares the SHA-256 of every file with the
+  server; `/api/version` shows which commit of the software runs.
 - **Validated before deployment**: `tools/cv-sync.sh --check` validates JSON, file names and that
   every referenced asset exists; the API validates again on upload.
 - **Idempotent deployment**: `tools/cv-sync.sh` uploads the folder via the admin API; running it

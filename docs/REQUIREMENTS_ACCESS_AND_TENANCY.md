@@ -63,6 +63,9 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 ## 4. Invites
 
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
+  Exception: the admin MAY choose a code (`code`, 4–64 characters `A-Z a-z 0-9 - _`), e.g. `demo`.
+  Such codes are guessable and MUST only be used for demo or otherwise public content. A code can be in use
+  by one active invite at a time; revoking the invite releases the code.
 - R4.2 Codes are looked up by their SHA-256 hash. The plain code is additionally stored encrypted
   (ASP.NET data protection, keys in `/data/keys`) so the owner can view and copy code and link again at any
   time in the admin API/UI; codes are not secret towards the admin. They MUST NOT be sent to anyone else.
@@ -174,7 +177,9 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/health` | – | Liveness for Coolify. |
-| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`). |
+| `GET /api/version` | – | Deployed build: `{ api: { commit, builtAt }, pdf: { commit, builtAt } }`. The web container serves `/version.json` (`{ commit, builtAt }`). |
+| `GET /api/admin/tenants/{tenant}/hash` | admin key | SHA-256 per data file (`tenant.json`, `cv.<locale>.json`, `assets/*`) + `combined`. |
+| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`), profile pins, `dataHash`. |
 | `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
 | `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
@@ -184,6 +189,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
 | `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en[&revision=<sha>\|current]` | admin key | Show redacted CV for a profile (optionally of a registered revision, §14). |
+| `GET /api/admin/tenants/{tenant}/pdf-preview?profile=x&template=y&locale=en` | admin key | Render a PDF of a profile in any template (not cached). |
 | `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List stored CV revisions (`current`, `modified`, `source`, per revision `outdated`, `refs`) / register the current CV files as revision `{ sha, message?, committedAt?, repo?, path? }` (§14). |
 | `POST /api/admin/tenants/{tenant}/revisions/fetch` `{ ref }` | admin key | Fetch a revision (SHA, tag or branch) from the tenant's git repo again (§14). |
 | `PUT /api/admin/tenants/{tenant}/invites/{id}/revision` `{ revision }` | admin key | Pin an invite (and its QR invite) to a revision; `""` = current CV, `null` = follow the profile (§14). |
@@ -197,7 +203,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 { "tenant": "bob", "profile": "recruiter", "viaInvite": true, "label": "ACME recruiting", "expiresAt": "2026-12-31T00:00:00Z" }
 ```
 
-`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available.
+`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available,
+and `cvHash`: the SHA-256 of the compact JSON of the returned `cv` (for tests and deployment checks).
 
 ---
 
@@ -282,6 +289,13 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   - the PDF of a QR invite embeds its own code (no QR-of-QR chains).
   Public-profile PDFs (no invite) link to the public URL without a code.
 - R12.8 Revoking an invite deletes its cached PDFs.
+- R12.12 **Links & file name.** Every PDF template contains a clickable link to the online version (same
+  target as the QR code, incl. the QR invite code) and a "Created with <platform>" credit linking to the shared
+  site (`CV_SHARED_BASE_URL`, returned as `links.platform` by `/api/cv`). Downloads are named
+  `cv-<name>-<locale>.pdf` (umlauts transliterated, `cv-<locale>.pdf` if the name is hidden).
+- R12.11 **Templates.** Print/PDF output uses a selectable template (`editorial` default, `classic`), chosen per
+  tenant, profile or invite (invite overrides allowed unless `allowInviteTemplateOverride: false`).
+  Details and how to add templates: [TEMPLATES.md](TEMPLATES.md).
 - R12.9 **Typeset print layout.** Print and PDF use a dedicated layout (`src/app/components/CvPrint.vue`),
   not the screen layout: A4 with 16/15/18/15 mm margins (`@page`), type scale in pt, bundled fonts
   (Source Serif 4 for name/intro, Inter for text – no network access needed), masthead with photo and

@@ -73,6 +73,13 @@ public static class InviteCodes
     /// <summary>128 bit random, base64url (22 chars).</summary>
     public static string Generate() => Base64Url(RandomNumberGenerator.GetBytes(16));
 
+    /// <summary>
+    /// Admin-chosen codes (e.g. "demo"): URL-safe, 4–64 characters. Short codes are guessable,
+    /// so they are meant for demo or public content only.
+    /// </summary>
+    public static bool IsValidCustom(string code) =>
+        code.Length is >= 4 and <= 64 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+
     public static string Hash(string code) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim())));
 

@@ -56,6 +56,14 @@ public class ApiFactory : WebApplicationFactory<Program>
         File.WriteAllText(file, node.ToJsonString());
     }
 
+    public void UpdateTenant(string tenant, Action<JsonObject> change)
+    {
+        var file = Path.Combine(DataPath, "tenants", tenant, "tenant.json");
+        var node = JsonNode.Parse(File.ReadAllText(file))!.AsObject();
+        change(node);
+        File.WriteAllText(file, node.ToJsonString());
+    }
+
     public void SetPublicProfile(string tenant, string? profile)
     {
         var file = Path.Combine(DataPath, "tenants", tenant, "tenant.json");
