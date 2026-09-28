@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import '~/assets/css/admin.css'
-import { errorMessage, pinStatus, shortSha, type AdminTenant, type CvRevisions } from '~/composables/useAdmin'
+import { changeSummary, errorMessage, findRevision, pinStatus, shortSha, type AdminTenant, type CvRevisions } from '~/composables/useAdmin'
 
 // Owner tool: never indexed, never linked from the public pages.
 useSeoMeta({ title: 'CV admin', robots: 'noindex, nofollow' })
@@ -78,7 +78,7 @@ watch(selectedId, loadRevisions)
 
 const currentRevision = computed(() => revisions.value?.revisions.find(r => r.sha === revisions.value?.current))
 const profilePins = computed(() => Object.entries(selected.value?.pins ?? {})
-  .map(([profile, sha]) => ({ profile, sha, status: pinStatus(sha, revisions.value) })))
+  .map(([profile, sha]) => ({ profile, sha, status: pinStatus(sha, revisions.value), changes: changeSummary(findRevision(sha, revisions.value)) })))
 const pinColor = { current: 'neutral', outdated: 'warning', missing: 'error' } as const
 
 // Profile pinned to a revision that is not stored: fetch it from the CV's git repo.
@@ -172,7 +172,10 @@ onMounted(() => {
                   <template v-if="currentRevision">
                     <code>{{ shortSha(currentRevision.sha) }}</code>
                     <span v-if="currentRevision.message" class="text-gray-500"> · {{ currentRevision.message }}</span>
-                    <UBadge v-if="revisions?.modified" class="ml-2" size="sm" color="warning" variant="subtle" label="changed since (not registered)" />
+                    <UBadge
+                      v-if="revisions?.modified" class="ml-2" size="sm" color="warning" variant="subtle" label="changed since (not registered)"
+                      :title="changeSummary(currentRevision)"
+                    />
                   </template>
                   <span v-else class="text-gray-500">– (no revision registered; deploy with tools/cv-sync.sh)</span>
                 </dd>
@@ -181,6 +184,7 @@ onMounted(() => {
                   <dd class="flex gap-1 flex-wrap">
                     <UBadge
                       v-for="pin in profilePins" :key="pin.profile" :color="pinColor[pin.status]" variant="subtle" icon="i-lucide-pin"
+                      :title="pin.changes ? `Changed since: ${pin.changes}` : undefined"
                       :label="`${pin.profile} → ${shortSha(pin.sha)}${pin.status === 'current' ? '' : pin.status === 'outdated' ? ' (outdated)' : ' (not stored)'}`"
                     />
                   </dd>

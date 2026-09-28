@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOverrides, groupInvites, inviteStatus, parseJsonc, pinStatus, splitList, type AdminInvite } from '~/composables/useAdmin'
+import { buildOverrides, changeSummary, groupInvites, inviteStatus, parseJsonc, pinStatus, splitList, type AdminInvite } from '~/composables/useAdmin'
 
 const invite = (patch: Partial<AdminInvite> = {}): AdminInvite => ({
   id: 'a', tenant: 'demo', profile: 'full', label: '', createdAt: '2026-01-01T00:00:00Z', useCount: 0, ...patch
@@ -104,5 +104,15 @@ describe('pinStatus', () => {
   it('reports unknown revisions as missing', () => {
     expect(pinStatus('ccccccc', revisions)).toBe('missing')
     expect(pinStatus('ccccccc', null)).toBe('missing')
+  })
+})
+
+describe('changeSummary', () => {
+  it('lists changed files and marks added/removed ones', () => {
+    expect(changeSummary({
+      sha: 'a', registeredAt: '', outdated: true,
+      changes: [{ path: 'cv.en.json', change: 'modified' }, { path: 'assets/new.jpg', change: 'added' }, { path: 'assets/old.jpg', change: 'removed' }]
+    })).toBe('cv.en.json, assets/new.jpg (new), assets/old.jpg (removed)')
+    expect(changeSummary(undefined)).toBe('')
   })
 })

@@ -12,8 +12,9 @@ public sealed record AccessGrant(Tenant Tenant, string ProfileName, EffectivePol
 public enum RedeemResult { Ok, Invalid }
 
 /// <summary>Short-lived, signed permission for the PDF renderer to open exactly one grant's view.</summary>
+/// <param name="Revision">CV version of a profile grant ("" = current CV, null = the profile's own pin); invites carry their own.</param>
 public sealed record RenderTicket(string TenantId, string Profile, Guid? InviteId, string? PdfTemplate = null,
-    Dictionary<string, JsonElement>? PdfVars = null);
+    Dictionary<string, JsonElement>? PdfVars = null, string? Revision = null);
 
 /// <summary>
 /// Resolves tenant + profile from hostname and access cookie (see docs/REQUIREMENTS_ACCESS_AND_TENANCY.md §2–§4).
@@ -156,15 +157,18 @@ public sealed class AccessService(
     }
 
     /// <summary>Grant of a profile without invite (public profile, admin preview).</summary>
+    /// <param name="revision">CV version: SHA/tag, "" = current CV, null = the profile's own pin (§14).</param>
     public static AccessGrant? GrantForProfile(Tenant tenant, string profileName, string? pdfTemplate = null,
-        IReadOnlyDictionary<string, JsonElement>? pdfVars = null) =>
+        IReadOnlyDictionary<string, JsonElement>? pdfVars = null, string? revision = null) =>
         tenant.Config.Profiles.TryGetValue(profileName, out var profile)
-            ? new AccessGrant(tenant, profileName, tenant.PolicyFor(profileName, profile), null,
+            ? new AccessGrant(tenant, profileName,
+                tenant.PolicyFor(profileName, profile, revision is null ? null : new AccessPolicy { Revision = revision }), null,
                 TemplateResolver.Resolve(tenant.Config, profile, null, pdfTemplate, pdfVars))
             : null;
 
     public string CreateRenderTicket(AccessGrant grant) => _renderProtector.Protect(
-        JsonSerializer.Serialize(new RenderTicket(grant.Tenant.Id, grant.ProfileName, grant.Invite?.Id, grant.Templates.Pdf, grant.Templates.PdfVars)),
+        JsonSerializer.Serialize(new RenderTicket(grant.Tenant.Id, grant.ProfileName, grant.Invite?.Id, grant.Templates.Pdf, grant.Templates.PdfVars,
+            grant.Invite is null ? grant.Policy.Revision ?? "" : null)),
         RenderTicketLifetime);
 
     private async Task<AccessGrant?> ReadRenderTicketAsync(HttpContext context, CancellationToken ct)
@@ -189,7 +193,7 @@ public sealed class AccessService(
         }
 
         var tenant = tenants.Get(ticket.TenantId);
-        return tenant is null ? null : GrantForProfile(tenant, ticket.Profile, ticket.PdfTemplate, ticket.PdfVars);
+        return tenant is null ? null : GrantForProfile(tenant, ticket.Profile, ticket.PdfTemplate, ticket.PdfVars, ticket.Revision);
     }
 
     public static void ClearCookie(HttpContext context) =>

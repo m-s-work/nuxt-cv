@@ -48,6 +48,8 @@ export interface CvRevision {
   outdated: boolean
   /** Tags/branches that were resolved to this commit. */
   refs?: string[]
+  /** Files of the current CV that differ from this revision (same SHA-256 as GET …/hash). */
+  changes?: Array<{ path: string, change: 'added' | 'removed' | 'modified' }>
 }
 
 export interface CvRevisions {
@@ -61,10 +63,21 @@ export interface CvRevisions {
 
 export type PinStatus = 'current' | 'outdated' | 'missing'
 
+/** The stored revision a pin (full SHA, prefix or fetched tag) refers to. */
+export function findRevision(pin: string, revisions: CvRevisions | null | undefined): CvRevision | undefined {
+  return revisions?.revisions.find(r => r.refs?.includes(pin))
+    ?? (/^[0-9a-f]{7,40}$/i.test(pin) ? revisions?.revisions.find(r => r.sha.startsWith(pin.toLowerCase())) : undefined)
+}
+
+/** Short summary of what changed in the current CV since a revision, e.g. "cv.en.json, assets/photo.jpg (new)". */
+export function changeSummary(revision: CvRevision | undefined): string {
+  const labels = { added: ' (new)', removed: ' (removed)', modified: '' }
+  return (revision?.changes ?? []).map(c => c.path + labels[c.change]).join(', ')
+}
+
 /** Whether a pinned revision (full SHA, prefix or fetched tag) still matches the current CV. */
 export function pinStatus(pin: string, revisions: CvRevisions | null | undefined): PinStatus {
-  const revision = revisions?.revisions.find(r => r.refs?.includes(pin))
-    ?? (/^[0-9a-f]{7,40}$/i.test(pin) ? revisions?.revisions.find(r => r.sha.startsWith(pin.toLowerCase())) : undefined)
+  const revision = findRevision(pin, revisions)
   if (!revision) return 'missing'
   return revision.outdated ? 'outdated' : 'current'
 }
@@ -300,6 +313,9 @@ export function useAdmin() {
       request<void>(`${t(tenant)}/files/${path}`, { method: 'DELETE' }),
     preview: (tenant: string, profile: string, locale?: string, revision?: string) =>
       request<{ locale: string, revision?: string, cv: unknown }>(`${t(tenant)}/preview`, { query: { profile, locale, revision } }),
+    /** PDF of a profile in any template (not cached); revision as for preview. Needs the PDF renderer. */
+    pdfPreview: (tenant: string, query: { profile: string, locale?: string, template?: string, vars?: string, revision?: string }) =>
+      request<Blob>(`${t(tenant)}/pdf-preview`, { query, responseType: 'blob' }),
     revisions: (tenant: string) => request<CvRevisions>(`${t(tenant)}/revisions`),
     /** Fetches a revision (SHA, tag or branch) from the tenant's git repo again. */
     fetchRevision: (tenant: string, ref: string) =>

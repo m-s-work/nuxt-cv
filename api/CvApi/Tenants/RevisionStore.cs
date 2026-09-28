@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -10,7 +9,11 @@ public sealed record CvRevision(
     string? Message,
     DateTimeOffset? CommittedAt,
     DateTimeOffset RegisteredAt,
-    string ContentHash);
+    SortedDictionary<string, string> Files)
+{
+    /// <summary>SHA-256 per file (cv.&lt;locale&gt;.json, assets/*), same format as GET /admin/tenants/{id}/hash.</summary>
+    public SortedDictionary<string, string> Files { get; init; } = Files ?? new(StringComparer.Ordinal);
+}
 
 /// <summary>Where the tenant's CV lives in git (reported by tools/cv-sync.sh), used to fetch pruned revisions again.</summary>
 public sealed record RevisionSource(string Repo, string Path);
@@ -99,7 +102,7 @@ public static partial class RevisionStore
             if (System.IO.Directory.Exists(target)) System.IO.Directory.Delete(target, recursive: true);
             System.IO.Directory.Move(staging, target);
 
-            var revision = new CvRevision(sha, message, committedAt, now, ContentHash(target));
+            var revision = new CvRevision(sha, message, committedAt, now, Versioning.TenantHashes.DataFiles(target));
             var index = Read(tenant);
             var revisions = index.Revisions.Where(r => r.Sha != sha).Prepend(revision).ToList();
             Write(tenant, new RevisionIndex(makeCurrent ? sha : index.Current, revisions, source ?? index.Source));
@@ -145,23 +148,6 @@ public static partial class RevisionStore
     {
         System.IO.Directory.CreateDirectory(Directory(tenant));
         File.WriteAllText(Path.Combine(Directory(tenant), "index.json"), JsonSerializer.Serialize(index, JsonOptions));
-    }
-
-    /// <summary>Hash over the cv.&lt;locale&gt;.json files and assets in a directory (names and bytes).</summary>
-    public static string ContentHash(string directory)
-    {
-        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var assets = Path.Combine(directory, "assets");
-        var files = CvFiles(directory).Concat(System.IO.Directory.Exists(assets)
-            ? System.IO.Directory.GetFiles(assets).Order(StringComparer.Ordinal)
-            : []);
-        foreach (var file in files)
-        {
-            sha.AppendData(System.Text.Encoding.UTF8.GetBytes(Path.GetRelativePath(directory, file).Replace('\\', '/') + "\n"));
-            sha.AppendData(File.ReadAllBytes(file));
-            sha.AppendData("\n"u8);
-        }
-        return Convert.ToHexStringLower(sha.GetHashAndReset());
     }
 
     private static IEnumerable<string> CvFiles(string directory) =>

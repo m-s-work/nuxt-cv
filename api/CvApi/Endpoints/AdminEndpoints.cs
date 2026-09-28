@@ -71,21 +71,28 @@ public static partial class AdminEndpoints
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var index = RevisionStore.Read(tenant);
-            var live = RevisionStore.ContentHash(tenant.Directory);
+            var live = TenantHashes.DataFiles(tenant.Directory);
+            var current = index.Revisions.FirstOrDefault(r => r.Sha == index.Current);
             return Results.Ok(new
             {
                 current = index.Current,
                 source = index.Source,
-                // The live files were changed after the last registered revision (e.g. edited in the admin UI).
-                modified = index.Revisions.FirstOrDefault(r => r.Sha == index.Current)?.ContentHash is { } h && h != live,
-                revisions = index.Revisions.Select(r => new
+                // The live files were changed after the current revision was registered (e.g. edited in the admin UI).
+                modified = current is not null && TenantHashes.Diff(current.Files, live).Count > 0,
+                revisions = index.Revisions.Select(r =>
                 {
-                    sha = r.Sha,
-                    message = r.Message,
-                    committedAt = r.CommittedAt,
-                    registeredAt = r.RegisteredAt,
-                    outdated = r.ContentHash != live,
-                    refs = index.Refs?.Where(x => x.Value == r.Sha).Select(x => x.Key).ToList() ?? [],
+                    // What changed in the current CV since this revision (empty = up to date).
+                    var changes = TenantHashes.Diff(r.Files, live);
+                    return new
+                    {
+                        sha = r.Sha,
+                        message = r.Message,
+                        committedAt = r.CommittedAt,
+                        registeredAt = r.RegisteredAt,
+                        outdated = changes.Count > 0,
+                        changes = changes.Select(c => new { path = c.Path, change = c.Change }),
+                        refs = index.Refs?.Where(x => x.Value == r.Sha).Select(x => x.Key).ToList() ?? [],
+                    };
                 }),
             });
         });
@@ -326,8 +333,9 @@ public static partial class AdminEndpoints
         });
 
         // PDF preview of a profile in any template (not cached), e.g. to choose a template.
+        // revision: as for /preview – a SHA/tag, "current" or omitted (the profile's own view).
         admin.MapGet("/tenants/{tenantId}/pdf-preview", async (string tenantId, string profile, string? template, string? locale,
-            string? vars, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+            string? vars, string? revision, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
         {
             if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
             var tenant = tenants.Get(tenantId);
@@ -341,7 +349,7 @@ public static partial class AdminEndpoints
                 try { pdfVars = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(vars); }
                 catch (JsonException) { return Results.BadRequest(new { error = "invalid_vars" }); }
             }
-            if (AccessService.GrantForProfile(tenant, profile, template, pdfVars) is not { } grant)
+            if (AccessService.GrantForProfile(tenant, profile, template, pdfVars, revision == "current" ? "" : revision) is not { } grant)
                 return Results.BadRequest(new { error = "unknown_profile" });
 
             var content = await pdf.RenderPreviewAsync(grant, locale, ct);
@@ -354,11 +362,10 @@ public static partial class AdminEndpoints
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
-            if (!tenant.Config.Profiles.TryGetValue(profile, out var policy))
+            if (!tenant.Config.Profiles.ContainsKey(profile))
                 return Results.BadRequest(new { error = "unknown_profile" });
-            // revision: a SHA, "current" (ignore the profile's pin) or omitted (the profile's own view).
-            var effective = tenant.PolicyFor(profile, policy,
-                revision is null ? null : new AccessPolicy { Revision = revision == "current" ? "" : revision });
+            // revision: a SHA/tag, "current" (ignore the profile's pin) or omitted (the profile's own view).
+            var effective = AccessService.GrantForProfile(tenant, profile, revision: revision == "current" ? "" : revision)!.Policy;
             if (tenants.LoadCv(tenant, locale, effective.Revision) is not { } loaded) return Results.NotFound();
             return Results.Ok(new { locale = loaded.Locale, revision = effective.Revision, cv = CvRedactor.Redact(loaded.Cv, effective) });
         });

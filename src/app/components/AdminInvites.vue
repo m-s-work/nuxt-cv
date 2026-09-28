@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  REDACTION_FLAGS, buildOverrides, errorMessage, formatBytes, groupInvites, inviteStatus, pinStatus, shortSha,
+  REDACTION_FLAGS, buildOverrides, changeSummary, errorMessage, findRevision, formatBytes, groupInvites, inviteStatus, pinStatus, shortSha,
   type AdminInvite, type AdminTenant, type CreatedInvite, type CvRevisions, type FlagChoice, type OverridesForm, type PdfOutcome
 } from '~/composables/useAdmin'
 
@@ -354,6 +354,9 @@ onMounted(load)
                     size="xs" color="neutral" variant="ghost" label="Unpin" :disabled="busy === invite.id"
                     @click="repin(invite, null)"
                   />
+                </div>
+                <div v-if="invite.revision && !invite.depth && pinOf(invite) === 'outdated'" class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                  Changed since: {{ changeSummary(findRevision(invite.revision, revisions)) }}
                 </div>
                 <div v-if="pdfResults[invite.id]" class="mt-1 flex gap-1 flex-wrap">
                   <span v-if="typeof pdfResults[invite.id] === 'string'" class="text-xs text-red-600">{{ pdfResults[invite.id] }}</span>

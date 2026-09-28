@@ -343,6 +343,9 @@ public sealed class AccessTests : IDisposable
         var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
         var old = revisions!["revisions"]!.AsArray().Single(r => r!["sha"]!.GetValue<string>() == v1)!;
         Assert.True(old["outdated"]!.GetValue<bool>());           // only the photo changed
+        var change = Assert.Single(old["changes"]!.AsArray())!;
+        Assert.Equal("assets/bob.jpg", change["path"]!.GetValue<string>());
+        Assert.Equal("modified", change["change"]!.GetValue<string>());
 
         var client = _factory.ClientFor(ApiFactory.SharedHost);
         await Redeem(client, pinned);

@@ -98,6 +98,32 @@ public sealed class TemplateApiTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest,
             (await Admin().GetAsync("/api/admin/tenants/alice/pdf-preview?profile=full&template=../x")).StatusCode);
     }
+
+    [Fact]
+    public async Task Admin_pdf_preview_renders_the_requested_cv_revision()
+    {
+        const string v1 = "5555555555555555555555555555555555555555";
+        _factory.WriteCv("alice", "en", """{ "profile": { "name": "Alice v1" } }""");
+        (await Admin().PostAsJsonAsync("/api/admin/tenants/alice/revisions", new { sha = v1 })).EnsureSuccessStatusCode();
+        _factory.WriteCv("alice", "en", """{ "profile": { "name": "Alice v2" } }""");
+
+        async Task<string> RenderedName(string query)
+        {
+            (await Admin().GetAsync($"/api/admin/tenants/alice/pdf-preview?profile=full&locale=en{query}")).EnsureSuccessStatusCode();
+            var renderer = _factory.ClientFor("web");
+            renderer.DefaultRequestHeaders.Add("Cookie", $"cv_render={_factory.Renderer.Calls.Last().Cookies["cv_render"]}");
+            var body = await (await renderer.GetAsync("/api/cv")).Content.ReadFromJsonAsync<JsonObject>();
+            return body!["cv"]!["profile"]!["name"]!.GetValue<string>();
+        }
+
+        Assert.Equal("Alice v1", await RenderedName("&revision=5555555"));
+        Assert.Equal("Alice v2", await RenderedName(""));
+
+        // A profile pinned in tenant.json: omitted = the pin, "current" = the current CV.
+        _factory.UpdateTenant("alice", t => t["profiles"]!["full"]!["revision"] = v1);
+        Assert.Equal("Alice v1", await RenderedName(""));
+        Assert.Equal("Alice v2", await RenderedName("&revision=current"));
+    }
 }
 
 public sealed class TemplateVarsTests
