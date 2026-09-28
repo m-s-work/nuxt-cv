@@ -450,10 +450,19 @@ hiding or downplaying the actual data is not (that would also make the consent i
   The existing invite counters (`useCount`, `lastUsedAt`) keep working for declining visitors as before.
 - R9.15 **Owner view of consent.** Reports show per invite: accepts, declines (by `source`), withdrawals, the
   time of the last decision, and the consent rate per tenant and per `policyVersion` (to see whether a new
-  wording changed the rate). This is information about the *choice* only: e.g. "ACME invite: opened 3×,
-  1 accept, 2 declines" – nothing about what the declining visitors did on the page.
+  wording changed the rate). This is information about the *choice* only: e.g. "ACME invite: opened in 3
+  browsers, 1 accepted, 2 declined" (R9.19) – nothing about what the declining visitors did on the page.
 - R9.16 The decision itself MUST NOT change anything for the visitor: same CV, same features, no reminder
   or nagging beyond the renewal in R9.13.
+- R9.19 **Consent is per browser, not per invite.** The choice lives in the `cv_consent` cookie of the browser
+  that made it; the `invite_id` in the consent log is only for statistics. Consequences:
+  - Other people using the same invite code (e.g. a forwarded link) see the modal themselves and can accept;
+    their sessions are tracked normally. One person's decline never blocks or enables tracking for anyone else.
+  - The same person on a second device or browser is asked again. A decline MUST NOT be carried over via
+    fingerprint, IP or any other matching – recognising them would itself be the tracking they declined.
+  - Likewise an accept is never carried over: every browser gives its own consent before `cv_vid`,
+    fingerprint or IP are recorded.
+  - Reports therefore count decisions per browser ("2 browsers declined"), not per invite.
 - R9.11 **Controller.** The CV owner is the controller. `tenant.json` gets
   `privacy: { controller: "Bob Builder", contact: "privacy@…" }`; the modal and the full policy show it.
   Without `privacy` settings the tenant runs without tracking (no modal).
