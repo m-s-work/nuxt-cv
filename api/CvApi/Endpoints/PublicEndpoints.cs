@@ -54,6 +54,7 @@ public static class PublicEndpoints
                 },
                 locale = resolvedLocale,
                 features = new { pdf = pdf.Enabled },
+                templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html },
                 cv = CvRedactor.Redact(master, grant.Policy),
             });
         });

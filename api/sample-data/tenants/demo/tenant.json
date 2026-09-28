@@ -6,6 +6,8 @@
   "defaultLocale": "en",
   // Profile shown on the hosts above without a (valid) invite. Omit or set null to require an invite.
   "publicProfile": "public",
+  // Templates of this person (see docs/TEMPLATES.md); profiles and invites may override them.
+  "templates": { "pdf": "editorial" },
   "profiles": {
     "public": {
       "flags": {
@@ -19,6 +21,7 @@
     },
     "recruiter": {
       "grants": ["contact"],
+      "templates": { "pdf": "classic" },
       "flags": { "hideTimeframeDays": true, "hideBirthDate": true }
     },
     "full": {

@@ -175,6 +175,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
 | `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en` | admin key | Show redacted CV for a profile. |
+| `GET /api/admin/tenants/{tenant}/pdf-preview?profile=x&template=y&locale=en` | admin key | Render a PDF of a profile in any template (not cached). |
 
 - Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
   admin endpoints are disabled (`404`).
@@ -268,6 +269,9 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   - the PDF of a QR invite embeds its own code (no QR-of-QR chains).
   Public-profile PDFs (no invite) link to the public URL without a code.
 - R12.8 Revoking an invite deletes its cached PDFs.
+- R12.11 **Templates.** Print/PDF output uses a selectable template (`editorial` default, `classic`), chosen per
+  tenant, profile or invite (invite overrides allowed unless `allowInviteTemplateOverride: false`).
+  Details and how to add templates: [TEMPLATES.md](TEMPLATES.md).
 - R12.9 **Typeset print layout.** Print and PDF use a dedicated layout (`src/app/components/CvPrint.vue`),
   not the screen layout: A4 with 16/15/18/15 mm margins (`@page`), type scale in pt, bundled fonts
   (Source Serif 4 for name/intro, Inter for text – no network access needed), masthead with photo and

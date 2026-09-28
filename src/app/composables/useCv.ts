@@ -112,10 +112,17 @@ export interface CvFeatures {
   pdf: boolean
 }
 
+/** Template names resolved by the API (null = frontend default). */
+export interface CvTemplates {
+  pdf?: string | null
+  html?: string | null
+}
+
 interface CvResponse {
   access: CvAccess
   locale: string
   features?: CvFeatures
+  templates?: CvTemplates
   cv: CvData
 }
 
@@ -158,6 +165,7 @@ export function useCv() {
   const loadedLocale = useState<string | null>('cv-locale', () => null)
   const hostKind = useState<CvHostKind>('cv-host-kind', () => 'tenant')
   const features = useState<CvFeatures>('cv-features', () => ({ pdf: false }))
+  const templates = useState<CvTemplates>('cv-templates', () => ({}))
 
   const apiBase = useRuntimeConfig().public.apiBase as string
 
@@ -177,6 +185,7 @@ export function useCv() {
       cv.value = withPeriods(response.cv, presentLabel(locale))
       access.value = response.access
       features.value = response.features ?? { pdf: false }
+      templates.value = response.templates ?? {}
       status.value = 'ready'
     } catch (error: unknown) {
       cv.value = null
@@ -232,6 +241,7 @@ export function useCv() {
     status,
     hostKind,
     features,
+    templates,
     inviteRejected,
     init,
     load,
