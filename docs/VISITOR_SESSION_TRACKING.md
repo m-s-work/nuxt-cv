@@ -521,9 +521,12 @@ CV's theme colours, light and dark mode.
   the reader anyway. Instead:
   - both buttons have the same size, shape, font weight and contrast, in the CV's own accent style
     (e.g. both `UButton` `color="primary"` `variant="soft"`, or both solid);
-  - labels are positive and plain: **Accept** / **Continue without** – no "No thanks, I don't care" style
-    wording;
-  - icons on buttons MAY be used if both get one (e.g. `i-lucide-check` / `i-lucide-arrow-right`);
+  - labels are **parallel**: one word each, same grammatical form – **Accept** / **Decline**
+    (de: **Zustimmen** / **Ablehnen**). A deliberately longer, vaguer or guilt-tripping decline label
+    ("Continue without approving the data policy…", "No thanks, I don't care") would get fewer clicks – that is
+    the reason it is not allowed: unequal wording is a deceptive design pattern like unequal colours
+    (EDPB Guidelines 03/2022) and puts the validity of every accept at risk;
+  - icons on buttons MAY be used if both get one (e.g. `i-lucide-check` / `i-lucide-x`);
   - the modal has no close "×" that silently counts as accept; Esc / clicking outside does nothing
     (a choice is needed, and both choices open the CV).
 - R9.22 The modal MUST be accessible: focus trapped in the modal, first focus on the text (not on Accept),
@@ -540,7 +543,7 @@ CV's theme colours, light and dark mode.
 > Everything stays with {name}: it is stored on {name}'s own server and **never passed on to third parties**.
 > You can read the CV either way and change your choice any time.
 >
-> [ Accept ]   [ Continue without ]
+> [ Accept ]   [ Decline ]
 >
 > What exactly is recorded ›
 
@@ -555,7 +558,7 @@ CV's theme colours, light and dark mode.
 > Alles bleibt bei {name}: Die Daten liegen auf {name}s eigenem Server und werden **niemals an Dritte
 > weitergegeben**. Sie können den Lebenslauf in jedem Fall lesen und Ihre Wahl jederzeit ändern.
 >
-> [ Zustimmen ]   [ Ohne fortfahren ]
+> [ Zustimmen ]   [ Ablehnen ]
 >
 > Was genau erfasst wird ›
 
