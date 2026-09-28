@@ -330,9 +330,8 @@ This section is a planning basis, **not legal advice**; it MUST be reviewed befo
   session only (§3.2), fingerprints only as hashes, geo lookups only locally.
 - R9.2 **Retention**: raw events 90 days; full IP addresses and fingerprints 90 days, then the IP is
   truncated (/24 resp. /48) and the fingerprint removed (network info and "probable person" links stay);
-  aggregated heat cells and session summaries 13 months, then deleted; CV snapshots as long as a session
-  or heat cell references them
-  by a daily job. Revoking an invite MAY optionally purge its tracking data.
+  aggregated heat cells and session summaries 13 months; CV snapshots as long as a session or heat cell
+  references them. Expired data is deleted by a daily job. Revoking an invite MAY optionally purge its tracking data.
 - R9.3 **Opt-out**: `DNT`/`GPC` honoured (R8.5); visitor erasure endpoint (§8.2).
 - R9.4 **Consent / notice (open decision).** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25)
   a non-essential cookie such as `cv_vid`, **browser fingerprinting** (it reads information from the device just
