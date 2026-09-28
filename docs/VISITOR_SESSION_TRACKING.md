@@ -48,7 +48,7 @@ Hierarchy: **Tenant → Visitor group (invite) → Visitor (cookie) → Session 
 
 ## 3. Visitor identification
 
-- R3.1 On the first `GET /api/cv` that grants access, the API sets `cv_vid` if absent:
+- R3.1 When the visitor **accepts** the consent modal (§9.1), the API sets `cv_vid` if absent:
   a random 128-bit id, signed with Data Protection (same key ring as `cv_access`),
   `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=13 months`.
 - R3.2 The browser never reads `cv_vid`; the API resolves it from the cookie on every tracking request.
@@ -285,7 +285,9 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 
 | Method & path | Auth | Purpose |
 |---|---|---|
-| `POST /api/events` | `cv_access` or public profile + `cv_vid` | Batch of events of one session. `204`. |
+| `POST /api/consent` `{ choice, policyVersion }` | `cv_access` or public profile | Record accept/decline (§9.1), set `cv_consent` (+ `cv_vid` on accept). `204`. |
+| `DELETE /api/consent` | – | Withdraw: clear `cv_vid`, set decline, log withdrawal. `204`. |
+| `POST /api/events` | `cv_access` or public profile + `cv_vid` + `cv_consent=accept` | Batch of events of one session. `204`. |
 
 ```jsonc
 { "sessionId": "b1…", "seq": 7, "bp": "lg", "appSha": "71676ff…", "cvVersion": "9f2c…",
@@ -333,21 +335,88 @@ This section is a planning basis, **not legal advice**; it MUST be reviewed befo
   aggregated heat cells and session summaries 13 months; CV snapshots as long as a session or heat cell
   references them. Expired data is deleted by a daily job. Revoking an invite MAY optionally purge its tracking data.
 - R9.3 **Opt-out**: `DNT`/`GPC` honoured (R8.5); visitor erasure endpoint (§8.2).
-- R9.4 **Consent / notice (open decision).** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25)
-  a non-essential cookie such as `cv_vid`, **browser fingerprinting** (it reads information from the device just
-  like a cookie) and client-side behaviour recording usually require **consent**; stored IP addresses are
-  personal data under GDPR;
-  GDPR Art. 13 requires information about the processing. This conflicts with R11.4 ("no tracking features
-  visible to invitees"). Proposed resolution:
-  - R11.4 is about **not advertising** analytics as a product feature on the showcase / CV. A neutral, legally
-    required **privacy notice** (linked in the footer) is not a feature advertisement and is allowed.
-  - Option A (recommended): short consent prompt on first visit ("usage statistics to improve this CV");
-    without consent only server-side counters (`useCount`, `lastUsedAt`, request-level visit time) are kept,
-    no `cv_vid`, no fingerprint, no stored IP, no client tracker.
-  - Option B: no consent prompt, only a privacy notice, and restrict to cookieless, non-behavioural
-    session counts. Heatmaps and per-visitor profiles would not be possible.
-  The owner has to choose; the implementation MUST support Option A's gating either way.
+- R9.4 **Consent.** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25) the cookie `cv_vid`,
+  browser fingerprinting (it reads information from the device just like a cookie) and client-side behaviour
+  recording require **consent**; stored IP addresses are personal data and GDPR Art. 13 requires informing the
+  visitor. Consent is collected with the modal in §9.1.
 - R9.5 Tracking data is owner-only and never part of `/api/cv` or any invitee-visible response.
+
+
+### 9.1 Consent modal
+
+**R11.4 vs. consent.** Tracking is never *advertised* – it does not appear on the showcase, in the feature
+list or anywhere in the CV. The consent modal is a legally required notice, not a feature presentation.
+It is written in friendly, visitor-centred words, but it MUST name what is collected: friendly framing is fine,
+hiding or downplaying the actual data is not (that would also make the consent invalid).
+
+**Flow**
+
+1. The visitor opens the CV (invite link, QR code or tenant host). Splash screen, then the CV renders.
+2. If no decision is stored (`cv_consent` cookie absent or older than the current `policyVersion`), a modal
+   opens above the CV. The CV behind it is visible but not interactive until a choice is made.
+3. **Nothing is tracked before the decision**: no `cv_vid`, no fingerprint, no client tracker, no stored IP.
+   Only the existing server-side counters (`useCount`, `lastUsedAt`) run, as today.
+4. **Accept** → `POST /api/consent { choice: "accept", policyVersion }`. The API logs the consent, sets
+   `cv_consent=accept:<policyVersion>` and `cv_vid`; the client then starts `useVisitorTracking()`.
+5. **Decline** → `POST /api/consent { choice: "decline", policyVersion }`. The API sets
+   `cv_consent=decline:<policyVersion>`; the CV works exactly the same, just without tracking.
+6. The choice is remembered for 6 months (declined) / 13 months (accepted) and can be changed any time via a
+   small "Privacy" link in the footer (re-opens the modal). Withdrawing stops tracking immediately and deletes
+   `cv_vid`; the visitor MAY also request deletion of recorded data (§8.2 erase endpoint).
+
+**Rules**
+
+- R9.6 **Decline is required and must be as easy as accept**: two buttons of equal size and weight on the first
+  layer, no pre-ticked boxes, no "accept" only with a hidden "settings" route.
+- R9.7 **No blocking or redirect on decline.** Access to the CV MUST NOT depend on consent. A "consent or leave"
+  wall makes consent not freely given (GDPR Art. 7(4), EDPB Guidelines 05/2020 on consent) and would therefore
+  make *all* tracking unlawful – and it would lose exactly the readers the CV is for.
+- R9.8 `DNT: 1` / `Sec-GPC: 1` count as a decline; the modal is not shown.
+- R9.9 No modal in print mode (`?print=1`), for the PDF renderer or admin previews; nothing is tracked there.
+- R9.10 **Consent log** (proof, GDPR Art. 7(1)): `consents(id, tenant, invite_id, visitor_id?, choice,
+  policy_version, created_at, withdrawn_at)`. Declines are logged without `visitor_id`.
+- R9.11 **Controller.** The CV owner is the controller. `tenant.json` gets
+  `privacy: { controller: "Bob Builder", contact: "privacy@…" }`; the modal and the full policy show it.
+  Without `privacy` settings the tenant runs without tracking (no modal).
+- R9.12 **Policy text** is part of the frontend i18n (en, de); `policyVersion` is a hash of the text in all
+  locales, so any change of the text asks again. The full policy is a second layer ("Details") in the same
+  modal – no separate page that could be linked from the showcase.
+
+**Wording (draft, first layer, en)**
+
+> **Before you start reading**
+>
+> To see which parts of this CV are most useful to readers like you, {name} would like to record how the CV
+> is read: time spent on the page and its sections, clicks and mouse movement, and technical details of the
+> visit (IP address, device and browser characteristics). This is stored only for {name}, never shared, and
+> deleted after at most 13 months.
+>
+> You can read the CV either way.
+>
+> [ Accept ]   [ Continue without ]        Details
+
+**Wording (draft, first layer, de)**
+
+> **Bevor Sie loslegen**
+>
+> Damit {name} sieht, welche Teile dieses Lebenslaufs für Leser wie Sie am hilfreichsten sind, möchte {name}
+> erfassen, wie der Lebenslauf gelesen wird: Verweildauer auf der Seite und in den Abschnitten, Klicks und
+> Mausbewegungen sowie technische Daten des Besuchs (IP-Adresse, Geräte- und Browsermerkmale). Die Daten sind
+> nur für {name} bestimmt, werden nicht weitergegeben und nach spätestens 13 Monaten gelöscht.
+>
+> Sie können den Lebenslauf in jedem Fall lesen.
+>
+> [ Zustimmen ]   [ Ohne fortfahren ]        Details
+
+**Details layer** (short headings, plain language): controller and contact (R9.11); what is recorded (§5 in
+visitor terms: time, sections, clicks, cursor, PDF/print/contact actions, IP address with approximate location
+and network provider, device fingerprint, the invite used); purpose (understanding which content matters to
+readers and how they read it); legal basis (consent, Art. 6(1)(a) GDPR); retention (R9.2); no third parties,
+stored on the owner's server; rights (access, erasure, withdrawal, complaint to the data protection authority).
+
+Notes on the wording: "how the CV is read" and "which parts are most useful" honestly describe the interest
+analysis without calling it a product feature; it avoids words like "analytics platform" or "heatmap", but the
+recorded data (mouse movement, IP, fingerprint) is named explicitly.
 
 ---
 
@@ -377,8 +446,10 @@ so SQLite in the existing volume is sufficient. Summaries are computed when a se
 
 ## 11. Frontend implementation notes
 
-- A single composable `useVisitorTracking()` started from `pages/index.vue` after `useCv()` reports access;
-  no-op in print mode, without consent, or with DNT/GPC.
+- A single composable `useVisitorTracking()` started from `pages/index.vue` after `useCv()` reports access
+  **and** consent is `accept` for the current `policyVersion`; no-op in print mode, without consent, or with DNT/GPC.
+- `CvConsentModal.vue` (§9.1) plus a footer "Privacy" link in `CvFooter.vue`; `/api/cv` returns
+  `consent: { required, state, policyVersion, controller }` so the SPA knows whether to show the modal.
 - Listeners: `IntersectionObserver` (section_view), passive `pointermove`/`scroll`, delegated `click`,
   `visibilitychange`, `pagehide`, `beforeprint`, `copy`, `selectionchange` (debounced).
 - Components only add `data-track` attributes and call `track(event)` for semantic actions
@@ -397,7 +468,7 @@ so SQLite in the existing volume is sufficient. Summaries are computed when a se
 | **P3 Heatmap** | Pointer sampling, version-keyed `heat_cells`, heatmap endpoint, overlay renderer on CV snapshots | Cursor / click / attention heatmaps |
 | **P4 Interest** | Reading ratio, tech intent, spread, network/organisation signals, probable-person linking, interest score, session timeline | Comparable interest per visitor and invite |
 | **P5 Owner UI** | Small owner-only dashboard (separate from the invitee SPA, admin key) | Reports without curl |
-| **P0 (before P1 goes live)** | Decide R9.4 (consent option), privacy notice, retention job | Legally deployable |
+| **P0 (before P1 goes live)** | Consent modal + consent log + `/api/consent` (§9.1), policy text (en, de) reviewed, `privacy` settings in `tenant.json`, retention job | Legally deployable |
 
 Each phase updates `REQUIREMENTS_ACCESS_AND_TENANCY.md` (§8 API, §9 data layout, §10 non-goals) and adds
 API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
@@ -406,7 +477,7 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
 
 ## 13. Open questions
 
-1. Consent model (R9.4 Option A vs B)?
+1. ~~Consent model~~ – decided: consent modal, CV readable either way (§9.1). Policy text still needs a legal review.
 2. Should revoking an invite delete its tracking data, or keep it for the owner's history?
 3. Should the owner be notified (e-mail / webhook) on events like "invite opened for the first time" or
    "contact clicked"?

@@ -225,6 +225,8 @@ A sample tenant lives in `api/sample-data/`.
   privacy flags, invite links, multi-tenancy, languages, timeline, technology filter, print/PDF, dark mode).
 - R11.4 **Analytics and tracking features (e.g. heatmap tracking, visitor statistics, invite usage insights)
   MUST NOT be mentioned** on the showcase or anywhere visible to invitees. They are for the CV owner only.
+  The legally required consent modal for visitor tracking (planned, `VISITOR_SESSION_TRACKING.md` §9.1) is not a
+  feature presentation and is allowed; it describes the recorded data plainly, without marketing it as a feature.
 - R11.5 On a tenant host the showcase is never shown (the neutral page is used), so tenant hosts do not
   advertise the platform.
 
