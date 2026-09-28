@@ -244,8 +244,8 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   (`pdf: [{ locale, ok, bytes, error }]`), so rendering problems are visible immediately. A failed render
   does not prevent the invite from being created; it can be retried via the admin API.
 - R12.4 **Cache & staleness.** PDFs are cached in `/data/pdf`. Each cache entry stores a SHA-256 of
-  (layout version, locale, redacted CV JSON). A PDF is **obsolete** when that hash no longer matches
-  – e.g. the CV, the profile or the invite overrides changed – or `Pdf__LayoutVersion` was bumped after a
+  (layout version, locale, render URL incl. QR target, redacted CV JSON). A PDF is **obsolete** when that hash no longer matches
+  – e.g. the CV, the profile, the invite overrides, the tenant's host or the shared base URL changed – or `Pdf__LayoutVersion` was bumped after a
   frontend layout change.
 - R12.5 **Render on request.** `GET /api/pdf` returns the cached PDF if current; otherwise it renders it
   on the request (typically 3–10 s). Concurrent requests for the same PDF share one rendering.
