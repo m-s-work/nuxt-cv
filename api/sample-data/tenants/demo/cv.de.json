@@ -108,7 +108,6 @@
       "id": 5,
       "company": "Freelance Developer",
       "position": "Self-Employed",
-      "period": "2018 - Present",
       "startDate": "2018-05-01",
       "endDate": null,
       "description": "Providing freelance software development services to various clients",
@@ -124,7 +123,6 @@
       "id": 1,
       "company": "Tech Company Inc.",
       "position": "Senior Software Architect",
-      "period": "2020 - Present",
       "startDate": "2020-01-01",
       "endDate": null,
       "description": "Leading architecture design and implementation for cloud-native applications",
@@ -141,7 +139,6 @@
       "id": 4,
       "company": "Software Solutions Ltd.",
       "position": "Full Stack Developer",
-      "period": "2017 - 2020",
       "startDate": "2017-03-01",
       "endDate": "2019-12-31",
       "description": "Developed enterprise web applications and microservices",
@@ -155,17 +152,16 @@
     },
     {
       "id": 2,
-      "company": "Peter Enis KG",
-      "position": "Rubber Tester",
-      "period": "2019 - 2023",
+      "company": "Confidential Client GmbH",
+      "position": "Berater Plattformarchitektur",
       "startDate": "2019-01-01",
       "endDate": "2023-12-31",
-      "description": "Did extensive testing of rubber materials for quality assurance",
+      "description": "Beratung zur Migration einer Legacy-Plattform in die Cloud",
       "technologies": [
-        "Rubber.js",
-        "MongoDB"
+        "Azure",
+        "Terraform",
+        "C#"
       ],
-      "companyAlias": "Materials testing lab",
       "requires": [
         "private"
       ]
@@ -174,7 +170,6 @@
       "id": 3,
       "company": "Auto GmbH",
       "position": "Car Mechanic",
-      "period": "2015 - 2018",
       "startDate": "2015-06-01",
       "endDate": "2018-11-30",
       "description": "Performed maintenance and repairs on various car models",
@@ -190,7 +185,6 @@
       "id": 1,
       "institution": "Technical University",
       "degree": "Master of Science in Computer Science",
-      "period": "2015 - 2017",
       "startDate": "2015-09-01",
       "endDate": "2017-06-30",
       "focus": "Software Engineering & Distributed Systems",
@@ -206,7 +200,6 @@
       "id": 2,
       "institution": "University of Technology",
       "degree": "Bachelor of Science in Computer Science",
-      "period": "2012 - 2015",
       "startDate": "2012-09-01",
       "endDate": "2015-06-30",
       "focus": "Computer Science Fundamentals",
@@ -216,20 +209,6 @@
         "Algorithms",
         "Data Structures",
         "Databases"
-      ]
-    },
-    {
-      "id": 3,
-      "institution": "University of Kamasutra",
-      "degree": "Master of Arts in Love Studies",
-      "period": "2028 - 2028",
-      "startDate": "2028-09-01",
-      "endDate": "2028-06-30",
-      "focus": "Fundamentals of Pleasure",
-      "technologies": [
-        "Kamasutra",
-        "Tantra",
-        "Mindfulness"
       ]
     }
   ],
@@ -246,7 +225,6 @@
         "Redis",
         "Docker"
       ],
-      "period": "2021 - 2023",
       "startDate": "2021-03-01",
       "endDate": "2023-06-30",
       "screenshots": [
@@ -268,7 +246,6 @@
         "Firebase",
         "REST API"
       ],
-      "period": "2019 - 2021",
       "startDate": "2019-06-01",
       "endDate": "2021-02-28",
       "screenshots": [
@@ -289,7 +266,6 @@
         "React",
         "AWS"
       ],
-      "period": "2022 - Present",
       "startDate": "2022-01-01",
       "endDate": null,
       "images": [
@@ -306,7 +282,6 @@
       "id": 1,
       "title": "Mandatory Military Service",
       "institution": "Armed Forces",
-      "period": "2011 - 2012",
       "startDate": "2011-07-01",
       "endDate": "2012-06-30",
       "description": "Completed mandatory military service",
@@ -317,7 +292,6 @@
       "id": 2,
       "title": "Abitur",
       "institution": "High School",
-      "period": "2011",
       "startDate": "2011-01-01",
       "endDate": "2011-06-30",
       "description": "High school diploma (Abitur)",
@@ -328,7 +302,6 @@
       "id": 3,
       "title": "School",
       "institution": "Secondary School",
-      "period": "2005 - 2011",
       "startDate": "2005-09-01",
       "endDate": "2011-06-30",
       "description": "Secondary education",
@@ -339,7 +312,6 @@
       "id": 4,
       "title": "Summer Internship",
       "institution": "Tech Startup Inc.",
-      "period": "Jul 2010",
       "startDate": "2010-07-01",
       "endDate": "2010-07-31",
       "description": "One-month internship in web development",
@@ -350,7 +322,6 @@
       "id": 5,
       "title": "Summer Internship",
       "institution": "Local Engineering Firm",
-      "period": "Aug 2009 - Sep 2009",
       "startDate": "2009-08-01",
       "endDate": "2009-09-30",
       "description": "Two-month internship in software engineering",

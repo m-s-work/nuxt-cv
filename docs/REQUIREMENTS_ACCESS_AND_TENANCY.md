@@ -31,7 +31,7 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 | Tenant host + valid invite of the **same** tenant | Tenant from host, profile from invite. |
 | Tenant host + invite of **another** tenant | Invite is rejected (treated as invalid). |
 | Shared host + valid invite | Tenant and profile from invite. |
-| Shared host, no (valid) invite | **No access.** No tenant is revealed, not even its existence. |
+| Shared host, no (valid) invite | **Showcase page** (§11) with invite-code entry. No tenant is revealed, not even its existence. |
 
 - R2.1 Hostnames MUST be matched case-insensitively and without port.
 - R2.2 A hostname MUST belong to at most one tenant. Conflicting configuration MUST be reported at load time and the conflicting host ignored.
@@ -40,14 +40,14 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
   - `https://bob-cv.velarix.space` → tenant `bob`, public profile (if enabled).
   - `https://bob-cv.velarix.space/?c=K3x...` → tenant `bob`, profile of that invite.
   - `https://cv.velarix.space/?c=23gfiuash...` → tenant and profile of that invite.
-  - `https://cv.velarix.space` → no access page.
+  - `https://cv.velarix.space` → showcase page (§11).
 
 ---
 
 ## 3. Access gating
 
-- R3.1 **No CV is public by default.** Without a valid invite, a visitor sees nothing but a neutral
-  "no access / enter your invite code" page.
+- R3.1 **No CV is public by default.** Without a valid invite, a visitor sees no CV: on a tenant host a
+  neutral "invitation required" page, on the shared host the showcase (§11). Both offer invite-code entry.
 - R3.2 A tenant MAY enable public access by setting `publicProfile` in its settings. This only
   applies on that tenant's **own hosts** (never on the shared host).
 - R3.3 An **invalid, expired, revoked or exhausted** invite is treated exactly like "no invite":
@@ -161,7 +161,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 |---|---|---|
 | `POST /api/access/redeem` `{ code }` | – (rate-limited) | Validate invite, set access cookie. `204` or `400 { error: "invalid_invite" }`. |
 | `POST /api/access/logout` | – | Clear access cookie. |
-| `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access" }`. |
+| `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
@@ -205,3 +205,18 @@ A sample tenant lives in `api/sample-data/`.
 - No web admin UI; tenants, files and invites are managed via the admin API (curl / scripts).
 - No user accounts or passwords for visitors.
 - No per-visitor analytics beyond `useCount` / `lastUsedAt`.
+
+---
+
+## 11. Showcase (shared host without invite)
+
+- R11.1 Visitors of the shared host without a valid invite see a showcase page: what the product does,
+  example screenshots, the public feature list and an invite-code form.
+- R11.2 Screenshots MUST only show the sample tenant (`api/sample-data`), never a real CV. They are static
+  files in `src/public/showcase/` and are regenerated from the sample tenant when the UI changes.
+- R11.3 The feature list MUST only contain **public** features (e.g. JSON-based CV, field-level gating,
+  privacy flags, invite links, multi-tenancy, languages, timeline, technology filter, print/PDF, dark mode).
+- R11.4 **Analytics and tracking features (e.g. heatmap tracking, visitor statistics, invite usage insights)
+  MUST NOT be mentioned** on the showcase or anywhere visible to invitees. They are for the CV owner only.
+- R11.5 On a tenant host the showcase is never shown (the neutral page is used), so tenant hosts do not
+  advertise the platform.
