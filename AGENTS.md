@@ -9,7 +9,7 @@ In Claude Code these are `TaskCreate`, `TaskUpdate` and `TaskList`:
 
 1. On receiving the request (and whenever the user adds requests mid-work), create one task per
    deliverable, for example:
-   `TaskCreate({ subject: "Implement PDF rendering container", description: "Gotenberg service in compose, render on invite creation, cache per invite", activeForm: "Implementing PDF rendering" })`
+   `TaskCreate({ subject: "Implement PDF rendering container", description: "Playwright renderer service in compose, render on invite creation, cache per invite", activeForm: "Implementing PDF rendering" })`
 2. Before starting a task: `TaskUpdate({ taskId: "3", status: "in_progress" })`.
 3. Mark it `completed` only when it is fully done and verified (tests pass, build works).
    If blocked, keep it `in_progress` and create a follow-up task describing the blocker.
@@ -32,6 +32,14 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`
   Without any issue or PR number, leave the number out: `docs/agents-naming`.
 - Reference the issue in the PR description (`Closes #71`).
 - Breaking changes: `feat!: …` or a `BREAKING CHANGE:` footer.
+
+### No force pushes
+
+- **Never force-push** (`git push --force`, `--force-with-lease`, deleting and re-pushing a branch)
+  and never rewrite history that is already pushed (no rebase/amend/squash of pushed commits).
+- Need to fix pushed history (wrong commit messages, wrong branch name)? Create a **new branch**
+  with the corrected commits and open the PR from there; leave the old branch untouched.
+- Bring `main` into a branch with a merge, not a rebase.
 
 ## Repository map
 
