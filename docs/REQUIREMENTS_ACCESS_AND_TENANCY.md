@@ -63,6 +63,9 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 ## 4. Invites
 
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
+  Exception: the admin MAY choose a code (`code`, 4–64 characters `A-Z a-z 0-9 - _`), e.g. `demo`.
+  Such codes are guessable and MUST only be used for demo or otherwise public content. A code can be in use
+  by one active invite at a time; revoking the invite releases the code.
 - R4.2 Codes MUST be stored only as a SHA-256 hash; the plain code is shown once, at creation.
 - R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
   optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`,

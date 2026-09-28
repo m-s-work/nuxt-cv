@@ -34,6 +34,7 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    | `CV_ADMIN_API_KEY` | long random string (`openssl rand -base64 32`) | Enables the admin API. Mark as secret. Empty = admin API disabled. |
    | `CV_SHARED_BASE_URL` | `https://cv.velarix.space` | Used for invite links of tenants that have no own host. |
    | `CV_CLIENT_IP_HEADER` | `CF-Connecting-IP` | Set when traffic arrives through a Cloudflare Tunnel (see below). |
+   | `CV_DEMO_INVITE_CODE` | `demo` | Build time: shows a "Try the demo CV" button on the showcase linking to `/?c=demo`. Create the invite with that code (below). |
    | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
    | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
 
@@ -106,6 +107,11 @@ curl -X POST -H "X-Admin-Key: $KEY" -H "Content-Type: application/json" \
 #     "pdf": [ { "locale": "de", "ok": true, "bytes": 196196 }, { "locale": "en", "ok": true, "bytes": 191782 } ] }
 # "pdf" shows immediately whether the PDFs could be rendered. Retry a failed render:
 curl -X POST -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>/pdf
+
+# fixed, guessable code for a public demo (only for fictional/public content)
+curl -X POST -H "X-Admin-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{ "profile": "full", "label": "Public demo", "code": "demo" }' \
+  $API/admin/tenants/demo/invites
 
 # list / revoke
 curl -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites

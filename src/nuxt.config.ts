@@ -27,7 +27,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // Base path of the C# API. Same origin in production (nginx proxies /api to the API container).
-      apiBase: '/api'
+      apiBase: '/api',
+      // Invite code of a public demo CV (e.g. "demo"); the showcase links to it when set. Build time.
+      demoInviteCode: process.env.NUXT_PUBLIC_DEMO_INVITE_CODE || ''
     }
   },
 
