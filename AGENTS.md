@@ -17,6 +17,22 @@ In Claude Code these are `TaskCreate`, `TaskUpdate` and `TaskList`:
 
 Other agents: use your equivalent (e.g. `TodoWrite`, a checklist in the PR description).
 
+## Branches, commits and pull requests (Conventional Commits)
+
+All names follow [Conventional Commits](https://www.conventionalcommits.org/).
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`, `style`.
+
+| What | Format | Example |
+|---|---|---|
+| Branch | `<type>/<issue-or-pr-nr>-<short-kebab-description>` | `feat/71-pdf-per-invite`, `fix/4-fix-pdf-is-empty` |
+| PR title | `<type>(<optional scope>): <description>` | `feat(pdf): render a PDF per invite code` |
+| Commit message | `<type>(<optional scope>): <description>` (+ body) | `fix(print): keep entries on one page` |
+
+- Use the number of the issue the work belongs to; create the issue first if there is none.
+  Without any issue or PR number, leave the number out: `docs/agents-naming`.
+- Reference the issue in the PR description (`Closes #71`).
+- Breaking changes: `feat!: …` or a `BREAKING CHANGE:` footer.
+
 ## Repository map
 
 | Path | What |
