@@ -37,9 +37,13 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`
 
 - **Never force-push** (`git push --force`, `--force-with-lease`, deleting and re-pushing a branch)
   and never rewrite history that is already pushed (no rebase/amend/squash of pushed commits).
-- Need to fix pushed history (wrong commit messages, wrong branch name)? Create a **new branch**
-  with the corrected commits and open the PR from there; leave the old branch untouched.
-- Bring `main` into a branch with a merge, not a rebase.
+
+### Merging into `main`
+
+- PRs are merged into `main` as **squash merge**; the squash commit message is the PR title
+  (Conventional Commits, see above).
+- Use a **rebase merge** only when the individual commits add real value on `main`
+  (each is a self-contained, meaningful Conventional Commit).
 
 ## Repository map
 
