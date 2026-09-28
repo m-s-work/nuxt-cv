@@ -212,6 +212,216 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Admin_can_list_read_and_delete_tenant_files()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+
+        var files = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/files");
+        var paths = files!.Select(f => f!["path"]!.GetValue<string>()).ToList();
+        Assert.Equal(["assets/alice.jpg", "assets/unlisted.jpg", "cv.en.json", "tenant.json"], paths);
+
+        var tenantJson = await admin.GetStringAsync("/api/admin/tenants/alice/files/tenant.json");
+        Assert.Contains("\"Alice\"", tenantJson);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/admin/tenants/alice/files/cv.de.json")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/admin/tenants/alice/files/..%2Fbob%2Ftenant.json")).StatusCode);
+
+        var tenants = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants");
+        var alice = tenants!.Single(t => t!["id"]!.GetValue<string>() == "alice")!;
+        Assert.Equal(["en"], alice["locales"]!.AsArray().Select(l => l!.GetValue<string>()));
+
+        var profiles = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/alice/profiles");
+        Assert.True(profiles!["public"]!["flags"]!["hideCompanies"]!.GetValue<bool>());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.DeleteAsync("/api/admin/tenants/alice/files/tenant.json")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync("/api/admin/tenants/alice/files/assets/unlisted.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/admin/tenants/alice/files/assets/unlisted.jpg")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Public_profile_hides_unset_flags_by_default()
+    {
+        _factory.SetPublicProfile("alice", "full");                // "full" sets no flags
+        var experience = (await Cv(_factory.ClientFor(ApiFactory.AliceHost)))["cv"]!["experiences"]![0]!;
+        Assert.Equal("Big corp", experience["company"]!.GetValue<string>());
+        Assert.Equal("2020", experience["startDate"]!.GetValue<string>());
+
+        // The same profile via invite on a tenant that has no public profile shows everything.
+        _factory.SetPublicProfile("alice", null);
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, code);
+        var full = (await Cv(client))["cv"]!["experiences"]![0]!;
+        Assert.Equal("ACME", full["company"]!.GetValue<string>());
+        Assert.Equal("2020-03-15", full["startDate"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Admin_invite_list_includes_code_and_link()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", label = "listed" });
+
+        var invites = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/invites");
+        var listed = invites!.Single(i => i!["label"]!.GetValue<string>() == "listed")!;
+        Assert.Equal(code, listed["code"]!.GetValue<string>());
+        Assert.Equal($"https://alice-cv.example.org/?c={code}", listed["link"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Invites_can_be_pinned_to_a_cv_revision()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        const string v1 = "1111111111111111111111111111111111111111";
+        const string v2 = "2222222222222222222222222222222222222222";
+
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob v1" } }""");
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v1, message = "first" })).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/tenants/bob/invites",
+            new { profile = "full", overrides = new { revision = "deadbeef" } })).StatusCode);
+        var pinnedCode = await _factory.CreateInviteAsync("bob", new { profile = "full", label = "pinned", overrides = new { revision = "1111111" } });
+        var liveCode = await _factory.CreateInviteAsync("bob", new { profile = "full", label = "live" });
+
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob v2" } }""");
+
+        async Task<string> NameFor(string code)
+        {
+            var client = _factory.ClientFor(ApiFactory.SharedHost);
+            await Redeem(client, code);
+            return (await Cv(client))["cv"]!["profile"]!["name"]!.GetValue<string>();
+        }
+        Assert.Equal("Bob v1", await NameFor(pinnedCode));
+        Assert.Equal("Bob v2", await NameFor(liveCode));
+
+        // Admin sees the pin, and that the CV changed since (manual edit, not yet registered).
+        var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.True(revisions!["modified"]!.GetValue<bool>());
+        Assert.True(revisions["revisions"]![0]!["outdated"]!.GetValue<bool>());
+        var invites = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/bob/invites");
+        var pinned = invites!.Single(i => i!["label"]!.GetValue<string>() == "pinned")!;
+        Assert.Equal(v1, pinned["revision"]!.GetValue<string>());
+        Assert.Equal("invite", pinned["pinnedBy"]!.GetValue<string>());
+
+        // Registering v2 and re-pinning brings the invite up to date.
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v2 })).EnsureSuccessStatusCode();
+        revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.Equal(v2, revisions!["current"]!.GetValue<string>());
+        Assert.False(revisions["modified"]!.GetValue<bool>());
+        Assert.Equal(2, revisions["revisions"]!.AsArray().Count);    // v1 kept: still pinned
+        var preview = await admin.GetFromJsonAsync<JsonObject>($"/api/admin/tenants/bob/preview?profile=full&revision={v1}");
+        Assert.Equal("Bob v1", preview!["cv"]!["profile"]!["name"]!.GetValue<string>());
+
+        (await admin.PutAsJsonAsync($"/api/admin/tenants/bob/invites/{pinned["id"]}/revision", new { revision = v2 })).EnsureSuccessStatusCode();
+        Assert.Equal("Bob v2", await NameFor(pinnedCode));
+
+        // v1 is no longer used by anything and has been removed.
+        revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.Equal([v2], revisions!["revisions"]!.AsArray().Select(r => r!["sha"]!.GetValue<string>()));
+        Assert.False(Directory.Exists(Path.Combine(_factory.DataPath, "tenants", "bob", "revisions", v1)));
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
+    }
+
+    [Fact]
+    public async Task Pinned_invites_get_the_assets_of_their_revision_until_revoked()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        const string v1 = "3333333333333333333333333333333333333333";
+        const string v2 = "4444444444444444444444444444444444444444";
+        var photo = Path.Combine(_factory.DataPath, "tenants", "bob", "assets", "bob.jpg");
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob", "photoUrl": "/api/assets/bob.jpg" } }""");
+
+        File.WriteAllText(photo, "old photo");
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v1 })).EnsureSuccessStatusCode();
+        var pinned = await _factory.CreateInviteAsync("bob", new { profile = "full", overrides = new { revision = v1 } });
+
+        File.WriteAllText(photo, "new photo");
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v2 })).EnsureSuccessStatusCode();
+        var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        var old = revisions!["revisions"]!.AsArray().Single(r => r!["sha"]!.GetValue<string>() == v1)!;
+        Assert.True(old["outdated"]!.GetValue<bool>());           // only the photo changed
+        var change = Assert.Single(old["changes"]!.AsArray())!;
+        Assert.Equal("assets/bob.jpg", change["path"]!.GetValue<string>());
+        Assert.Equal("modified", change["change"]!.GetValue<string>());
+
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, pinned);
+        Assert.Equal("old photo", await client.GetStringAsync("/api/assets/bob.jpg"));
+
+        var invites = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/bob/invites");
+        var id = invites!.Single(i => i!["revision"]?.GetValue<string>() == v1)!["id"]!.GetValue<string>();
+        (await admin.DeleteAsync($"/api/admin/tenants/bob/invites/{id}")).EnsureSuccessStatusCode();
+        Assert.False(Directory.Exists(Path.Combine(_factory.DataPath, "tenants", "bob", "revisions", v1)));
+
+        File.Delete(photo);
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
+    }
+
+    [Fact]
+    public async Task Pruned_revisions_are_fetched_from_git_again()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var repo = Path.Combine(_factory.DataPath, "cv-repo");
+        var folder = Path.Combine(repo, "tenants", "bob");
+        Directory.CreateDirectory(Path.Combine(folder, "assets"));
+        Git(repo, "init", "-q");
+
+        async Task<string> Deploy(string name, string message)
+        {
+            var cv = $$"""{ "profile": { "name": "{{name}}" } }""";
+            File.WriteAllText(Path.Combine(folder, "cv.en.json"), cv);
+            File.WriteAllText(Path.Combine(folder, "assets", "logo.svg"), name);
+            Git(repo, "add", "-A");
+            Git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", message);
+            var sha = Git(repo, "rev-parse", "HEAD");
+            _factory.WriteCv("bob", "en", cv);                          // what cv-sync.sh uploads
+            (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions",
+                new { sha, message, repo, path = "tenants/bob" })).EnsureSuccessStatusCode();
+            return sha;
+        }
+
+        var sent = await Deploy("Bob as sent", "Application ACME");
+        Git(repo, "tag", "sent-acme");
+        await Deploy("Bob later", "Later changes");
+        var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.DoesNotContain(revisions!["revisions"]!.AsArray(), r => r!["sha"]!.GetValue<string>() == sent);   // pruned
+
+        // Pinning to the pruned commit (by tag) fetches it from git again.
+        var code = await _factory.CreateInviteAsync("bob", new { profile = "full", overrides = new { revision = "sent-acme" } });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, code);
+        Assert.Equal("Bob as sent", (await Cv(client))["cv"]!["profile"]!["name"]!.GetValue<string>());
+
+        revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        var fetched = revisions!["revisions"]!.AsArray().Single(r => r!["sha"]!.GetValue<string>() == sent)!;
+        Assert.Equal("Application ACME", fetched["message"]!.GetValue<string>());
+        Assert.Equal(["sent-acme"], fetched["refs"]!.AsArray().Select(r => r!.GetValue<string>()));
+        Assert.True(fetched["outdated"]!.GetValue<bool>());
+        Assert.Equal("tenants/bob", revisions["source"]!["path"]!.GetValue<string>());
+
+        var unknown = await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions/fetch", new { @ref = "no-such-tag" });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions/fetch", new { @ref = "--upload-pack=x" })).StatusCode);
+
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
+    }
+
+    private static string Git(string dir, params string[] args)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = dir, RedirectStandardOutput = true };
+        foreach (var arg in args) start.ArgumentList.Add(arg);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        Assert.Equal(0, process.ExitCode);
+        return output;
+    }
+
+    [Fact]
     public async Task Pdf_is_disabled_without_renderer()
     {
         _factory.SetPublicProfile("alice", "public");

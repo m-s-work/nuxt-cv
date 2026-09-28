@@ -10,6 +10,9 @@ RUN dotnet publish CvApi/CvApi.csproj -c Release -o /out --no-restore \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /out .
+# git: fetches pinned CV revisions from the CV repository again after they were pruned (§14).
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 # /data holds tenants, invites (SQLite) and cookie-signing keys. Owned by the non-root app user,
 # so a fresh named volume inherits the permissions.
 RUN mkdir -p /data/tenants && chown -R $APP_UID /data

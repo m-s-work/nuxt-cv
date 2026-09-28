@@ -37,6 +37,7 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    | `CV_DEMO_INVITE_CODE` | `demo` | Build time: shows a "Try the demo CV" button on the showcase linking to `/?c=demo`. Create the invite with that code (below). |
    | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
    | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
+   | `CV_GIT_TOKEN` | fine-grained GitHub token, *Contents: read* on the CV repo | Lets the API fetch pinned CV versions from a private CV repository again. Mark as secret. Not needed for public repos. |
 
 5. Deploy. Health checks: `web` → `GET /healthz`, `api` → `dotnet CvApi.dll --healthcheck` (both built into the images).
 
@@ -75,7 +76,8 @@ with a bind mount (e.g. `/srv/nuxt-cv-data:/data`); the directory must be writab
 
 ## 2. Add a tenant
 
-Tenants can be managed completely through the admin API (no shell access needed).
+Tenants can be managed completely through the admin UI at `https://<shared host>/admin`
+(sign in with `CV_ADMIN_API_KEY`) or through the admin API directly (no shell access needed).
 Examples use `KEY=<CV_ADMIN_API_KEY>` and `API=https://cv.velarix.space/api`.
 
 ```bash
@@ -173,6 +175,7 @@ cd src && npm install && npm run dev       # http://localhost:3000
 ```
 
 - `http://localhost:3000` → tenant `demo` (public profile enabled in the sample).
+- `http://localhost:3000/admin` → admin UI (key `dev-admin-key`).
 - `http://127.0.0.1:3000` → behaves like the shared host (no access without invite).
 - Create an invite: `curl -X POST -H "X-Admin-Key: dev-admin-key" -H "Content-Type: application/json" -d '{"profile":"full"}' http://localhost:5080/api/admin/tenants/bob/invites`
   and open `http://127.0.0.1:3000/?c=<code>`.

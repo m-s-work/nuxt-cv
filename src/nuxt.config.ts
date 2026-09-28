@@ -44,6 +44,17 @@ export default defineNuxtConfig({
     }
   },
 
+  // Icons are bundled into the client (the static SPA has no icon server endpoint, and the
+  // admin page should not call a third-party CDN). Scan finds icons used in app/; the list adds
+  // icons Nuxt UI uses internally.
+  icon: {
+    provider: 'none',
+    clientBundle: {
+      scan: true,
+      icons: ['lucide:chevron-down', 'lucide:chevron-up', 'lucide:check', 'lucide:loader-circle', 'lucide:x', 'lucide:minus']
+    }
+  },
+
   // i18n configuration
   i18n: {
     locales: [

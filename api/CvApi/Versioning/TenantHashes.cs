@@ -12,18 +12,39 @@ public static class TenantHashes
 
     public static Result Compute(Tenant tenant)
     {
-        var paths = new List<string>();
-        if (File.Exists(Path.Combine(tenant.Directory, "tenant.json"))) paths.Add("tenant.json");
-        paths.AddRange(Directory.EnumerateFiles(tenant.Directory, "cv.*.json").Select(Path.GetFileName)!);
-        var assets = Path.Combine(tenant.Directory, "assets");
-        if (Directory.Exists(assets))
-            paths.AddRange(Directory.EnumerateFiles(assets).Select(f => "assets/" + Path.GetFileName(f)));
-
-        var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        foreach (var path in paths) files[path] = Sha256.OfFile(Path.Combine(tenant.Directory, path));
+        var files = new SortedDictionary<string, string>(DataFiles(tenant.Directory), StringComparer.Ordinal);
+        var tenantJson = Path.Combine(tenant.Directory, "tenant.json");
+        if (File.Exists(tenantJson)) files["tenant.json"] = Sha256.OfFile(tenantJson);
 
         // Same line format as `sha256sum`, so the combined hash can be reproduced with shell tools.
         var combined = Sha256.OfText(string.Concat(files.Select(f => $"{f.Value}  {f.Key}\n")));
         return new Result(files, combined);
     }
+
+    /// <summary>
+    /// SHA-256 of the CV content of a directory: cv.&lt;locale&gt;.json and assets/* (no tenant.json).
+    /// Used for the tenant folder and for stored CV revisions (§14), so both can be compared file by file.
+    /// </summary>
+    public static SortedDictionary<string, string> DataFiles(string directory)
+    {
+        var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        if (!Directory.Exists(directory)) return files;
+        foreach (var file in Directory.EnumerateFiles(directory, "cv.*.json"))
+            files[Path.GetFileName(file)] = Sha256.OfFile(file);
+        var assets = Path.Combine(directory, "assets");
+        if (Directory.Exists(assets))
+            foreach (var file in Directory.EnumerateFiles(assets))
+                files["assets/" + Path.GetFileName(file)] = Sha256.OfFile(file);
+        return files;
+    }
+
+    /// <summary>Files that differ between <paramref name="from"/> and <paramref name="to"/>: added, removed or modified.</summary>
+    public static List<FileChange> Diff(IReadOnlyDictionary<string, string> from, IReadOnlyDictionary<string, string> to) =>
+        from.Keys.Union(to.Keys).Order(StringComparer.Ordinal)
+            .Select(path => (from.TryGetValue(path, out var a), to.TryGetValue(path, out var b), a, b, path))
+            .Where(x => x.a != x.b)
+            .Select(x => new FileChange(x.path, !x.Item1 ? "added" : !x.Item2 ? "removed" : "modified"))
+            .ToList();
+
+    public sealed record FileChange(string Path, string Change);
 }

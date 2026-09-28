@@ -24,6 +24,7 @@ Directory.CreateDirectory(dataPath);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TenantStore>();
+builder.Services.AddSingleton<GitRevisionFetcher>();
 builder.Services.AddScoped<AccessService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddHttpClient<IPdfRenderer, HttpPdfRenderer>(client =>

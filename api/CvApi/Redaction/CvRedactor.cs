@@ -5,27 +5,33 @@ using CvApi.Tenants;
 namespace CvApi.Redaction;
 
 /// <summary>The fully merged policy (profile + invite overrides) applied to a master CV.</summary>
-public sealed record EffectivePolicy(IReadOnlySet<string> Grants, EffectiveFlags Flags, IReadOnlyList<string> HiddenFields)
+public sealed record EffectivePolicy(IReadOnlySet<string> Grants, EffectiveFlags Flags, IReadOnlyList<string> HiddenFields,
+    string? Revision = null)
 {
     /// <summary>
     /// Merges a profile with invite overrides: set flags replace, hiddenFields are added,
-    /// grants (if set) replace.
+    /// grants (if set) replace. Flags set nowhere default to <paramref name="hideByDefault"/>
+    /// (true for a tenant's public profile, so its view only shows what is explicitly allowed).
     /// </summary>
-    public static EffectivePolicy From(AccessPolicy profile, AccessPolicy? overrides = null)
+    public static EffectivePolicy From(AccessPolicy profile, AccessPolicy? overrides = null, bool hideByDefault = false)
     {
+        var d = hideByDefault;
         var grants = overrides?.Grants ?? profile.Grants ?? [];
         var hidden = (profile.HiddenFields ?? []).Concat(overrides?.HiddenFields ?? []).Distinct().ToList();
         var p = profile.Flags;
         var o = overrides?.Flags;
         var flags = new EffectiveFlags(
-            HideCompanies: o?.HideCompanies ?? p?.HideCompanies ?? false,
-            HideTimeframeDays: o?.HideTimeframeDays ?? p?.HideTimeframeDays ?? false,
-            HideTimeframeMonths: o?.HideTimeframeMonths ?? p?.HideTimeframeMonths ?? false,
-            HidePhoto: o?.HidePhoto ?? p?.HidePhoto ?? false,
-            HideContactDetails: o?.HideContactDetails ?? p?.HideContactDetails ?? false,
-            HideBirthDate: o?.HideBirthDate ?? p?.HideBirthDate ?? false,
-            HideMedia: o?.HideMedia ?? p?.HideMedia ?? false);
-        return new EffectivePolicy(new HashSet<string>(grants, StringComparer.OrdinalIgnoreCase), flags, hidden);
+            HideCompanies: o?.HideCompanies ?? p?.HideCompanies ?? d,
+            HideTimeframeDays: o?.HideTimeframeDays ?? p?.HideTimeframeDays ?? d,
+            HideTimeframeMonths: o?.HideTimeframeMonths ?? p?.HideTimeframeMonths ?? d,
+            HidePhoto: o?.HidePhoto ?? p?.HidePhoto ?? d,
+            HideContactDetails: o?.HideContactDetails ?? p?.HideContactDetails ?? d,
+            HideBirthDate: o?.HideBirthDate ?? p?.HideBirthDate ?? d,
+            HideMedia: o?.HideMedia ?? p?.HideMedia ?? d);
+        // Pinned CV revision: the override replaces the profile's pin; "" unpins.
+        var revision = overrides?.Revision ?? profile.Revision;
+        return new EffectivePolicy(new HashSet<string>(grants, StringComparer.OrdinalIgnoreCase), flags, hidden,
+            string.IsNullOrWhiteSpace(revision) ? null : revision.Trim());
     }
 }
 

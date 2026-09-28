@@ -61,7 +61,7 @@ public static class PublicEndpoints
             var grant = await access.ResolveAsync(ctx, ct);
             if (grant is null) return NoAccess(ctx, tenants);
 
-            var loaded = tenants.LoadCv(grant.Tenant, locale);
+            var loaded = tenants.LoadCv(grant.Tenant, locale, grant.Policy.Revision);
             if (loaded is null) return NoAccess(ctx, tenants);
 
             var (master, resolvedLocale) = loaded.Value;
@@ -117,7 +117,7 @@ public static class PublicEndpoints
             var grant = await access.ResolveAsync(ctx, ct);
             if (grant is null) return Results.NotFound();
 
-            var path = tenants.AssetPath(grant.Tenant, file);
+            var path = tenants.AssetPath(grant.Tenant, file, grant.Policy.Revision);
             if (path is null || !IsReferenced(grant, tenants, file)) return Results.NotFound();
 
             var contentType = new FileExtensionContentTypeProvider().TryGetContentType(file, out var type)
@@ -131,11 +131,9 @@ public static class PublicEndpoints
     private static bool IsReferenced(AccessGrant grant, TenantStore tenants, string file)
     {
         var url = AssetPrefix + file;
-        var locales = Directory.EnumerateFiles(grant.Tenant.Directory, "cv.*.json")
-            .Select(f => Path.GetFileName(f)["cv.".Length..^".json".Length]);
-        foreach (var locale in locales)
+        foreach (var locale in TenantStore.Locales(grant.Tenant, grant.Policy.Revision))
         {
-            if (tenants.LoadCv(grant.Tenant, locale) is not { } loaded) continue;
+            if (tenants.LoadCv(grant.Tenant, locale, grant.Policy.Revision) is not { } loaded) continue;
             if (CvRedactor.AllStrings(CvRedactor.Redact(loaded.Cv, grant.Policy)).Contains(url)) return true;
         }
         return false;

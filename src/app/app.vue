@@ -1,5 +1,10 @@
 <script setup lang="ts">
 const { setSplashType, hideSplash } = useSplashScreen()
+const route = useRoute()
+
+// Owner admin page (/admin, /de/admin): no splash screen, no CV chrome.
+const isAdmin = computed(() => /^(\/[a-z]{2})?\/admin\/?$/.test(route.path))
+if (isAdmin.value) hideSplash()
 
 // PDF renderer mode (?print=1): no splash screen.
 if (import.meta.client && new URLSearchParams(window.location.search).has('print')) {
@@ -21,10 +26,13 @@ onMounted(() => {
 
 <template>
   <div>
-    <SplashScreenManager />
-    <LanguageSelector />
-    <NuxtPage />
-    <Lightbox />
+    <NuxtPage v-if="isAdmin" />
+    <template v-else>
+      <SplashScreenManager />
+      <LanguageSelector />
+      <NuxtPage />
+      <Lightbox />
+    </template>
   </div>
 </template>
 
