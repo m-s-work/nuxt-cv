@@ -121,7 +121,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 
 | Event | Payload | Purpose |
 |---|---|---|
-| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2), `appSha`, `cvVersion` (§6.4) | Context of the visit; IP is taken server-side from the request |
+| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2), `appSha`, `cvSourceSha`, `cvVersion` (§6.4) | Context of the visit; IP is taken server-side from the request |
 | `heartbeat` | visible, active | Durations (R4.5) |
 | `visibility` | `visible` / `hidden` | Tab switches, visible time |
 | `section_view` | anchor, visible ms (≥ 50 % in viewport), max visible ratio | Dwell time per section / entry |
@@ -143,7 +143,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 | `theme_switch` | dark/light | UX only |
 | `rage_click` | anchor, count (≥ 3 clicks in 1 s within 30 px) | UX problem (something looks clickable but is not) |
 | `dead_click` | anchor | UX problem |
-| `version` | new `appSha` / `cvVersion` (R6.11) | Keep heatmap samples version-correct |
+| `version` | new `appSha` / `cvSourceSha` / `cvVersion` (R6.11) | Keep heatmap samples version-correct |
 | `session_end` | reason (`pagehide`, `timeout`) | Close of the session |
 
 - R5.1 Event payloads MUST NOT contain CV text, form input or copied text – only anchors, kinds and numbers.
@@ -195,23 +195,43 @@ inside an anchor. Every session is therefore stamped with the versions it was re
 |---|---|---|
 | `appSha` | Git commit SHA of the SPA build, injected at build time (`NUXT_PUBLIC_GIT_SHA`, from Coolify's `SOURCE_COMMIT` build arg, fallback `git rev-parse HEAD`, else `dev`) and exposed as `runtimeConfig.public.gitSha` | Frontend code / layout changes |
 | `apiSha` | Git commit SHA of the API build (`GIT_SHA` build arg → assembly metadata), recorded server-side | Redaction or API behaviour changes |
-| `cvVersion` | SHA-256 (first 16 hex chars) of the **redacted CV JSON** the visitor received, computed by the API and returned in `/api/cv` as `cvVersion` | Master CV edited, profile/invite overrides changed, other locale |
+| `cvSourceSha` | Git commit SHA of the **CV repository** (CV as code) the tenant's files were deployed from by `tools/cv-sync.sh` (R6.14) | New CV commit deployed |
+| `cvVersion` | SHA-256 (first 16 hex chars) of the **redacted CV JSON** the visitor received, computed by the API and returned in `/api/cv` as `cvVersion` | Different `cvSourceSha`, profile/invite overrides changed, other locale |
 | `layoutVersion` | Existing `Pdf__LayoutVersion` / `CV_PDF_LAYOUT_VERSION` | Print layout changes (PDF events only) |
 
-- R6.10 `session_start` carries `appSha` and `cvVersion` (as seen by the client); the server adds `apiSha`
+- R6.10 `session_start` carries `appSha`, `cvSourceSha` and `cvVersion` (as seen by the client; `/api/cv`
+  returns the latter two); the server adds `apiSha`
   and verifies `cvVersion` against its own computation (mismatch → stored anyway, flagged).
-- R6.11 If `appSha` or `cvVersion` changes during a session (deploy or CV edit while the tab is open and the
+- R6.11 If `appSha`, `cvSourceSha` or `cvVersion` changes during a session (deploy or CV edit while the tab is open and the
   CV is re-fetched, e.g. locale switch), the client sends a `version` event and following samples are
   aggregated under the new version.
-- R6.12 **CV snapshots.** The CV lives in the data volume, not in git, so its history is kept by the API:
-  every distinct redacted CV is stored once as `cv_snapshots(tenant, cvVersion, locale, json, firstSeen)`
-  (deduplicated by hash, stored when first delivered). The heatmap view renders that snapshot, so a heatmap
-  of an old CV version shows the text the visitor actually read.
+- R6.12 **CV snapshots.** The master CV is versioned in its git repository (`cvSourceSha`), but one commit
+  yields many *redacted* CVs (per profile, invite overrides, locale), and invite overrides live in the database,
+  not in git. So every distinct redacted CV is also stored once as
+  `cv_snapshots(tenant, cvVersion, cvSourceSha, locale, json, firstSeen)` (deduplicated by hash, stored when
+  first delivered). The heatmap view renders that snapshot, so a heatmap of an old CV version shows exactly the
+  text the visitor read; `cvSourceSha` links it to the commit (`git show <sha>`) for the full history.
 - R6.13 **App versions.** Old SPA builds are not kept. The heatmap view renders with the current app and
   shows a warning when `appSha` of the selected cells differs; the owner can filter by `appSha`
   (`git log` of that SHA explains what changed). Heatmaps across versions MAY be merged, but only per anchor
   (section-level attention stays comparable; cursor/click cells are only exact within one `appSha`).
-- R6.14 Reports list the versions per invite (first/last seen per `appSha` / `cvVersion`), so "they read the
+- R6.14 **CV source SHA, clean trees only.** The tenant's CV files (`tenant.json`, `cv.<locale>.json`,
+  `assets/`) are deployed from a git repository with `tools/cv-sync.sh`:
+  - `cv-sync.sh` refuses to upload when the tenant directory has uncommitted or untracked changes
+    (`git status --porcelain -- <dir>` non-empty) or is not inside a git repository. There is no
+    `--allow-dirty`: what is served must always be a commit.
+  - It sends `X-Cv-Source-Sha: <git rev-parse HEAD>` with every upload and finally
+    `PUT /api/admin/tenants/{tenant}/source` `{ sha, files: { "<path>": "<sha256>", … } }` – the manifest of
+    everything it uploaded.
+  - The API stores it as `/data/tenants/<id>/source.json` (`sha`, per-file SHA-256, `deployedAt`) and
+    serves the tenant with that `cvSourceSha`.
+  - **Dirty detection on the server:** the API compares the files in the volume with the manifest (on load and
+    after every upload). A file uploaded without a matching manifest (manual `curl`) or changed on the volume
+    makes the tenant **dirty**: `cvSourceSha` becomes `<sha>-dirty` (or `unversioned` without any manifest),
+    `GET /api/admin/tenants` shows `dirty: true` with the differing files, and sessions record it as is.
+    Reports mark such sessions, and the heatmap view falls back to the CV snapshot (R6.12).
+  - `api/sample-data` is loaded as `unversioned` in development; nothing is enforced there.
+- R6.15 Reports list the versions per invite (first/last seen per `appSha` / `cvSourceSha` / `cvVersion`), so "they read the
   CV before I added project X" is visible.
 
 ---
@@ -318,6 +338,7 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 | `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info and fingerprint. |
 | `GET /api/admin/tenants/{tenant}/analytics/persons` | Probable persons (sessions linked by cookie, fingerprint and network, R3.10). |
 | `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&appSha=&cvVersion=&type=move\|click\|attention` | Aggregated heat cells for rendering (R6.8), filterable by version (§6.4). |
+| `PUT /api/admin/tenants/{tenant}/source` `{ sha, files }` | CV source manifest from `cv-sync.sh` (R6.14). |
 | `GET /api/admin/tenants/{tenant}/analytics/cv-snapshots/{cvVersion}` | Redacted CV as the visitor saw it (R6.12). |
 | `DELETE /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Erase a visitor (data subject request). |
 
@@ -452,14 +473,14 @@ sessions        (id, visitor_id, tenant, invite_id, started_at, ended_at, open_m
                  locale, breakpoint, end_reason,
                  ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated per R9.2
                  fp, fp_parts_json, fp_server,                             -- removed per R9.2
-                 app_sha, api_sha, cv_version, version_mismatch)           -- §6.4
+                 app_sha, api_sha, cv_source_sha, cv_version, version_mismatch) -- §6.4
 session_ips     (session_id, ip, first_seen, last_seen)                    -- IP changes within a session
 persons         (id, tenant, first_seen, last_seen)                        -- probable person (R3.10); last_seen drives retention (R9.2)
 person_links    (person_id, session_id, reason: cookie|fp|fp_similar+net)
 events          (session_id, seq, t, type, anchor, payload_json)          -- raw, R9.2
 section_stats   (session_id, anchor, visible_ms, active_ms, views, hovers) -- summary, R9.2
 heat_cells      (tenant, group, breakpoint, app_sha, cv_version, type, anchor, cx, cy, weight) -- aggregate, R9.2
-cv_snapshots    (tenant, cv_version, locale, json, first_seen)            -- redacted CV per version, kept while referenced
+cv_snapshots    (tenant, cv_version, cv_source_sha, locale, json, first_seen)            -- redacted CV per version, kept while referenced
 ```
 
 Expected volume: ~5–20 KB per session raw; a CV with a few hundred sessions per year stays in the low MB range,
@@ -486,7 +507,7 @@ so SQLite in the existing volume is sufficient. Summaries are computed when a se
 
 | Phase | Scope | Result |
 |---|---|---|
-| **P1 Sessions & time** | `cv_vid`, `/api/events`, sessions with open/visible/active time, IP + local geo/ASN lookup + fingerprint per session, version stamping (`appSha`, `apiSha`, `cvVersion`, CV snapshots), `visitors`/`sessions` tables, invite report | "Who opened it, how often, how long" |
+| **P1 Sessions & time** | `cv_vid`, `/api/events`, sessions with open/visible/active time, IP + local geo/ASN lookup + fingerprint per session, version stamping (`appSha`, `apiSha`, `cvSourceSha`, `cvVersion`, CV snapshots), `cv-sync.sh` clean-tree check + source manifest, `visitors`/`sessions` tables, invite report | "Who opened it, how often, how long" |
 | **P2 Sections & clicks** | Anchors in all components, `section_view`, `scroll`, `click`, semantic events (tech filter, PDF, contact, …), section ranking | "What did they look at" |
 | **P3 Heatmap** | Pointer sampling, version-keyed `heat_cells`, heatmap endpoint, overlay renderer on CV snapshots | Cursor / click / attention heatmaps |
 | **P4 Interest** | Reading ratio, tech intent, spread, network/organisation signals, probable-person linking, interest score, session timeline | Comparable interest per visitor and invite |
