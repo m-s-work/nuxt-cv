@@ -24,6 +24,16 @@ public sealed class RedactorTests
         CvRedactor.Redact(Master(), EffectivePolicy.From(profile, overrides));
 
     [Fact]
+    public void Invite_revision_replaces_profile_pin_and_empty_unpins()
+    {
+        var profile = new AccessPolicy { Revision = "ABCDEF1" };
+        Assert.Equal("abcdef1", EffectivePolicy.From(profile).Revision);
+        Assert.Equal("1234567", EffectivePolicy.From(profile, new AccessPolicy { Revision = "1234567" }).Revision);
+        Assert.Null(EffectivePolicy.From(profile, new AccessPolicy { Revision = "" }).Revision);
+        Assert.Null(EffectivePolicy.From(new AccessPolicy()).Revision);
+    }
+
+    [Fact]
     public void Hide_by_default_hides_unset_flags_but_keeps_explicit_ones()
     {
         var policy = EffectivePolicy.From(

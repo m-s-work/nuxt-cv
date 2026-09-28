@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import {
-  REDACTION_FLAGS, buildOverrides, errorMessage, formatBytes, groupInvites, inviteStatus,
-  type AdminInvite, type AdminTenant, type CreatedInvite, type FlagChoice, type OverridesForm, type PdfOutcome
+  REDACTION_FLAGS, buildOverrides, errorMessage, formatBytes, groupInvites, inviteStatus, pinStatus, shortSha,
+  type AdminInvite, type AdminTenant, type CreatedInvite, type CvRevisions, type FlagChoice, type OverridesForm, type PdfOutcome
 } from '~/composables/useAdmin'
 
-const props = defineProps<{ tenant: AdminTenant }>()
+const props = defineProps<{ tenant: AdminTenant, revisions?: CvRevisions | null }>()
 const admin = useAdmin()
 
 const invites = ref<AdminInvite[]>([])
@@ -37,9 +37,24 @@ const flagItems = [
   { label: 'show', value: 'off' }
 ]
 
+// CV version of a new invite: "inherit" = profile pin or current CV, "unpin" = current CV despite a profile pin.
+const profilePin = computed(() => props.tenant.pins?.[form.profile])
+const revisionItems = computed(() => [
+  {
+    label: profilePin.value ? `Profile default (pinned to ${shortSha(profilePin.value)})` : 'Current CV (follows updates)',
+    value: 'inherit'
+  },
+  ...(profilePin.value ? [{ label: 'Current CV (follows updates)', value: 'unpin' }] : []),
+  ...(props.revisions?.revisions ?? []).map(r => ({
+    label: `Pin to ${shortSha(r.sha)}${r.message ? ` · ${r.message}` : ''}${r.sha === props.revisions?.current ? ' (current)' : ''}`,
+    value: r.sha
+  }))
+])
+
 function emptyForm() {
   return {
     profile: props.tenant.profiles[0] ?? '',
+    revision: 'inherit',
     label: '',
     expiresOn: '',
     maxUses: '' as string | number,
@@ -68,7 +83,7 @@ async function create() {
       // End of the chosen day in the admin's time zone.
       expiresAt: form.expiresOn ? new Date(`${form.expiresOn}T23:59:59`).toISOString() : undefined,
       maxUses: form.maxUses === '' ? undefined : Number(form.maxUses),
-      overrides: buildOverrides(form.overrides)
+      overrides: withRevision(buildOverrides(form.overrides), form.revision)
     })
     Object.assign(form, emptyForm())
     showOverrides.value = false
@@ -78,6 +93,11 @@ async function create() {
   } finally {
     creating.value = false
   }
+}
+
+function withRevision(overrides: ReturnType<typeof buildOverrides>, revision: string) {
+  if (revision === 'inherit') return overrides
+  return { ...overrides, revision: revision === 'unpin' ? '' : revision }
 }
 
 const copied = ref('')
@@ -114,6 +134,25 @@ async function renderPdf(invite: AdminInvite) {
     pdfResults.value[invite.id] = (await admin.renderPdf(props.tenant.id, invite.id)).pdf
   } catch (e) {
     pdfResults.value[invite.id] = errorMessage(e)
+  } finally {
+    busy.value = null
+  }
+}
+
+// --- CV pins ------------------------------------------------------------------------------
+
+const pinColor = { current: 'neutral', outdated: 'warning', missing: 'error' } as const
+const pinOf = (invite: AdminInvite) => invite.revision ? pinStatus(invite.revision, props.revisions) : null
+const outdatedCount = computed(() => invites.value
+  .filter(i => !i.parentId && inviteStatus(i) === 'active' && pinOf(i) && pinOf(i) !== 'current').length)
+
+async function repin(invite: AdminInvite, revision: string | null) {
+  busy.value = invite.id
+  try {
+    await admin.pinInvite(props.tenant.id, invite.id, revision)
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
   } finally {
     busy.value = null
   }
@@ -160,6 +199,10 @@ onMounted(load)
           <label class="text-sm space-y-1">
             <span class="text-gray-500">Max. redemptions (optional)</span>
             <UInput v-model="form.maxUses" type="number" min="1" placeholder="unlimited" class="w-full" />
+          </label>
+          <label class="text-sm space-y-1 sm:col-span-2">
+            <span class="text-gray-500">CV version</span>
+            <USelect v-model="form.revision" :items="revisionItems" class="w-full" aria-label="CV version" />
           </label>
         </div>
 
@@ -222,6 +265,10 @@ onMounted(load)
         <UCheckbox v-model="showInactive" :label="`Show revoked / expired (${inactiveCount})`" class="ml-auto text-sm" />
         <UButton icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" aria-label="Reload invites" :loading="loading" @click="load" />
       </div>
+      <p v-if="outdatedCount" class="px-4 py-2 text-sm bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-b border-amber-200 dark:border-amber-900" data-testid="pin-warning">
+        <UIcon name="i-lucide-triangle-alert" class="align-middle" />
+        {{ outdatedCount }} active invite{{ outdatedCount === 1 ? ' is' : 's are' }} pinned to an outdated CV version.
+      </p>
       <p v-if="error" class="p-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
       <p v-else-if="!loading && !rows.length" class="p-4 text-sm text-gray-500">No invites.</p>
       <div v-else class="overflow-x-auto">
@@ -263,6 +310,23 @@ onMounted(load)
                 </div>
                 <div v-else-if="invite.source !== 'pdf-qr'" class="text-xs text-gray-400 mt-1">code not stored (created before codes were kept)</div>
                 <div v-if="overridesSummary(invite)" class="text-xs text-gray-500 mt-0.5">{{ overridesSummary(invite) }}</div>
+                <div v-if="invite.revision && !invite.depth" class="mt-1 flex items-center gap-1 flex-wrap" :data-testid="`pin-${invite.id}`">
+                  <UBadge
+                    size="sm" variant="subtle" icon="i-lucide-pin" :color="pinColor[pinOf(invite)!]"
+                    :label="`${shortSha(invite.revision)}${invite.pinnedBy === 'profile' ? ' (profile)' : ''}${pinOf(invite) === 'outdated' ? ' · outdated' : pinOf(invite) === 'missing' ? ' · unknown, shows current CV' : ''}`"
+                  />
+                  <UButton
+                    v-if="pinOf(invite) !== 'current' && revisions?.current && inviteStatus(invite) !== 'revoked'"
+                    size="xs" color="warning" variant="ghost" icon="i-lucide-refresh-ccw"
+                    :label="`Pin to current (${shortSha(revisions.current)})`" :loading="busy === invite.id"
+                    @click="repin(invite, revisions.current)"
+                  />
+                  <UButton
+                    v-if="invite.pinnedBy === 'invite' && inviteStatus(invite) !== 'revoked'"
+                    size="xs" color="neutral" variant="ghost" label="Unpin" :disabled="busy === invite.id"
+                    @click="repin(invite, null)"
+                  />
+                </div>
                 <div v-if="pdfResults[invite.id]" class="mt-1 flex gap-1 flex-wrap">
                   <span v-if="typeof pdfResults[invite.id] === 'string'" class="text-xs text-red-600">{{ pdfResults[invite.id] }}</span>
                   <template v-else>

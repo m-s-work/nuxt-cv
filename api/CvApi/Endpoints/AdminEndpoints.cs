@@ -21,6 +21,11 @@ public static partial class AdminEndpoints
     [GeneratedRegex(@"^(tenant\.json|cv\.[a-z]{2}(-[A-Z]{2})?\.json|assets/[A-Za-z0-9][A-Za-z0-9._-]{0,127})$")]
     private static partial Regex AllowedFileRegex();
 
+    public sealed record RegisterRevisionRequest(string Sha, string? Message, DateTimeOffset? CommittedAt);
+
+    /// <summary>Revision: SHA/prefix = pin, "" = current CV even if the profile is pinned, null = follow the profile.</summary>
+    public sealed record PinRequest(string? Revision);
+
     public sealed record CreateInviteRequest(
         string Profile,
         string? Label,
@@ -42,7 +47,42 @@ public static partial class AdminEndpoints
             publicProfile = t.Config.PublicProfile,
             profiles = t.Config.Profiles.Keys,
             locales = TenantStore.Locales(t),
+            // Profiles pinned to a CV revision in tenant.json.
+            pins = t.Config.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.Value.Revision))
+                .ToDictionary(p => p.Key, p => p.Value.Revision!.Trim().ToLowerInvariant()),
         }));
+
+        // CV revisions (git commits registered by tools/cv-sync.sh). "outdated" = the current CV differs from it.
+        admin.MapGet("/tenants/{tenantId}/revisions", (string tenantId, TenantStore tenants) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var index = RevisionStore.Read(tenant);
+            var live = RevisionStore.ContentHash(tenant.Directory);
+            return Results.Ok(new
+            {
+                current = index.Current,
+                // The live files were changed after the last registered revision (e.g. edited in the admin UI).
+                modified = index.Revisions.FirstOrDefault(r => r.Sha == index.Current)?.ContentHash is { } h && h != live,
+                revisions = index.Revisions.Select(r => new
+                {
+                    sha = r.Sha,
+                    message = r.Message,
+                    committedAt = r.CommittedAt,
+                    registeredAt = r.RegisteredAt,
+                    outdated = r.ContentHash != live,
+                }),
+            });
+        });
+
+        admin.MapPost("/tenants/{tenantId}/revisions", (string tenantId, RegisterRevisionRequest body, TenantStore tenants, TimeProvider time) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var sha = body.Sha?.Trim().ToLowerInvariant() ?? "";
+            if (!RevisionStore.ShaRegex().IsMatch(sha)) return Results.BadRequest(new { error = "invalid_sha" });
+            if (TenantStore.Locales(tenant).Count == 0) return Results.BadRequest(new { error = "no_cv" });
+            var revision = RevisionStore.Register(tenant, sha, body.Message, body.CommittedAt, time.GetUtcNow());
+            return Results.Ok(new { sha = revision.Sha, message = revision.Message, committedAt = revision.CommittedAt, registeredAt = revision.RegisteredAt });
+        });
 
         // Profile definitions of a tenant (for the admin UI's invite form and preview).
         admin.MapGet("/tenants/{tenantId}/profiles", (string tenantId, TenantStore tenants) =>
@@ -65,6 +105,11 @@ public static partial class AdminEndpoints
             if (!tenant.Config.Profiles.ContainsKey(body.Profile))
                 return Results.BadRequest(new { error = "unknown_profile", profiles = tenant.Config.Profiles.Keys });
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
+            if (body.Overrides is { Revision: { Length: > 0 } pin })
+            {
+                if (RevisionStore.Resolve(tenant, pin) is not { } sha) return Results.BadRequest(new { error = "unknown_revision" });
+                body.Overrides.Revision = sha;
+            }
 
             var now = time.GetUtcNow();
             var code = InviteCodes.Generate();
@@ -107,6 +152,31 @@ public static partial class AdminEndpoints
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
             return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+        });
+
+        // Pin an invite (and its QR invite) to a CV revision, e.g. to update an outdated pin.
+        admin.MapPut("/tenants/{tenantId}/invites/{id:guid}/revision", async (string tenantId, Guid id, PinRequest body,
+            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, CancellationToken ct) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
+            if (invite is null) return Results.NotFound();
+
+            var revision = body.Revision?.Trim();
+            if (revision is { Length: > 0 })
+            {
+                if (RevisionStore.Resolve(tenant, revision) is not { } sha) return Results.BadRequest(new { error = "unknown_revision" });
+                revision = sha;
+            }
+
+            foreach (var target in await db.Invites.Where(i => i.Id == id || i.ParentId == id).ToListAsync(ct))
+            {
+                var overrides = AccessService.ParseOverrides(target.OverridesJson) ?? new AccessPolicy();
+                overrides.Revision = revision;
+                target.OverridesJson = JsonSerializer.Serialize(overrides, TenantStore.FileJsonOptions);
+            }
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenant, config));
         });
 
         // (Re-)render the PDFs of an invite, e.g. after fixing a rendering problem or changing the CV.
@@ -196,14 +266,17 @@ public static partial class AdminEndpoints
             return Results.NoContent();
         });
 
-        admin.MapGet("/tenants/{tenantId}/preview", (string tenantId, string profile, string? locale, TenantStore tenants) =>
+        admin.MapGet("/tenants/{tenantId}/preview", (string tenantId, string profile, string? locale, string? revision, TenantStore tenants) =>
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
             if (!tenant.Config.Profiles.TryGetValue(profile, out var policy))
                 return Results.BadRequest(new { error = "unknown_profile" });
-            if (tenants.LoadCv(tenant, locale) is not { } loaded) return Results.NotFound();
-            return Results.Ok(new { locale = loaded.Locale, cv = CvRedactor.Redact(loaded.Cv, tenant.PolicyFor(profile, policy)) });
+            // revision: a SHA, "current" (ignore the profile's pin) or omitted (the profile's own view).
+            var effective = tenant.PolicyFor(profile, policy,
+                revision is null ? null : new AccessPolicy { Revision = revision == "current" ? "" : revision });
+            if (tenants.LoadCv(tenant, locale, effective.Revision) is not { } loaded) return Results.NotFound();
+            return Results.Ok(new { locale = loaded.Locale, revision = effective.Revision, cv = CvRedactor.Redact(loaded.Cv, effective) });
         });
     }
 
@@ -218,6 +291,10 @@ public static partial class AdminEndpoints
         id = i.Id,
         code,
         link = code is not null && tenant is not null ? BuildLink(tenant, config, code) : null,
+        // Effective CV pin: the invite's own (override) or its profile's; null = follows the current CV.
+        revision = PinOf(i, tenant) is { Length: > 0 } pin ? pin : null,
+        pinnedBy = AccessService.ParseOverrides(i.OverridesJson)?.Revision is not null ? "invite"
+            : PinOf(i, tenant) is not null ? "profile" : null,
         tenant = i.TenantId,
         profile = i.Profile,
         label = i.Label,
@@ -231,6 +308,15 @@ public static partial class AdminEndpoints
         parentId = i.ParentId,
         source = i.Source,
     };
+
+    private static string? PinOf(Invite i, Tenant? tenant)
+    {
+        var own = AccessService.ParseOverrides(i.OverridesJson)?.Revision;
+        if (own is not null) return own.Trim().ToLowerInvariant();
+        return tenant is not null && tenant.Config.Profiles.TryGetValue(i.Profile, out var p) && !string.IsNullOrWhiteSpace(p.Revision)
+            ? p.Revision.Trim().ToLowerInvariant()
+            : null;
+    }
 
     private static string BuildLink(Tenant tenant, IConfiguration config, string code)
     {

@@ -19,6 +19,12 @@ public sealed class AccessPolicy
     public List<string>? Grants { get; set; }
     public RedactionFlags? Flags { get; set; }
     public List<string>? HiddenFields { get; set; }
+
+    /// <summary>
+    /// Git SHA (or unique prefix) of a registered CV revision to show instead of the current CV.
+    /// In invite overrides it replaces the profile's pin; "" there means "current CV".
+    /// </summary>
+    public string? Revision { get; set; }
 }
 
 /// <summary>Global redaction flags. Null means "not set" (relevant for invite overrides).</summary>

@@ -270,6 +270,55 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Invites_can_be_pinned_to_a_cv_revision()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        const string v1 = "1111111111111111111111111111111111111111";
+        const string v2 = "2222222222222222222222222222222222222222";
+
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob v1" } }""");
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v1, message = "first" })).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/tenants/bob/invites",
+            new { profile = "full", overrides = new { revision = "deadbeef" } })).StatusCode);
+        var pinnedCode = await _factory.CreateInviteAsync("bob", new { profile = "full", label = "pinned", overrides = new { revision = "1111111" } });
+        var liveCode = await _factory.CreateInviteAsync("bob", new { profile = "full", label = "live" });
+
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob v2" } }""");
+
+        async Task<string> NameFor(string code)
+        {
+            var client = _factory.ClientFor(ApiFactory.SharedHost);
+            await Redeem(client, code);
+            return (await Cv(client))["cv"]!["profile"]!["name"]!.GetValue<string>();
+        }
+        Assert.Equal("Bob v1", await NameFor(pinnedCode));
+        Assert.Equal("Bob v2", await NameFor(liveCode));
+
+        // Admin sees the pin, and that the CV changed since (manual edit, not yet registered).
+        var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.True(revisions!["modified"]!.GetValue<bool>());
+        Assert.True(revisions["revisions"]![0]!["outdated"]!.GetValue<bool>());
+        var invites = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/bob/invites");
+        var pinned = invites!.Single(i => i!["label"]!.GetValue<string>() == "pinned")!;
+        Assert.Equal(v1, pinned["revision"]!.GetValue<string>());
+        Assert.Equal("invite", pinned["pinnedBy"]!.GetValue<string>());
+
+        // Registering v2 and re-pinning brings the invite up to date.
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v2 })).EnsureSuccessStatusCode();
+        revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.Equal(v2, revisions!["current"]!.GetValue<string>());
+        Assert.False(revisions["modified"]!.GetValue<bool>());
+        (await admin.PutAsJsonAsync($"/api/admin/tenants/bob/invites/{pinned["id"]}/revision", new { revision = v2 })).EnsureSuccessStatusCode();
+        Assert.Equal("Bob v2", await NameFor(pinnedCode));
+
+        var preview = await admin.GetFromJsonAsync<JsonObject>($"/api/admin/tenants/bob/preview?profile=full&revision={v1}");
+        Assert.Equal("Bob v1", preview!["cv"]!["profile"]!["name"]!.GetValue<string>());
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
+    }
+
+    [Fact]
     public async Task Pdf_is_disabled_without_renderer()
     {
         _factory.SetPublicProfile("alice", "public");

@@ -23,6 +23,8 @@ export interface AccessPolicy {
   grants?: string[]
   flags?: Partial<Record<RedactionFlag, boolean>>
   hiddenFields?: string[]
+  /** Pinned CV revision (git SHA or prefix); "" in invite overrides = current CV. */
+  revision?: string
 }
 
 export interface AdminTenant {
@@ -33,6 +35,37 @@ export interface AdminTenant {
   publicProfile?: string
   profiles: string[]
   locales: string[]
+  /** Profiles pinned to a CV revision in tenant.json. */
+  pins: Record<string, string>
+}
+
+export interface CvRevision {
+  sha: string
+  message?: string
+  committedAt?: string
+  registeredAt: string
+  /** The current CV differs from this revision. */
+  outdated: boolean
+}
+
+export interface CvRevisions {
+  current?: string
+  /** The live CV files were changed after the current revision was registered. */
+  modified: boolean
+  revisions: CvRevision[]
+}
+
+export type PinStatus = 'current' | 'outdated' | 'missing'
+
+/** Whether a pinned revision (full SHA or prefix) still matches the current CV. */
+export function pinStatus(pin: string, revisions: CvRevisions | null | undefined): PinStatus {
+  const revision = revisions?.revisions.find(r => r.sha.startsWith(pin.toLowerCase()))
+  if (!revision) return 'missing'
+  return revision.outdated ? 'outdated' : 'current'
+}
+
+export function shortSha(sha?: string | null): string {
+  return sha ? sha.slice(0, 7) : ''
 }
 
 export interface AdminInvite {
@@ -52,6 +85,9 @@ export interface AdminInvite {
   lastUsedAt?: string
   parentId?: string
   source?: string
+  /** Effective CV pin (the invite's own or its profile's); undefined = follows the current CV. */
+  revision?: string
+  pinnedBy?: 'invite' | 'profile'
 }
 
 export interface PdfOutcome {
@@ -255,7 +291,11 @@ export function useAdmin() {
       request<void>(`${t(tenant)}/files/${path}`, { method: 'PUT', body }),
     deleteFile: (tenant: string, path: string) =>
       request<void>(`${t(tenant)}/files/${path}`, { method: 'DELETE' }),
-    preview: (tenant: string, profile: string, locale?: string) =>
-      request<{ locale: string, cv: unknown }>(`${t(tenant)}/preview`, { query: { profile, locale } })
+    preview: (tenant: string, profile: string, locale?: string, revision?: string) =>
+      request<{ locale: string, revision?: string, cv: unknown }>(`${t(tenant)}/preview`, { query: { profile, locale, revision } }),
+    revisions: (tenant: string) => request<CvRevisions>(`${t(tenant)}/revisions`),
+    /** revision: SHA = pin, "" = current CV (ignores a profile pin), null = follow the profile. */
+    pinInvite: (tenant: string, id: string, revision: string | null) =>
+      request<AdminInvite>(`${t(tenant)}/invites/${id}/revision`, { method: 'PUT', body: { revision } })
   }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import '~/assets/css/admin.css'
-import { errorMessage, type AdminTenant } from '~/composables/useAdmin'
+import { errorMessage, pinStatus, shortSha, type AdminTenant, type CvRevisions } from '~/composables/useAdmin'
 
 // Owner tool: never indexed, never linked from the public pages.
 useSeoMeta({ title: 'CV admin', robots: 'noindex, nofollow' })
@@ -29,6 +29,7 @@ async function loadTenants() {
   try {
     tenants.value = await admin.tenants()
     if (!tenants.value.some(t => t.id === selectedId.value)) selectedId.value = tenants.value[0]?.id ?? ''
+    else await loadRevisions()
   } catch (error: unknown) {
     const status = (error as { statusCode?: number }).statusCode
     loginError.value = status === 401
@@ -58,7 +59,27 @@ function logout() {
 async function onTenantChanged(id?: string) {
   await loadTenants()
   if (id && tenants.value.some(t => t.id === id)) selectedId.value = id
+  await loadRevisions()
 }
+
+// CV revisions (git commits registered by tools/cv-sync.sh), used for pins and their warnings.
+const revisions = ref<CvRevisions | null>(null)
+async function loadRevisions() {
+  const id = selectedId.value
+  if (!id) { revisions.value = null; return }
+  try {
+    const result = await admin.revisions(id)
+    if (selectedId.value === id) revisions.value = result
+  } catch {
+    revisions.value = null
+  }
+}
+watch(selectedId, loadRevisions)
+
+const currentRevision = computed(() => revisions.value?.revisions.find(r => r.sha === revisions.value?.current))
+const profilePins = computed(() => Object.entries(selected.value?.pins ?? {})
+  .map(([profile, sha]) => ({ profile, sha, status: pinStatus(sha, revisions.value) })))
+const pinColor = { current: 'neutral', outdated: 'warning', missing: 'error' } as const
 
 // New tenant: only needs an id; the files tab then offers a tenant.json template.
 const newTenantId = ref('')
@@ -129,7 +150,29 @@ onMounted(() => {
                 <dd>{{ selected.publicProfile ?? '– (no public access)' }}</dd>
                 <dt class="text-gray-500">Locales</dt>
                 <dd>{{ selected.locales.length ? selected.locales.join(', ') : '– (no CV file yet)' }} <span class="text-gray-500">(default {{ selected.defaultLocale }})</span></dd>
+                <dt class="text-gray-500">CV version</dt>
+                <dd data-testid="cv-version">
+                  <template v-if="currentRevision">
+                    <code>{{ shortSha(currentRevision.sha) }}</code>
+                    <span v-if="currentRevision.message" class="text-gray-500"> · {{ currentRevision.message }}</span>
+                    <UBadge v-if="revisions?.modified" class="ml-2" size="sm" color="warning" variant="subtle" label="changed since (not registered)" />
+                  </template>
+                  <span v-else class="text-gray-500">– (no revision registered; deploy with tools/cv-sync.sh)</span>
+                </dd>
+                <template v-if="profilePins.length">
+                  <dt class="text-gray-500">Pinned profiles</dt>
+                  <dd class="flex gap-1 flex-wrap">
+                    <UBadge
+                      v-for="pin in profilePins" :key="pin.profile" :color="pinColor[pin.status]" variant="subtle" icon="i-lucide-pin"
+                      :label="`${pin.profile} → ${shortSha(pin.sha)}${pin.status === 'current' ? '' : pin.status === 'outdated' ? ' (outdated)' : ' (unknown revision)'}`"
+                    />
+                  </dd>
+                </template>
               </dl>
+              <p v-if="profilePins.some(p => p.status !== 'current')" class="mt-3 text-sm text-amber-600 dark:text-amber-400" data-testid="profile-pin-warning">
+                <UIcon name="i-lucide-triangle-alert" class="align-middle" />
+                A profile is pinned to a CV version that is outdated or unknown. Update its <code>revision</code> in <code>tenant.json</code>.
+              </p>
             </div>
             <div v-else-if="creatingTenant" class="rounded-lg border border-dashed border-primary p-4 text-sm">
               Creating tenant <code>{{ creatingTenant }}</code>: save a <code>tenant.json</code> below to create it.
@@ -148,9 +191,9 @@ onMounted(() => {
 
           <template v-if="activeTenantId">
             <UTabs v-model="tab" :items="tabs" :content="false" class="mb-4" />
-            <AdminInvites v-if="tab === 'invites' && selected && !creatingTenant" :key="`i-${selected.id}`" :tenant="selected" />
+            <AdminInvites v-if="tab === 'invites' && selected && !creatingTenant" :key="`i-${selected.id}`" :tenant="selected" :revisions="revisions" />
             <AdminFiles v-else-if="tab === 'files'" :key="`f-${activeTenantId}`" :tenant-id="activeTenantId" :is-new="!!creatingTenant" @changed="onTenantChanged(activeTenantId)" />
-            <AdminPreview v-else-if="tab === 'preview' && selected && !creatingTenant" :key="`p-${selected.id}`" :tenant="selected" />
+            <AdminPreview v-else-if="tab === 'preview' && selected && !creatingTenant" :key="`p-${selected.id}`" :tenant="selected" :revisions="revisions" />
             <p v-else class="text-sm text-gray-500">Save a <code>tenant.json</code> first.</p>
           </template>
         </template>

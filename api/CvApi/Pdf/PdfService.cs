@@ -58,7 +58,7 @@ public sealed class PdfService(
     /// <summary>Returns the cached PDF if it matches the current CV, otherwise renders (and caches) a new one.</summary>
     public async Task<PdfResult?> GetOrRenderAsync(AccessGrant grant, string? requestedLocale, CancellationToken ct)
     {
-        if (tenants.LoadCv(grant.Tenant, requestedLocale) is not { } loaded) return null;
+        if (tenants.LoadCv(grant.Tenant, requestedLocale, grant.Policy.Revision) is not { } loaded) return null;
         var (master, locale) = loaded;
 
         // The render URL carries the QR target (public host + QR invite code), so a changed host or
@@ -91,7 +91,7 @@ public sealed class PdfService(
     public async Task<IReadOnlyList<PdfRenderOutcome>> RenderAllLocalesAsync(AccessGrant grant, CancellationToken ct)
     {
         var outcomes = new List<PdfRenderOutcome>();
-        foreach (var locale in Locales(grant.Tenant))
+        foreach (var locale in TenantStore.Locales(grant.Tenant, grant.Policy.Revision))
         {
             try
             {
@@ -117,11 +117,6 @@ public sealed class PdfService(
         foreach (var file in Directory.EnumerateFiles(dir, $"invite-{inviteId:N}.*"))
             File.Delete(file);
     }
-
-    public static IEnumerable<string> Locales(Tenant tenant) =>
-        Directory.EnumerateFiles(tenant.Directory, "cv.*.json")
-            .Select(f => Path.GetFileName(f)["cv.".Length..^".json".Length])
-            .Order(StringComparer.Ordinal);
 
     private async Task<Uri> RenderUrlAsync(AccessGrant grant, string locale, CancellationToken ct)
     {

@@ -38,10 +38,10 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
         lock (_lock) _snapshot = null;
     }
 
-    /// <summary>Locales with a master CV file (cv.&lt;locale&gt;.json), sorted.</summary>
-    public static IReadOnlyList<string> Locales(Tenant tenant) =>
-        System.IO.Directory.Exists(tenant.Directory)
-            ? System.IO.Directory.GetFiles(tenant.Directory, "cv.*.json")
+    /// <summary>Locales with a master CV file (cv.&lt;locale&gt;.json), sorted; of the pinned revision if given.</summary>
+    public static IReadOnlyList<string> Locales(Tenant tenant, string? revision = null) =>
+        CvDirectory(tenant, revision) is var dir && System.IO.Directory.Exists(dir)
+            ? System.IO.Directory.GetFiles(dir, "cv.*.json")
                 .Select(f => Path.GetFileName(f)[3..^5])
                 .Where(l => LocaleRegex().IsMatch(l))
                 .Order(StringComparer.Ordinal)
@@ -59,13 +59,29 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
         return h.TrimEnd('.');
     }
 
-    /// <summary>Loads the master CV for a locale, falling back to the tenant's default locale.</summary>
-    public (JsonObject Cv, string Locale)? LoadCv(Tenant tenant, string? locale)
+    /// <summary>
+    /// Directory holding the master CV files: the snapshot of a pinned revision (prefix allowed), or the
+    /// tenant's live files if no revision is pinned or its snapshot is missing (the admin UI warns about that).
+    /// </summary>
+    public static string CvDirectory(Tenant tenant, string? revision)
     {
+        if (revision is not null && RevisionStore.ShaRegex().IsMatch(revision)
+            && (revision.Length == 40 ? revision : RevisionStore.Resolve(tenant, revision)) is { } sha)
+        {
+            var dir = Path.Combine(RevisionStore.Directory(tenant), sha);
+            if (System.IO.Directory.Exists(dir)) return dir;
+        }
+        return tenant.Directory;
+    }
+
+    /// <summary>Loads the master CV for a locale, falling back to the tenant's default locale.</summary>
+    public (JsonObject Cv, string Locale)? LoadCv(Tenant tenant, string? locale, string? revision = null)
+    {
+        var dir = CvDirectory(tenant, revision);
         foreach (var candidate in new[] { locale, tenant.Config.DefaultLocale })
         {
             if (candidate is null || !LocaleRegex().IsMatch(candidate)) continue;
-            var file = Path.Combine(tenant.Directory, $"cv.{candidate}.json");
+            var file = Path.Combine(dir, $"cv.{candidate}.json");
             if (!File.Exists(file)) continue;
             var node = JsonNode.Parse(File.ReadAllText(file), documentOptions: FileDocumentOptions);
             if (node is JsonObject obj) return (obj, candidate);

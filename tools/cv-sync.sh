@@ -11,6 +11,9 @@
 # Environment (not needed for --check):
 #   CV_API_URL         e.g. https://cv.velarix.space/api
 #   CV_ADMIN_API_KEY   admin key of the API
+#   CV_REVISION        git SHA to register the deployed CV as (default: HEAD of the repo containing
+#                      <tenant-dir>). Invites can be pinned to registered revisions; the admin UI warns
+#                      when a pinned revision is outdated. Set to "-" to skip registration.
 #
 # Exit code != 0 on any validation or upload error, so CI pipelines fail visibly.
 set -euo pipefail
@@ -83,4 +86,26 @@ for f in "${ordered[@]}"; do
   [[ "$status" == 204 ]] || fail "upload of $f failed ($status): $(cat /tmp/cv-sync-response)"
   echo "uploaded $f"
 done
+
+# Register the deployed CV as a revision (snapshot) under its git commit.
+revision="${CV_REVISION:-$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)}"
+if [[ -z "$revision" || "$revision" == "-" ]]; then
+  echo "note: no git revision (not a git checkout and CV_REVISION unset); CV not registered as revision"
+else
+  if [[ -n "$(git -C "$dir" status --porcelain -- . 2>/dev/null)" ]]; then
+    echo "warning: $dir has uncommitted changes; registering them as $revision anyway" >&2
+  fi
+  message="$(git -C "$dir" log -1 --format=%s "$revision" 2>/dev/null || true)"
+  committed="$(git -C "$dir" log -1 --format=%cI "$revision" 2>/dev/null || true)"
+  body=$(REV="$revision" MSG="$message" AT="$committed" node -e '
+    const b = { sha: process.env.REV };
+    if (process.env.MSG) b.message = process.env.MSG;
+    if (process.env.AT) b.committedAt = process.env.AT;
+    process.stdout.write(JSON.stringify(b));')
+  status=$(curl -sS -o /tmp/cv-sync-response -w '%{http_code}' -X POST \
+    -H "X-Admin-Key: $CV_ADMIN_API_KEY" -H "Content-Type: application/json" \
+    --data "$body" "${CV_API_URL%/}/admin/tenants/$tenant/revisions")
+  [[ "$status" == 200 ]] || fail "registering revision $revision failed ($status): $(cat /tmp/cv-sync-response)"
+  echo "registered revision ${revision:0:12}"
+fi
 echo "tenant '$tenant' deployed"

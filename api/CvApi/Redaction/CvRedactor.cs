@@ -5,7 +5,8 @@ using CvApi.Tenants;
 namespace CvApi.Redaction;
 
 /// <summary>The fully merged policy (profile + invite overrides) applied to a master CV.</summary>
-public sealed record EffectivePolicy(IReadOnlySet<string> Grants, EffectiveFlags Flags, IReadOnlyList<string> HiddenFields)
+public sealed record EffectivePolicy(IReadOnlySet<string> Grants, EffectiveFlags Flags, IReadOnlyList<string> HiddenFields,
+    string? Revision = null)
 {
     /// <summary>
     /// Merges a profile with invite overrides: set flags replace, hiddenFields are added,
@@ -27,7 +28,10 @@ public sealed record EffectivePolicy(IReadOnlySet<string> Grants, EffectiveFlags
             HideContactDetails: o?.HideContactDetails ?? p?.HideContactDetails ?? d,
             HideBirthDate: o?.HideBirthDate ?? p?.HideBirthDate ?? d,
             HideMedia: o?.HideMedia ?? p?.HideMedia ?? d);
-        return new EffectivePolicy(new HashSet<string>(grants, StringComparer.OrdinalIgnoreCase), flags, hidden);
+        // Pinned CV revision: the override replaces the profile's pin; "" unpins.
+        var revision = overrides?.Revision ?? profile.Revision;
+        return new EffectivePolicy(new HashSet<string>(grants, StringComparer.OrdinalIgnoreCase), flags, hidden,
+            string.IsNullOrWhiteSpace(revision) ? null : revision.Trim().ToLowerInvariant());
     }
 }
 

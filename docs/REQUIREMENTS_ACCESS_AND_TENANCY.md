@@ -183,7 +183,9 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/admin/tenants/{tenant}/files` | admin key | List the tenant's files (`path`, `size`, `modifiedAt`). |
 | `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
 | `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
-| `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en` | admin key | Show redacted CV for a profile. |
+| `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en[&revision=<sha>\|current]` | admin key | Show redacted CV for a profile (optionally of a registered revision, §14). |
+| `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List registered CV revisions (`current`, `modified`, per revision `outdated`) / register the current CV files as revision `{ sha, message?, committedAt? }` (§14). |
+| `PUT /api/admin/tenants/{tenant}/invites/{id}/revision` `{ revision }` | admin key | Pin an invite (and its QR invite) to a revision; `""` = current CV, `null` = follow the profile (§14). |
 
 - Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
   admin endpoints are disabled (`404`).
@@ -210,7 +212,10 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
         ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale
         ├── cv.en.json           # master CV (English)
         ├── cv.de.json           # master CV (German)
-        └── assets/              # photos, logos, screenshots
+        ├── assets/              # photos, logos, screenshots
+        └── revisions/           # CV snapshots per git commit (§14)
+            ├── index.json       # current revision + list (sha, message, committedAt, content hash)
+            └── <sha>/cv.<locale>.json
 ```
 
 Tenant files are re-read automatically (short cache), so CV edits need no redeploy.
@@ -299,7 +304,34 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   overrides) showing code, link and PDF render outcome; code and link of every invite stay visible and
   copyable in the list; revoke; re-render PDFs; edit `tenant.json`
   and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
-  assets; preview the redacted CV of any profile and locale.
+  assets; preview the redacted CV of any profile, locale and registered CV version; pin invites to CV
+  versions and see outdated pins (§14).
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
   admin page's own CSS chunk, so the public pages are unaffected.
+
+---
+
+## 14. CV versions: pinning to a git commit
+
+The CV files usually live in a Git repository and are deployed with `tools/cv-sync.sh` (see `docs/FEATURES.md`).
+A CV *variant* (an invite, or a profile) can be pinned to the CV as it was at a commit, e.g. the version sent
+with an application.
+
+- R14.1 **Registering.** After uploading, `cv-sync.sh` registers the deployed CV under its git commit
+  (`POST …/revisions`, SHA from `git rev-parse HEAD` of the tenant folder or `CV_REVISION`). The API copies the
+  tenant's current `cv.<locale>.json` files into `revisions/<sha>/` and marks it as current. Registering the
+  same SHA again replaces its snapshot.
+- R14.2 **Pinning.** `revision` (full SHA or unique prefix ≥ 7) can be set on a profile in `tenant.json` or as an
+  invite override (on creation or later via `PUT …/invites/{id}/revision`). The invite's pin replaces the
+  profile's; `""` on an invite means "current CV" even if its profile is pinned. Pins on invites must name a
+  registered revision (`400 unknown_revision` otherwise); QR invites follow their parent.
+- R14.3 **Serving.** A pinned grant gets the master CV of the snapshot (all endpoints: CV, asset check, PDF,
+  admin preview); redaction (profile, flags, overrides) is applied as usual with the **current** `tenant.json`.
+  Assets are not versioned. If a pinned snapshot does not exist, the current CV is served and the admin UI
+  reports the pin as unknown.
+- R14.4 **Outdated warning.** A pin is *outdated* when the snapshot's CV files differ from the current ones
+  (content hash, so commits that do not change the tenant's CV do not count). The admin UI shows the current
+  revision, flags manual edits made after it ("changed since"), marks outdated or unknown pins on invites and
+  profiles, counts outdated active invites, and offers "Pin to current" per invite. Invitees are never told.
+

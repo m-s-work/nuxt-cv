@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOverrides, groupInvites, inviteStatus, parseJsonc, splitList, type AdminInvite } from '~/composables/useAdmin'
+import { buildOverrides, groupInvites, inviteStatus, parseJsonc, pinStatus, splitList, type AdminInvite } from '~/composables/useAdmin'
 
 const invite = (patch: Partial<AdminInvite> = {}): AdminInvite => ({
   id: 'a', tenant: 'demo', profile: 'full', label: '', createdAt: '2026-01-01T00:00:00Z', useCount: 0, ...patch
@@ -79,5 +79,26 @@ describe('parseJsonc', () => {
   it('rejects invalid JSON', () => {
     expect(() => parseJsonc('{ broken')).toThrow()
     expect(() => parseJsonc('{ /* open')).toThrow()
+  })
+})
+
+describe('pinStatus', () => {
+  const revisions = {
+    current: 'bbbbbbb2',
+    modified: false,
+    revisions: [
+      { sha: 'bbbbbbb2', registeredAt: '', outdated: false },
+      { sha: 'aaaaaaa1', registeredAt: '', outdated: true }
+    ]
+  }
+
+  it('matches full SHAs and prefixes', () => {
+    expect(pinStatus('bbbbbbb2', revisions)).toBe('current')
+    expect(pinStatus('AAAAAAA', revisions)).toBe('outdated')
+  })
+
+  it('reports unknown revisions as missing', () => {
+    expect(pinStatus('ccccccc', revisions)).toBe('missing')
+    expect(pinStatus('ccccccc', null)).toBe('missing')
   })
 })
