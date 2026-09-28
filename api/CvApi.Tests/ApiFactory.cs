@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace CvApi.Tests;
 
 /// <summary>Runs the API against a temporary copy-free data directory with two tenants.</summary>
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public class ApiFactory : WebApplicationFactory<Program>
 {
     public const string AdminKey = "test-admin-key";
     public const string AliceHost = "alice-cv.example.org";
@@ -44,6 +44,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             { "profile": { "name": "Bob" }, "experiences": [] }
             """);
     }
+
+    public void WriteCv(string tenant, string locale, string json) =>
+        File.WriteAllText(Path.Combine(DataPath, "tenants", tenant, $"cv.{locale}.json"), json);
 
     public void SetPublicProfile(string tenant, string? profile)
     {

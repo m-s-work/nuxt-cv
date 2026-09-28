@@ -19,6 +19,19 @@ const otherEntries = computed(() => cv.value?.otherEntries ?? [])
 await ensure(locale.value)
 watch(locale, newLocale => ensure(newLocale))
 
+// PDF renderer mode (?print=1): tell the renderer when the page is complete.
+// window.__CV_READY__ = 'ready' | 'no-access' | 'error' (see pdf/server.mjs)
+onMounted(async () => {
+  if (!new URLSearchParams(window.location.search).has('print')) return
+  await nextTick()
+  await Promise.all(Array.from(document.images)
+    .filter(img => !img.complete)
+    .map(img => new Promise(resolve => { img.onload = img.onerror = resolve })))
+  // Let the intro counters finish animating.
+  await new Promise(resolve => setTimeout(resolve, 2500))
+  ;(window as unknown as { __CV_READY__?: string }).__CV_READY__ = status.value === 'ready' ? 'ready' : status.value
+})
+
 // Track active entries based on scroll position
 const activeEntryIds = ref<(number | string)[]>([])
 const clickedEntryId = ref<number | string | null>(null) // Track clicked entry
@@ -224,6 +237,11 @@ onUnmounted(() => {
             <CvDrivingLicenses />
           </div>
 
+          <!-- PDF download (hidden when the PDF renderer is not configured) -->
+          <div class="hidden lg:block">
+            <CvPdfButton />
+          </div>
+
           <!-- Spacer to push QR code to bottom on print -->
           <div class="flex-grow print:block hidden"></div>
           
@@ -278,6 +296,8 @@ onUnmounted(() => {
 
             <!-- Sidebar sections on mobile (shown at end) -->
             <div class="lg:hidden print:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+              <CvPdfButton />
+
               <!-- Personal Details -->
               <CvDetails />
               

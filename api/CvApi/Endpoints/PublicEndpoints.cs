@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CvApi.Access;
+using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
 using Microsoft.AspNetCore.StaticFiles;
@@ -31,7 +32,7 @@ public static class PublicEndpoints
             return Results.NoContent();
         });
 
-        app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, CancellationToken ct) =>
+        app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
         {
             NoStore(ctx);
             var grant = await access.ResolveAsync(ctx, ct);
@@ -52,8 +53,33 @@ public static class PublicEndpoints
                     expiresAt = grant.Invite?.ExpiresAt,
                 },
                 locale = resolvedLocale,
+                features = new { pdf = pdf.Enabled },
                 cv = CvRedactor.Redact(master, grant.Policy),
             });
+        });
+
+        // PDF of exactly the visitor's view. Served from cache; re-rendered when the CV changed
+        // (can take several seconds – the frontend shows a loading message meanwhile).
+        app.MapGet("/pdf", async (string? locale, HttpContext ctx, AccessService access, PdfService pdf,
+            ILoggerFactory loggers, CancellationToken ct) =>
+        {
+            NoStore(ctx);
+            var grant = await access.ResolveAsync(ctx, ct);
+            if (grant is null) return Results.Json(new { error = "no_access" }, statusCode: StatusCodes.Status403Forbidden);
+            if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
+
+            try
+            {
+                var result = await pdf.GetOrRenderAsync(grant, locale, ct);
+                if (result is null) return Results.NotFound();
+                ctx.Response.Headers["X-Pdf-Cache"] = result.FromCache ? "hit" : "miss";
+                return Results.File(result.Content, "application/pdf", $"CV-{locale ?? grant.Tenant.Config.DefaultLocale}.pdf");
+            }
+            catch (Exception ex) when (ex is PdfRenderException or HttpRequestException or TaskCanceledException)
+            {
+                loggers.CreateLogger("Pdf").LogError(ex, "PDF rendering failed for tenant {Tenant}", grant.Tenant.Id);
+                return Results.Json(new { error = "pdf_failed" }, statusCode: StatusCodes.Status502BadGateway);
+            }
         });
 
         app.MapGet("/assets/{file}", async (string file, HttpContext ctx, AccessService access, TenantStore tenants, CancellationToken ct) =>

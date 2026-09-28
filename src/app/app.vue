@@ -1,5 +1,10 @@
 <script setup lang="ts">
-const { setSplashType } = useSplashScreen()
+const { setSplashType, hideSplash } = useSplashScreen()
+
+// PDF renderer mode (?print=1): no splash screen.
+if (import.meta.client && new URLSearchParams(window.location.search).has('print')) {
+  hideSplash()
+}
 
 // Check URL parameter for splash screen type (for testing/demo)
 onMounted(() => {

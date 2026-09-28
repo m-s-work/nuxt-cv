@@ -163,10 +163,12 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/access/logout` | – | Clear access cookie. |
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
+| `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
 | `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. |
-| `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite. |
+| `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
+| `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
 | `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en` | admin key | Show redacted CV for a profile. |
 
@@ -179,6 +181,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 { "tenant": "bob", "profile": "recruiter", "viaInvite": true, "label": "ACME recruiting", "expiresAt": "2026-12-31T00:00:00Z" }
 ```
 
+`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available.
+
 ---
 
 ## 9. Data layout (persistent volume `/data`)
@@ -186,6 +190,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 ```
 /data
 ├── app.db                       # SQLite: invites (all tenants)
+├── pdf/<tenant>/                # rendered PDFs: invite-<id>.<locale>.pdf / public-<profile>.<locale>.pdf (+ .sha256)
 ├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
 └── tenants/
     └── bob/
@@ -220,3 +225,34 @@ A sample tenant lives in `api/sample-data/`.
   MUST NOT be mentioned** on the showcase or anywhere visible to invitees. They are for the CV owner only.
 - R11.5 On a tenant host the showcase is never shown (the neutral page is used), so tenant hosts do not
   advertise the platform.
+
+---
+
+## 12. PDF per invite
+
+Every invite (and a tenant's public profile) gets a PDF that contains **exactly the redacted view** of
+that invite – never more. PDFs are rendered by a separate container (`pdf`, headless Chromium).
+
+- R12.1 **Rendering container.** `docker-compose.yml` contains the internal service `pdf` (`pdf/server.mjs`,
+  Playwright/Chromium). It has no public domain; only the API calls it (`POST /render`).
+- R12.2 **Render ticket.** The API gives the renderer a signed, 2-minute cookie (`cv_render`) naming tenant,
+  profile and invite. The renderer opens the app via the internal host (`http://web/?print=1`); the API
+  resolves access from the ticket exactly like for the invitee (revoked/expired invites are refused).
+- R12.3 **Render on invite creation.** Creating an invite renders its PDF for every locale of the tenant
+  **synchronously**, and the create response contains the per-locale outcome
+  (`pdf: [{ locale, ok, bytes, error }]`), so rendering problems are visible immediately. A failed render
+  does not prevent the invite from being created; it can be retried via the admin API.
+- R12.4 **Cache & staleness.** PDFs are cached in `/data/pdf`. Each cache entry stores a SHA-256 of
+  (layout version, locale, redacted CV JSON). A PDF is **obsolete** when that hash no longer matches
+  – e.g. the CV, the profile or the invite overrides changed – or `Pdf__LayoutVersion` was bumped after a
+  frontend layout change.
+- R12.5 **Render on request.** `GET /api/pdf` returns the cached PDF if current; otherwise it renders it
+  on the request (typically 3–10 s). Concurrent requests for the same PDF share one rendering.
+- R12.6 **Loading message.** While the download request runs, the frontend shows a loading state with the
+  message that the PDF is being generated for the current version of the CV and may take a few seconds.
+- R12.7 **Print mode.** With `?print=1` the frontend skips the splash screen and sets
+  `window.__CV_READY__` to `ready` / `no-access` / `error` once the page is complete; the renderer waits for it.
+  The QR code in the PDF points to the public URL (tenant host or shared base URL), passed as `?qr=`.
+- R12.8 Revoking an invite deletes its cached PDFs.
+- R12.9 PDF settings: A4, background graphics, scale 0.6, 1 cm margins (as the former GitHub export).
+

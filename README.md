@@ -12,15 +12,17 @@ CV of a software architect built with Nuxt 4.
 - **Redaction** - Per-field visibility plus global flags (`hideCompanies`, `hideTimeframeMonths`, ...)
 - **C# backend** - ASP.NET Core API (`api/`) serving the redacted CV JSON
 - **Testing** - Vitest (frontend) and xUnit (API)
-- **Coolify** - Docker Compose deployment (nginx + API)
+- **PDF per invite** - Rendered on invite creation, cached, re-rendered when the CV changes
+- **Coolify** - Docker Compose deployment (nginx + API + PDF renderer)
 
 ## Project Structure
 
 ```
 .
-├── .github/workflows/           # CI (tests/build), PDF export
+├── .github/workflows/           # CI (tests/build)
 ├── docker-compose.yml           # Coolify / Docker deployment (web + api)
 ├── docs/                        # Documentation (requirements, deployment, design notes)
+├── pdf/                         # PDF renderer service (headless Chromium, internal)
 ├── api/                         # C# backend
 │   ├── CvApi/                   # ASP.NET Core API (tenants, invites, redaction)
 │   ├── CvApi.Tests/             # xUnit tests
