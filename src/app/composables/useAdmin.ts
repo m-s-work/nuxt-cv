@@ -46,6 +46,8 @@ export interface CvRevision {
   registeredAt: string
   /** The current CV differs from this revision. */
   outdated: boolean
+  /** Tags/branches that were resolved to this commit. */
+  refs?: string[]
 }
 
 export interface CvRevisions {
@@ -53,19 +55,24 @@ export interface CvRevisions {
   /** The live CV files were changed after the current revision was registered. */
   modified: boolean
   revisions: CvRevision[]
+  /** Git repo + folder reported by cv-sync.sh; without it, pruned revisions cannot be fetched again. */
+  source?: { repo: string, path: string }
 }
 
 export type PinStatus = 'current' | 'outdated' | 'missing'
 
-/** Whether a pinned revision (full SHA or prefix) still matches the current CV. */
+/** Whether a pinned revision (full SHA, prefix or fetched tag) still matches the current CV. */
 export function pinStatus(pin: string, revisions: CvRevisions | null | undefined): PinStatus {
-  const revision = revisions?.revisions.find(r => r.sha.startsWith(pin.toLowerCase()))
+  const revision = revisions?.revisions.find(r => r.refs?.includes(pin))
+    ?? (/^[0-9a-f]{7,40}$/i.test(pin) ? revisions?.revisions.find(r => r.sha.startsWith(pin.toLowerCase())) : undefined)
   if (!revision) return 'missing'
   return revision.outdated ? 'outdated' : 'current'
 }
 
+/** Short form of a SHA; tags and branch names are shown as they are. */
 export function shortSha(sha?: string | null): string {
-  return sha ? sha.slice(0, 7) : ''
+  if (!sha) return ''
+  return /^[0-9a-f]{40}$/i.test(sha) ? sha.slice(0, 7) : sha
 }
 
 export interface AdminInvite {
@@ -294,6 +301,9 @@ export function useAdmin() {
     preview: (tenant: string, profile: string, locale?: string, revision?: string) =>
       request<{ locale: string, revision?: string, cv: unknown }>(`${t(tenant)}/preview`, { query: { profile, locale, revision } }),
     revisions: (tenant: string) => request<CvRevisions>(`${t(tenant)}/revisions`),
+    /** Fetches a revision (SHA, tag or branch) from the tenant's git repo again. */
+    fetchRevision: (tenant: string, ref: string) =>
+      request<{ sha: string }>(`${t(tenant)}/revisions/fetch`, { method: 'POST', body: { ref } }),
     /** revision: SHA = pin, "" = current CV (ignores a profile pin), null = follow the profile. */
     pinInvite: (tenant: string, id: string, revision: string | null) =>
       request<AdminInvite>(`${t(tenant)}/invites/${id}/revision`, { method: 'PUT', body: { revision } })

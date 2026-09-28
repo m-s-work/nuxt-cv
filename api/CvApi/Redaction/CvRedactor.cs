@@ -31,7 +31,7 @@ public sealed record EffectivePolicy(IReadOnlySet<string> Grants, EffectiveFlags
         // Pinned CV revision: the override replaces the profile's pin; "" unpins.
         var revision = overrides?.Revision ?? profile.Revision;
         return new EffectivePolicy(new HashSet<string>(grants, StringComparer.OrdinalIgnoreCase), flags, hidden,
-            string.IsNullOrWhiteSpace(revision) ? null : revision.Trim().ToLowerInvariant());
+            string.IsNullOrWhiteSpace(revision) ? null : revision.Trim());
     }
 }
 

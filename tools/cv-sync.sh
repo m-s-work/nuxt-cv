@@ -14,6 +14,9 @@
 #   CV_REVISION        git SHA to register the deployed CV as (default: HEAD of the repo containing
 #                      <tenant-dir>). Invites can be pinned to registered revisions; the admin UI warns
 #                      when a pinned revision is outdated. Set to "-" to skip registration.
+#   CV_GIT_REPO        HTTPS URL of the CV repository (default: remote "origin", ssh form converted to https).
+#                      The API fetches pruned revisions from there again when an invite is pinned to them
+#                      (private repos: set Git__Token / CV_GIT_TOKEN on the API).
 #
 # Exit code != 0 on any validation or upload error, so CI pipelines fail visibly.
 set -euo pipefail
@@ -97,10 +100,16 @@ else
   fi
   message="$(git -C "$dir" log -1 --format=%s "$revision" 2>/dev/null || true)"
   committed="$(git -C "$dir" log -1 --format=%cI "$revision" 2>/dev/null || true)"
-  body=$(REV="$revision" MSG="$message" AT="$committed" node -e '
+  repo="${CV_GIT_REPO:-$(git -C "$dir" remote get-url origin 2>/dev/null || true)}"
+  # git@host:owner/repo.git -> https://host/owner/repo.git; drop credentials embedded in the URL.
+  if [[ "$repo" =~ ^[^@/]+@([^:]+):(.+)$ ]]; then repo="https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"; fi
+  repo="$(sed -E 's#^(https?://)[^@/]+@#\1#' <<<"$repo")"
+  repo_path="$(git -C "$dir" rev-parse --show-prefix 2>/dev/null || true)"
+  body=$(REV="$revision" MSG="$message" AT="$committed" REPO="$repo" RPATH="${repo_path%/}" node -e '
     const b = { sha: process.env.REV };
     if (process.env.MSG) b.message = process.env.MSG;
     if (process.env.AT) b.committedAt = process.env.AT;
+    if (process.env.REPO.startsWith("https://")) { b.repo = process.env.REPO; b.path = process.env.RPATH; }
     process.stdout.write(JSON.stringify(b));')
   status=$(curl -sS -o /tmp/cv-sync-response -w '%{http_code}' -X POST \
     -H "X-Admin-Key: $CV_ADMIN_API_KEY" -H "Content-Type: application/json" \

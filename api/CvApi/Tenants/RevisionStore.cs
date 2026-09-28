@@ -12,7 +12,12 @@ public sealed record CvRevision(
     DateTimeOffset RegisteredAt,
     string ContentHash);
 
-public sealed record RevisionIndex(string? Current, List<CvRevision> Revisions);
+/// <summary>Where the tenant's CV lives in git (reported by tools/cv-sync.sh), used to fetch pruned revisions again.</summary>
+public sealed record RevisionSource(string Repo, string Path);
+
+/// <param name="Refs">Tags/branches used as pins, resolved to the commit they pointed to when fetched.</param>
+public sealed record RevisionIndex(string? Current, List<CvRevision> Revisions, RevisionSource? Source = null,
+    Dictionary<string, string>? Refs = null);
 
 /// <summary>
 /// Snapshots of a tenant's master CV and assets per git commit, so invites and profiles can be pinned
@@ -37,17 +42,44 @@ public static partial class RevisionStore
         return JsonSerializer.Deserialize<RevisionIndex>(File.ReadAllText(file), JsonOptions) ?? new RevisionIndex(null, []);
     }
 
-    /// <summary>Full SHA of a registered revision from a full SHA or a unique prefix (≥ 7 chars), else null.</summary>
-    public static string? Resolve(Tenant tenant, string shaOrPrefix)
+    /// <summary>
+    /// Full SHA of a stored revision from a full SHA, a unique prefix (≥ 7 chars) or a fetched tag/branch name, else null.
+    /// </summary>
+    public static string? Resolve(Tenant tenant, string pin) => Resolve(Read(tenant), pin);
+
+    private static string? Resolve(RevisionIndex index, string pin)
     {
-        var s = shaOrPrefix.Trim().ToLowerInvariant();
+        var trimmed = pin.Trim();
+        if (index.Refs?.TryGetValue(trimmed, out var bySha) == true && index.Revisions.Any(r => r.Sha == bySha)) return bySha;
+        var s = trimmed.ToLowerInvariant();
         if (!ShaRegex().IsMatch(s)) return null;
-        var matches = Read(tenant).Revisions.Where(r => r.Sha.StartsWith(s, StringComparison.Ordinal)).ToList();
+        var matches = index.Revisions.Where(r => r.Sha.StartsWith(s, StringComparison.Ordinal)).ToList();
         return matches.Count == 1 ? matches[0].Sha : null;
     }
 
+    /// <summary>Remembers which commit a tag/branch pointed to (no-op for SHAs).</summary>
+    public static void AddRef(Tenant tenant, string reference, string sha)
+    {
+        if (ShaRegex().IsMatch(reference.ToLowerInvariant()) && sha.StartsWith(reference.ToLowerInvariant(), StringComparison.Ordinal)) return;
+        lock (WriteLock)
+        {
+            var index = Read(tenant);
+            var refs = new Dictionary<string, string>(index.Refs ?? []) { [reference] = sha };
+            Write(tenant, index with { Refs = refs });
+        }
+    }
+
     /// <summary>Snapshots the tenant's current CV files as <paramref name="sha"/> and marks it as current.</summary>
-    public static CvRevision Register(Tenant tenant, string sha, string? message, DateTimeOffset? committedAt, DateTimeOffset now)
+    public static CvRevision Register(Tenant tenant, string sha, string? message, DateTimeOffset? committedAt,
+        DateTimeOffset now, RevisionSource? source = null) =>
+        Store(tenant, sha, tenant.Directory, message, committedAt, now, makeCurrent: true, source);
+
+    /// <summary>
+    /// Stores the cv.&lt;locale&gt;.json files and assets/ of <paramref name="sourceDirectory"/> as snapshot
+    /// <paramref name="sha"/>; optionally marks it as current and updates the git source.
+    /// </summary>
+    public static CvRevision Store(Tenant tenant, string sha, string sourceDirectory, string? message, DateTimeOffset? committedAt,
+        DateTimeOffset now, bool makeCurrent, RevisionSource? source = null)
     {
         lock (WriteLock)
         {
@@ -55,9 +87,9 @@ public static partial class RevisionStore
             var staging = target + ".tmp";
             if (System.IO.Directory.Exists(staging)) System.IO.Directory.Delete(staging, recursive: true);
             System.IO.Directory.CreateDirectory(staging);
-            foreach (var file in CvFiles(tenant.Directory))
+            foreach (var file in CvFiles(sourceDirectory))
                 File.Copy(file, Path.Combine(staging, Path.GetFileName(file)));
-            var assets = Path.Combine(tenant.Directory, "assets");
+            var assets = Path.Combine(sourceDirectory, "assets");
             if (System.IO.Directory.Exists(assets))
             {
                 System.IO.Directory.CreateDirectory(Path.Combine(staging, "assets"));
@@ -70,7 +102,7 @@ public static partial class RevisionStore
             var revision = new CvRevision(sha, message, committedAt, now, ContentHash(target));
             var index = Read(tenant);
             var revisions = index.Revisions.Where(r => r.Sha != sha).Prepend(revision).ToList();
-            Write(tenant, new RevisionIndex(sha, revisions));
+            Write(tenant, new RevisionIndex(makeCurrent ? sha : index.Current, revisions, source ?? index.Source));
             return revision;
         }
     }
@@ -84,8 +116,8 @@ public static partial class RevisionStore
         lock (WriteLock)
         {
             var index = Read(tenant);
-            var used = pins.Select(p => p.Trim().ToLowerInvariant()).Where(p => p.Length > 0).ToList();
-            bool Keep(string sha) => sha == index.Current || used.Any(p => sha.StartsWith(p, StringComparison.Ordinal));
+            var used = pins.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => Resolve(index, p)).OfType<string>().ToHashSet();
+            bool Keep(string sha) => sha == index.Current || used.Contains(sha);
 
             var removed = index.Revisions.Where(r => !Keep(r.Sha)).Select(r => r.Sha).ToList();
             foreach (var sha in removed)
@@ -100,13 +132,20 @@ public static partial class RevisionStore
                         System.IO.Directory.Delete(dir, recursive: true);
 
             if (removed.Count > 0)
-                Write(tenant, index with { Revisions = index.Revisions.Where(r => !removed.Contains(r.Sha)).ToList() });
+                Write(tenant, index with
+                {
+                    Revisions = index.Revisions.Where(r => !removed.Contains(r.Sha)).ToList(),
+                    Refs = index.Refs?.Where(r => !removed.Contains(r.Value)).ToDictionary(),
+                });
             return removed;
         }
     }
 
-    private static void Write(Tenant tenant, RevisionIndex index) =>
+    private static void Write(Tenant tenant, RevisionIndex index)
+    {
+        System.IO.Directory.CreateDirectory(Directory(tenant));
         File.WriteAllText(Path.Combine(Directory(tenant), "index.json"), JsonSerializer.Serialize(index, JsonOptions));
+    }
 
     /// <summary>Hash over the cv.&lt;locale&gt;.json files and assets in a directory (names and bytes).</summary>
     public static string ContentHash(string directory)

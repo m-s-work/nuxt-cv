@@ -5,6 +5,8 @@ import {
 } from '~/composables/useAdmin'
 
 const props = defineProps<{ tenant: AdminTenant, revisions?: CvRevisions | null }>()
+// Pinning can fetch a revision from git, so the page reloads the revision list afterwards.
+const emit = defineEmits<{ 'revisions-changed': [] }>()
 const admin = useAdmin()
 
 const invites = ref<AdminInvite[]>([])
@@ -48,13 +50,15 @@ const revisionItems = computed(() => [
   ...(props.revisions?.revisions ?? []).map(r => ({
     label: `Pin to ${shortSha(r.sha)}${r.message ? ` · ${r.message}` : ''}${r.sha === props.revisions?.current ? ' (current)' : ''}`,
     value: r.sha
-  }))
+  })),
+  { label: 'Other commit or tag… (fetched from git)', value: 'other' }
 ])
 
 function emptyForm() {
   return {
     profile: props.tenant.profiles[0] ?? '',
     revision: 'inherit',
+    otherRevision: '',
     label: '',
     expiresOn: '',
     maxUses: '' as string | number,
@@ -83,8 +87,9 @@ async function create() {
       // End of the chosen day in the admin's time zone.
       expiresAt: form.expiresOn ? new Date(`${form.expiresOn}T23:59:59`).toISOString() : undefined,
       maxUses: form.maxUses === '' ? undefined : Number(form.maxUses),
-      overrides: withRevision(buildOverrides(form.overrides), form.revision)
+      overrides: withRevision(buildOverrides(form.overrides), form.revision === 'other' ? form.otherRevision.trim() : form.revision)
     })
+    if (form.revision !== 'inherit') emit('revisions-changed')
     Object.assign(form, emptyForm())
     showOverrides.value = false
     await load()
@@ -151,6 +156,19 @@ async function repin(invite: AdminInvite, revision: string | null) {
   try {
     await admin.pinInvite(props.tenant.id, invite.id, revision)
     await load()
+    emit('revisions-changed')
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = null
+  }
+}
+
+async function fetchPin(invite: AdminInvite) {
+  busy.value = invite.id
+  try {
+    await admin.fetchRevision(props.tenant.id, invite.revision!)
+    emit('revisions-changed')
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -203,7 +221,11 @@ onMounted(load)
           <label class="text-sm space-y-1 sm:col-span-2">
             <span class="text-gray-500">CV version</span>
             <USelect v-model="form.revision" :items="revisionItems" class="w-full" aria-label="CV version" />
-            <span class="block text-xs text-gray-500">Only the current version and versions still pinned somewhere are kept.</span>
+            <UInput
+              v-if="form.revision === 'other'" v-model="form.otherRevision" class="w-full mt-1"
+              placeholder="commit SHA, tag or branch, e.g. application-acme" aria-label="Commit or tag"
+            />
+            <span class="block text-xs text-gray-500">Versions no longer stored are fetched from the CV's git repository.</span>
           </label>
         </div>
 
@@ -228,7 +250,7 @@ onMounted(load)
         </div>
 
         <p v-if="createError" class="text-sm text-red-600 dark:text-red-400">{{ createError }}</p>
-        <UButton type="submit" icon="i-lucide-plus" label="Create invite" :loading="creating" :disabled="!form.profile" />
+        <UButton type="submit" icon="i-lucide-plus" label="Create invite" :loading="creating" :disabled="!form.profile || (form.revision === 'other' && !form.otherRevision.trim())" />
         <span v-if="creating" class="text-sm text-gray-500 ml-3">Rendering PDFs, this can take a few seconds…</span>
       </form>
 
@@ -314,7 +336,12 @@ onMounted(load)
                 <div v-if="invite.revision && !invite.depth" class="mt-1 flex items-center gap-1 flex-wrap" :data-testid="`pin-${invite.id}`">
                   <UBadge
                     size="sm" variant="subtle" icon="i-lucide-pin" :color="pinColor[pinOf(invite)!]"
-                    :label="`${shortSha(invite.revision)}${invite.pinnedBy === 'profile' ? ' (profile)' : ''}${pinOf(invite) === 'outdated' ? ' · outdated' : pinOf(invite) === 'missing' ? ' · unknown, shows current CV' : ''}`"
+                    :label="`${shortSha(invite.revision)}${invite.pinnedBy === 'profile' ? ' (profile)' : ''}${pinOf(invite) === 'outdated' ? ' · outdated' : pinOf(invite) === 'missing' ? ' · not stored, shows current CV' : ''}`"
+                  />
+                  <UButton
+                    v-if="pinOf(invite) === 'missing' && revisions?.source"
+                    size="xs" color="neutral" variant="ghost" icon="i-lucide-git-branch" label="Fetch from git"
+                    :loading="busy === invite.id" @click="fetchPin(invite)"
                   />
                   <UButton
                     v-if="pinOf(invite) !== 'current' && revisions?.current && inviteStatus(invite) !== 'revoked'"

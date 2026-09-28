@@ -97,6 +97,10 @@ describe('pinStatus', () => {
     expect(pinStatus('AAAAAAA', revisions)).toBe('outdated')
   })
 
+  it('matches fetched tags', () => {
+    expect(pinStatus('sent-acme', { ...revisions, revisions: [{ sha: 'aaaaaaa1', registeredAt: '', outdated: true, refs: ['sent-acme'] }] })).toBe('outdated')
+  })
+
   it('reports unknown revisions as missing', () => {
     expect(pinStatus('ccccccc', revisions)).toBe('missing')
     expect(pinStatus('ccccccc', null)).toBe('missing')

@@ -21,7 +21,10 @@ public static partial class AdminEndpoints
     [GeneratedRegex(@"^(tenant\.json|cv\.[a-z]{2}(-[A-Z]{2})?\.json|assets/[A-Za-z0-9][A-Za-z0-9._-]{0,127})$")]
     private static partial Regex AllowedFileRegex();
 
-    public sealed record RegisterRevisionRequest(string Sha, string? Message, DateTimeOffset? CommittedAt);
+    /// <param name="Repo">Git remote of the CV repo and <paramref name="Path"/> the tenant folder in it, so pruned revisions can be fetched again.</param>
+    public sealed record RegisterRevisionRequest(string Sha, string? Message, DateTimeOffset? CommittedAt, string? Repo, string? Path);
+
+    public sealed record FetchRevisionRequest(string Ref);
 
     /// <summary>Revision: SHA/prefix = pin, "" = current CV even if the profile is pinned, null = follow the profile.</summary>
     public sealed record PinRequest(string? Revision);
@@ -49,7 +52,7 @@ public static partial class AdminEndpoints
             locales = TenantStore.Locales(t),
             // Profiles pinned to a CV revision in tenant.json.
             pins = t.Config.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.Value.Revision))
-                .ToDictionary(p => p.Key, p => p.Value.Revision!.Trim().ToLowerInvariant()),
+                .ToDictionary(p => p.Key, p => p.Value.Revision!.Trim()),
         }));
 
         // CV revisions (git commits registered by tools/cv-sync.sh). "outdated" = the current CV differs from it.
@@ -61,6 +64,7 @@ public static partial class AdminEndpoints
             return Results.Ok(new
             {
                 current = index.Current,
+                source = index.Source,
                 // The live files were changed after the last registered revision (e.g. edited in the admin UI).
                 modified = index.Revisions.FirstOrDefault(r => r.Sha == index.Current)?.ContentHash is { } h && h != live,
                 revisions = index.Revisions.Select(r => new
@@ -70,20 +74,37 @@ public static partial class AdminEndpoints
                     committedAt = r.CommittedAt,
                     registeredAt = r.RegisteredAt,
                     outdated = r.ContentHash != live,
+                    refs = index.Refs?.Where(x => x.Value == r.Sha).Select(x => x.Key).ToList() ?? [],
                 }),
             });
         });
 
         admin.MapPost("/tenants/{tenantId}/revisions", async (string tenantId, RegisterRevisionRequest body, TenantStore tenants,
-            AppDbContext db, TimeProvider time, CancellationToken ct) =>
+            AppDbContext db, TimeProvider time, GitRevisionFetcher git, CancellationToken ct) =>
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var sha = body.Sha?.Trim().ToLowerInvariant() ?? "";
             if (!RevisionStore.ShaRegex().IsMatch(sha)) return Results.BadRequest(new { error = "invalid_sha" });
             if (TenantStore.Locales(tenant).Count == 0) return Results.BadRequest(new { error = "no_cv" });
-            var revision = RevisionStore.Register(tenant, sha, body.Message, body.CommittedAt, time.GetUtcNow());
+            RevisionSource? source = null;
+            if (!string.IsNullOrWhiteSpace(body.Repo))
+            {
+                source = new RevisionSource(StripCredentials(body.Repo.Trim()), body.Path?.Trim().Trim('/') ?? "");
+                if (!git.IsValidSource(source)) return Results.BadRequest(new { error = "invalid_source" });
+            }
+            var revision = RevisionStore.Register(tenant, sha, body.Message, body.CommittedAt, time.GetUtcNow(), source);
             await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
             return Results.Ok(new { sha = revision.Sha, message = revision.Message, committedAt = revision.CommittedAt, registeredAt = revision.RegisteredAt });
+        });
+
+        // Fetch a revision (SHA, tag or branch) from the tenant's git repo again, e.g. after it was pruned.
+        admin.MapPost("/tenants/{tenantId}/revisions/fetch", async (string tenantId, FetchRevisionRequest body, TenantStore tenants,
+            GitRevisionFetcher git, CancellationToken ct) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            if (RevisionStore.Resolve(tenant, body.Ref ?? "") is { } known) return Results.Ok(new { sha = known });
+            var result = await git.FetchAsync(tenant, body.Ref ?? "", ct);
+            return result.Sha is { } sha ? Results.Ok(new { sha }) : Results.BadRequest(new { error = result.Error });
         });
 
         // Profile definitions of a tenant (for the admin UI's invite form and preview).
@@ -100,7 +121,7 @@ public static partial class AdminEndpoints
 
         admin.MapPost("/tenants/{tenantId}/invites", async (string tenantId, CreateInviteRequest body,
             TenantStore tenants, AppDbContext db, IConfiguration config, TimeProvider time,
-            AccessService access, PdfService pdf, CancellationToken ct) =>
+            AccessService access, PdfService pdf, GitRevisionFetcher git, CancellationToken ct) =>
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
@@ -109,7 +130,8 @@ public static partial class AdminEndpoints
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
             if (body.Overrides is { Revision: { Length: > 0 } pin })
             {
-                if (RevisionStore.Resolve(tenant, pin) is not { } sha) return Results.BadRequest(new { error = "unknown_revision" });
+                var (sha, pinError) = await EnsureRevisionAsync(tenant, pin, git, ct);
+                if (sha is null) return Results.BadRequest(new { error = "unknown_revision", detail = pinError });
                 body.Overrides.Revision = sha;
             }
 
@@ -159,7 +181,8 @@ public static partial class AdminEndpoints
 
         // Pin an invite (and its QR invite) to a CV revision, e.g. to update an outdated pin.
         admin.MapPut("/tenants/{tenantId}/invites/{id:guid}/revision", async (string tenantId, Guid id, PinRequest body,
-            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, TimeProvider time, CancellationToken ct) =>
+            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, TimeProvider time,
+            GitRevisionFetcher git, CancellationToken ct) =>
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
@@ -168,7 +191,8 @@ public static partial class AdminEndpoints
             var revision = body.Revision?.Trim();
             if (revision is { Length: > 0 })
             {
-                if (RevisionStore.Resolve(tenant, revision) is not { } sha) return Results.BadRequest(new { error = "unknown_revision" });
+                var (sha, pinError) = await EnsureRevisionAsync(tenant, revision, git, ct);
+                if (sha is null) return Results.BadRequest(new { error = "unknown_revision", detail = pinError });
                 revision = sha;
             }
 
@@ -197,7 +221,7 @@ public static partial class AdminEndpoints
         // File management, so tenants can be maintained without shell access to the volume.
         // tenant.json and cv.<locale>.json must be valid JSON; assets are stored as-is.
         admin.MapPut("/tenants/{tenantId}/files/{**path}", async (string tenantId, string path, HttpRequest request,
-            TenantStore tenants, IConfiguration config, AppDbContext db, TimeProvider time, CancellationToken ct) =>
+            TenantStore tenants, IConfiguration config, AppDbContext db, TimeProvider time, GitRevisionFetcher git, CancellationToken ct) =>
         {
             if (!TenantIdRegex().IsMatch(tenantId)) return Results.BadRequest(new { error = "invalid_tenant_id" });
             if (!AllowedFileRegex().IsMatch(path)) return Results.BadRequest(new { error = "invalid_path" });
@@ -231,7 +255,13 @@ public static partial class AdminEndpoints
             tenants.Invalidate();
             // Profile pins may have changed.
             if (path == "tenant.json" && tenants.Get(tenantId) is { } changed)
+            {
+                // Profiles pinned to a revision that is not stored (anymore): fetch it from git. Failures show up
+                // as "unknown" pins in the admin UI and can be retried there.
+                foreach (var pin in changed.Config.Profiles.Values.Select(p => p.Revision).OfType<string>().Where(p => p.Trim().Length > 0).Distinct())
+                    await EnsureRevisionAsync(changed, pin, git, ct);
                 await PruneRevisionsAsync(changed, db, time.GetUtcNow(), ct);
+            }
             return Results.NoContent();
         });
 
@@ -329,12 +359,26 @@ public static partial class AdminEndpoints
         RevisionStore.Prune(tenant, pins);
     }
 
+    /// <summary>Full SHA of a pin: from the stored revisions, otherwise fetched from the tenant's git repo.</summary>
+    private static async Task<(string? Sha, string? Error)> EnsureRevisionAsync(Tenant tenant, string pin, GitRevisionFetcher git, CancellationToken ct)
+    {
+        if (RevisionStore.Resolve(tenant, pin) is { } known) return (known, null);
+        var result = await git.FetchAsync(tenant, pin, ct);
+        return (result.Sha, result.Error);
+    }
+
+    /// <summary>Removes user:password from an https URL, so no credentials end up in index.json.</summary>
+    private static string StripCredentials(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.UserInfo.Length > 0
+            ? new UriBuilder(uri) { UserName = "", Password = "" }.Uri.ToString()
+            : url;
+
     private static string? PinOf(Invite i, Tenant? tenant)
     {
         var own = AccessService.ParseOverrides(i.OverridesJson)?.Revision;
-        if (own is not null) return own.Trim().ToLowerInvariant();
+        if (own is not null) return own.Trim();
         return tenant is not null && tenant.Config.Profiles.TryGetValue(i.Profile, out var p) && !string.IsNullOrWhiteSpace(p.Revision)
-            ? p.Revision.Trim().ToLowerInvariant()
+            ? p.Revision.Trim()
             : null;
     }
 

@@ -60,13 +60,12 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
     }
 
     /// <summary>
-    /// Directory holding the master CV files: the snapshot of a pinned revision (prefix allowed), or the
+    /// Directory holding the master CV files: the snapshot of a pinned revision (SHA, prefix or fetched tag), or the
     /// tenant's live files if no revision is pinned or its snapshot is missing (the admin UI warns about that).
     /// </summary>
     public static string CvDirectory(Tenant tenant, string? revision)
     {
-        if (revision is not null && RevisionStore.ShaRegex().IsMatch(revision)
-            && (revision.Length == 40 ? revision : RevisionStore.Resolve(tenant, revision)) is { } sha)
+        if (revision is not null && RevisionStore.Resolve(tenant, revision) is { } sha)
         {
             var dir = Path.Combine(RevisionStore.Directory(tenant), sha);
             if (System.IO.Directory.Exists(dir)) return dir;

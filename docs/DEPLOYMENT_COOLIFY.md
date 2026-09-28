@@ -36,6 +36,7 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    | `CV_CLIENT_IP_HEADER` | `CF-Connecting-IP` | Set when traffic arrives through a Cloudflare Tunnel (see below). |
    | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
    | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
+   | `CV_GIT_TOKEN` | fine-grained GitHub token, *Contents: read* on the CV repo | Lets the API fetch pinned CV versions from a private CV repository again. Mark as secret. Not needed for public repos. |
 
 5. Deploy. Health checks: `web` → `GET /healthz`, `api` → `dotnet CvApi.dll --healthcheck` (both built into the images).
 

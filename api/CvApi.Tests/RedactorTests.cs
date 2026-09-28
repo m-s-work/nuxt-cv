@@ -27,7 +27,7 @@ public sealed class RedactorTests
     public void Invite_revision_replaces_profile_pin_and_empty_unpins()
     {
         var profile = new AccessPolicy { Revision = "ABCDEF1" };
-        Assert.Equal("abcdef1", EffectivePolicy.From(profile).Revision);
+        Assert.Equal("ABCDEF1", EffectivePolicy.From(profile).Revision);    // tags are case-sensitive
         Assert.Equal("1234567", EffectivePolicy.From(profile, new AccessPolicy { Revision = "1234567" }).Revision);
         Assert.Null(EffectivePolicy.From(profile, new AccessPolicy { Revision = "" }).Revision);
         Assert.Null(EffectivePolicy.From(new AccessPolicy()).Revision);

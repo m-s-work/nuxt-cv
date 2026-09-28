@@ -184,7 +184,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
 | `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en[&revision=<sha>\|current]` | admin key | Show redacted CV for a profile (optionally of a registered revision, §14). |
-| `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List registered CV revisions (`current`, `modified`, per revision `outdated`) / register the current CV files as revision `{ sha, message?, committedAt? }` (§14). |
+| `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List stored CV revisions (`current`, `modified`, `source`, per revision `outdated`, `refs`) / register the current CV files as revision `{ sha, message?, committedAt?, repo?, path? }` (§14). |
+| `POST /api/admin/tenants/{tenant}/revisions/fetch` `{ ref }` | admin key | Fetch a revision (SHA, tag or branch) from the tenant's git repo again (§14). |
 | `PUT /api/admin/tenants/{tenant}/invites/{id}/revision` `{ revision }` | admin key | Pin an invite (and its QR invite) to a revision; `""` = current CV, `null` = follow the profile (§14). |
 
 - Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
@@ -319,13 +320,15 @@ A CV *variant* (an invite, or a profile) can be pinned to the CV as it was at a 
 with an application.
 
 - R14.1 **Registering.** After uploading, `cv-sync.sh` registers the deployed CV under its git commit
-  (`POST …/revisions`, SHA from `git rev-parse HEAD` of the tenant folder or `CV_REVISION`). The API copies the
+  (`POST …/revisions`, SHA from `git rev-parse HEAD` of the tenant folder or `CV_REVISION`, plus the HTTPS URL of
+  the repo and the tenant folder in it). The API copies the
   tenant's current `cv.<locale>.json` files and `assets/` into `revisions/<sha>/` and marks it as current. Registering the
   same SHA again replaces its snapshot.
-- R14.2 **Pinning.** `revision` (full SHA or unique prefix ≥ 7) can be set on a profile in `tenant.json` or as an
+- R14.2 **Pinning.** `revision` (full SHA, unique prefix ≥ 7, or a tag/branch name) can be set on a profile in `tenant.json` or as an
   invite override (on creation or later via `PUT …/invites/{id}/revision`). The invite's pin replaces the
-  profile's; `""` on an invite means "current CV" even if its profile is pinned. Pins on invites must name a
-  registered revision (`400 unknown_revision` otherwise); QR invites follow their parent.
+  profile's; `""` on an invite means "current CV" even if its profile is pinned. Invite pins are stored as the
+  full SHA; a revision that is not stored is fetched from git first (R14.6), `400 unknown_revision` if that
+  fails. QR invites follow their parent.
 - R14.3 **Serving.** A pinned grant gets the master CV and the assets of the snapshot (all endpoints: CV,
   assets, PDF, admin preview); redaction (profile, flags, overrides) is applied as usual with the **current**
   `tenant.json`. If a pinned snapshot does not exist, the current CV and assets are served and the admin UI
@@ -337,4 +340,13 @@ with an application.
 - R14.5 **Retention.** Only snapshots in use are kept: the current revision, revisions pinned by a profile in
   `tenant.json`, and revisions pinned by an active (not revoked, not expired) invite. Unused snapshots are
   deleted after registering a revision, revoking or re-pinning an invite, and uploading `tenant.json`.
-  A deleted revision cannot be pinned again; a profile pin to it shows as unknown.
+  A deleted revision is fetched from git again when it is needed (R14.6).
+- R14.6 **Fetching from git.** A revision that is not stored (never registered, or pruned) is fetched from the
+  tenant's git repo again: when an invite is created or re-pinned with it, when an uploaded `tenant.json`
+  pins a profile to it, and via "Fetch from git" in the admin UI (`POST …/revisions/fetch`). The API fetches
+  only that commit (`git fetch --depth=1 <repo> <ref>` into a cache under `/data/git/<tenant>`), extracts the
+  tenant folder (`cv.<locale>.json`, `assets/`) and stores it as a non-current snapshot; tags/branches are
+  remembered with the commit they resolved to. Only HTTPS repos are used; private repos need
+  `Git__Token` (read-only token, sent as HTTP basic auth, never on the command line). Visitor requests never
+  trigger a fetch: an unknown pin serves the current CV until the revision is fetched.
+

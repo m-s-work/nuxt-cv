@@ -358,6 +358,67 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Pruned_revisions_are_fetched_from_git_again()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var repo = Path.Combine(_factory.DataPath, "cv-repo");
+        var folder = Path.Combine(repo, "tenants", "bob");
+        Directory.CreateDirectory(Path.Combine(folder, "assets"));
+        Git(repo, "init", "-q");
+
+        async Task<string> Deploy(string name, string message)
+        {
+            var cv = $$"""{ "profile": { "name": "{{name}}" } }""";
+            File.WriteAllText(Path.Combine(folder, "cv.en.json"), cv);
+            File.WriteAllText(Path.Combine(folder, "assets", "logo.svg"), name);
+            Git(repo, "add", "-A");
+            Git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", message);
+            var sha = Git(repo, "rev-parse", "HEAD");
+            _factory.WriteCv("bob", "en", cv);                          // what cv-sync.sh uploads
+            (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions",
+                new { sha, message, repo, path = "tenants/bob" })).EnsureSuccessStatusCode();
+            return sha;
+        }
+
+        var sent = await Deploy("Bob as sent", "Application ACME");
+        Git(repo, "tag", "sent-acme");
+        await Deploy("Bob later", "Later changes");
+        var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.DoesNotContain(revisions!["revisions"]!.AsArray(), r => r!["sha"]!.GetValue<string>() == sent);   // pruned
+
+        // Pinning to the pruned commit (by tag) fetches it from git again.
+        var code = await _factory.CreateInviteAsync("bob", new { profile = "full", overrides = new { revision = "sent-acme" } });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, code);
+        Assert.Equal("Bob as sent", (await Cv(client))["cv"]!["profile"]!["name"]!.GetValue<string>());
+
+        revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        var fetched = revisions!["revisions"]!.AsArray().Single(r => r!["sha"]!.GetValue<string>() == sent)!;
+        Assert.Equal("Application ACME", fetched["message"]!.GetValue<string>());
+        Assert.Equal(["sent-acme"], fetched["refs"]!.AsArray().Select(r => r!.GetValue<string>()));
+        Assert.True(fetched["outdated"]!.GetValue<bool>());
+        Assert.Equal("tenants/bob", revisions["source"]!["path"]!.GetValue<string>());
+
+        var unknown = await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions/fetch", new { @ref = "no-such-tag" });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions/fetch", new { @ref = "--upload-pack=x" })).StatusCode);
+
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
+    }
+
+    private static string Git(string dir, params string[] args)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = dir, RedirectStandardOutput = true };
+        foreach (var arg in args) start.ArgumentList.Add(arg);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        Assert.Equal(0, process.ExitCode);
+        return output;
+    }
+
+    [Fact]
     public async Task Pdf_is_disabled_without_renderer()
     {
         _factory.SetPublicProfile("alice", "public");

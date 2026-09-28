@@ -81,6 +81,23 @@ const profilePins = computed(() => Object.entries(selected.value?.pins ?? {})
   .map(([profile, sha]) => ({ profile, sha, status: pinStatus(sha, revisions.value) })))
 const pinColor = { current: 'neutral', outdated: 'warning', missing: 'error' } as const
 
+// Profile pinned to a revision that is not stored: fetch it from the CV's git repo.
+const fetching = ref<string | null>(null)
+const fetchError = ref('')
+async function fetchPin(pin: string) {
+  if (!selectedId.value) return
+  fetching.value = pin
+  fetchError.value = ''
+  try {
+    await admin.fetchRevision(selectedId.value, pin)
+    await loadRevisions()
+  } catch (e) {
+    fetchError.value = `${pin}: ${errorMessage(e)}`
+  } finally {
+    fetching.value = null
+  }
+}
+
 // New tenant: only needs an id; the files tab then offers a tenant.json template.
 const newTenantId = ref('')
 const newTenantError = ref('')
@@ -164,15 +181,25 @@ onMounted(() => {
                   <dd class="flex gap-1 flex-wrap">
                     <UBadge
                       v-for="pin in profilePins" :key="pin.profile" :color="pinColor[pin.status]" variant="subtle" icon="i-lucide-pin"
-                      :label="`${pin.profile} → ${shortSha(pin.sha)}${pin.status === 'current' ? '' : pin.status === 'outdated' ? ' (outdated)' : ' (unknown revision)'}`"
+                      :label="`${pin.profile} → ${shortSha(pin.sha)}${pin.status === 'current' ? '' : pin.status === 'outdated' ? ' (outdated)' : ' (not stored)'}`"
                     />
                   </dd>
                 </template>
               </dl>
               <p v-if="profilePins.some(p => p.status !== 'current')" class="mt-3 text-sm text-amber-600 dark:text-amber-400" data-testid="profile-pin-warning">
                 <UIcon name="i-lucide-triangle-alert" class="align-middle" />
-                A profile is pinned to a CV version that is outdated or unknown. Update its <code>revision</code> in <code>tenant.json</code>.
+                A profile is pinned to a CV version that is outdated or not stored. Update its <code>revision</code> in <code>tenant.json</code>.
               </p>
+              <div v-if="profilePins.some(p => p.status === 'missing')" class="mt-1 flex gap-2 flex-wrap items-center">
+                <UButton
+                  v-for="pin in profilePins.filter(p => p.status === 'missing')" :key="pin.profile"
+                  size="xs" color="neutral" variant="outline" icon="i-lucide-git-branch"
+                  :label="`Fetch ${shortSha(pin.sha)} from git`" :loading="fetching === pin.sha" :disabled="!revisions?.source"
+                  @click="fetchPin(pin.sha)"
+                />
+                <span v-if="!revisions?.source" class="text-xs text-gray-500">No git repository known yet (deploy once with a current tools/cv-sync.sh).</span>
+                <span v-if="fetchError" class="text-xs text-red-600">{{ fetchError }}</span>
+              </div>
             </div>
             <div v-else-if="creatingTenant" class="rounded-lg border border-dashed border-primary p-4 text-sm">
               Creating tenant <code>{{ creatingTenant }}</code>: save a <code>tenant.json</code> below to create it.
@@ -191,7 +218,7 @@ onMounted(() => {
 
           <template v-if="activeTenantId">
             <UTabs v-model="tab" :items="tabs" :content="false" class="mb-4" />
-            <AdminInvites v-if="tab === 'invites' && selected && !creatingTenant" :key="`i-${selected.id}`" :tenant="selected" :revisions="revisions" />
+            <AdminInvites v-if="tab === 'invites' && selected && !creatingTenant" :key="`i-${selected.id}`" :tenant="selected" :revisions="revisions" @revisions-changed="loadRevisions" />
             <AdminFiles v-else-if="tab === 'files'" :key="`f-${activeTenantId}`" :tenant-id="activeTenantId" :is-new="!!creatingTenant" @changed="onTenantChanged(activeTenantId)" />
             <AdminPreview v-else-if="tab === 'preview' && selected && !creatingTenant" :key="`p-${selected.id}`" :tenant="selected" :revisions="revisions" />
             <p v-else class="text-sm text-gray-500">Save a <code>tenant.json</code> first.</p>
