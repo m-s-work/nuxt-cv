@@ -23,6 +23,7 @@
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.137",
     "@nuxt/test-utils": "^3.19.2",
     "@types/qrcode": "^1.5.5",
     "@vitest/coverage-v8": "^3.2.4",

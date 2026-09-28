@@ -212,6 +212,33 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Admin_can_list_read_and_delete_tenant_files()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+
+        var files = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/files");
+        var paths = files!.Select(f => f!["path"]!.GetValue<string>()).ToList();
+        Assert.Equal(["assets/alice.jpg", "assets/unlisted.jpg", "cv.en.json", "tenant.json"], paths);
+
+        var tenantJson = await admin.GetStringAsync("/api/admin/tenants/alice/files/tenant.json");
+        Assert.Contains("\"Alice\"", tenantJson);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/admin/tenants/alice/files/cv.de.json")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/admin/tenants/alice/files/..%2Fbob%2Ftenant.json")).StatusCode);
+
+        var tenants = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants");
+        var alice = tenants!.Single(t => t!["id"]!.GetValue<string>() == "alice")!;
+        Assert.Equal(["en"], alice["locales"]!.AsArray().Select(l => l!.GetValue<string>()));
+
+        var profiles = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/alice/profiles");
+        Assert.True(profiles!["public"]!["flags"]!["hideCompanies"]!.GetValue<bool>());
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.DeleteAsync("/api/admin/tenants/alice/files/tenant.json")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync("/api/admin/tenants/alice/files/assets/unlisted.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync("/api/admin/tenants/alice/files/assets/unlisted.jpg")).StatusCode);
+    }
+
+    [Fact]
     public async Task Pdf_is_disabled_without_renderer()
     {
         _factory.SetPublicProfile("alice", "public");

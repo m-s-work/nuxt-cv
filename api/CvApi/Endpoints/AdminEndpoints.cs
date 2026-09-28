@@ -41,7 +41,12 @@ public static partial class AdminEndpoints
             defaultLocale = t.Config.DefaultLocale,
             publicProfile = t.Config.PublicProfile,
             profiles = t.Config.Profiles.Keys,
+            locales = TenantStore.Locales(t),
         }));
+
+        // Profile definitions of a tenant (for the admin UI's invite form and preview).
+        admin.MapGet("/tenants/{tenantId}/profiles", (string tenantId, TenantStore tenants) =>
+            tenants.Get(tenantId) is { } tenant ? Results.Ok(tenant.Config.Profiles) : Results.NotFound());
 
         admin.MapGet("/tenants/{tenantId}/invites", async (string tenantId, TenantStore tenants, AppDbContext db, CancellationToken ct) =>
         {
@@ -144,10 +149,49 @@ public static partial class AdminEndpoints
                 }
             }
 
-            var dir = Path.Combine(Path.GetFullPath(config["Cv:DataPath"] ?? "/data"), "tenants", tenantId);
+            var dir = TenantDir(config, tenantId);
             var target = Path.Combine(dir, path);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             await File.WriteAllBytesAsync(target, buffer.ToArray(), ct);
+            tenants.Invalidate();
+            return Results.NoContent();
+        });
+
+        admin.MapGet("/tenants/{tenantId}/files", (string tenantId, IConfiguration config) =>
+        {
+            if (!TenantIdRegex().IsMatch(tenantId)) return Results.BadRequest(new { error = "invalid_tenant_id" });
+            var dir = TenantDir(config, tenantId);
+            if (!Directory.Exists(dir)) return Results.NotFound();
+            var files = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(dir, f).Replace(Path.DirectorySeparatorChar, '/'))
+                .Where(p => AllowedFileRegex().IsMatch(p))
+                .Order(StringComparer.Ordinal)
+                .Select(p =>
+                {
+                    var info = new FileInfo(Path.Combine(dir, p));
+                    return new { path = p, size = info.Length, modifiedAt = new DateTimeOffset(info.LastWriteTimeUtc) };
+                });
+            return Results.Ok(files);
+        });
+
+        admin.MapGet("/tenants/{tenantId}/files/{**path}", (string tenantId, string path, IConfiguration config) =>
+        {
+            if (!TenantIdRegex().IsMatch(tenantId) || !AllowedFileRegex().IsMatch(path)) return Results.BadRequest(new { error = "invalid_path" });
+            var file = Path.Combine(TenantDir(config, tenantId), path);
+            if (!File.Exists(file)) return Results.NotFound();
+            if (!ContentTypes.TryGetContentType(file, out var contentType)) contentType = "application/octet-stream";
+            return Results.File(file, contentType);
+        });
+
+        // tenant.json cannot be deleted here (it defines the tenant); CV files and assets can.
+        admin.MapDelete("/tenants/{tenantId}/files/{**path}", (string tenantId, string path, IConfiguration config, TenantStore tenants) =>
+        {
+            if (!TenantIdRegex().IsMatch(tenantId) || !AllowedFileRegex().IsMatch(path) || path == "tenant.json")
+                return Results.BadRequest(new { error = "invalid_path" });
+            var file = Path.Combine(TenantDir(config, tenantId), path);
+            if (!File.Exists(file)) return Results.NotFound();
+            File.Delete(file);
+            tenants.Invalidate();
             return Results.NoContent();
         });
 
@@ -161,6 +205,11 @@ public static partial class AdminEndpoints
             return Results.Ok(new { locale = loaded.Locale, cv = CvRedactor.Redact(loaded.Cv, EffectivePolicy.From(policy)) });
         });
     }
+
+    private static readonly Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider ContentTypes = new();
+
+    private static string TenantDir(IConfiguration config, string tenantId) =>
+        Path.Combine(Path.GetFullPath(config["Cv:DataPath"] ?? "/data"), "tenants", tenantId);
 
     private static object ToDto(Invite i) => new
     {

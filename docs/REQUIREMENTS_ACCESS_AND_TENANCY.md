@@ -166,11 +166,15 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/health` | – | Liveness for Coolify. |
-| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
+| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`). |
+| `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
 | `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
 | `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
-| `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed. |
+| `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed; takes effect immediately. |
+| `GET /api/admin/tenants/{tenant}/files` | admin key | List the tenant's files (`path`, `size`, `modifiedAt`). |
+| `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
+| `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en` | admin key | Show redacted CV for a profile. |
 
 - Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
@@ -208,7 +212,6 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 10. Non-goals (for now)
 
-- No web admin UI; tenants, files and invites are managed via the admin API (curl / scripts).
 - No user accounts or passwords for visitors.
 - No per-visitor analytics beyond `useCount` / `lastUsedAt`.
 
@@ -274,3 +277,20 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   from `window.__CV_PDF_FOOTER__`. Browser printing (Ctrl+P) uses the same layout without the footer.
   After layout changes bump `CV_PDF_LAYOUT_VERSION` so cached PDFs are re-rendered.
 
+---
+
+## 13. Admin UI
+
+- R13.1 The SPA contains an owner-only admin page at `/admin`. It is a client of the admin API (§8) and
+  has no privileges of its own: without a valid `X-Admin-Key` it shows only a sign-in form, and if the
+  server has no admin key configured it reports that the admin API is disabled.
+- R13.2 The admin key is entered by the owner and kept in `sessionStorage` of that tab only (never in
+  cookies or `localStorage`, never in the URL). "Log out" clears it.
+- R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted),
+  usage and linked QR invites; create invites (profile, label, expiry, max. redemptions, per-invite
+  overrides) showing code, link and PDF render outcome once; revoke; re-render PDFs; edit `tenant.json`
+  and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
+  assets; preview the redacted CV of any profile and locale.
+- R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
+  and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
+  admin page's own CSS chunk, so the public pages are unaffected.

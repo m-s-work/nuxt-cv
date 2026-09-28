@@ -32,6 +32,22 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
 
     public Tenant? Get(string id) => Current().ById.GetValueOrDefault(id);
 
+    /// <summary>Drops the cached snapshot so the next read sees files changed via the admin API.</summary>
+    public void Invalidate()
+    {
+        lock (_lock) _snapshot = null;
+    }
+
+    /// <summary>Locales with a master CV file (cv.&lt;locale&gt;.json), sorted.</summary>
+    public static IReadOnlyList<string> Locales(Tenant tenant) =>
+        System.IO.Directory.Exists(tenant.Directory)
+            ? System.IO.Directory.GetFiles(tenant.Directory, "cv.*.json")
+                .Select(f => Path.GetFileName(f)[3..^5])
+                .Where(l => LocaleRegex().IsMatch(l))
+                .Order(StringComparer.Ordinal)
+                .ToList()
+            : [];
+
     public Tenant? FindByHost(string host) => Current().ByHost.GetValueOrDefault(NormalizeHost(host));
 
     public static string NormalizeHost(string host)

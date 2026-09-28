@@ -74,7 +74,8 @@ with a bind mount (e.g. `/srv/nuxt-cv-data:/data`); the directory must be writab
 
 ## 2. Add a tenant
 
-Tenants can be managed completely through the admin API (no shell access needed).
+Tenants can be managed completely through the admin UI at `https://<shared host>/admin`
+(sign in with `CV_ADMIN_API_KEY`) or through the admin API directly (no shell access needed).
 Examples use `KEY=<CV_ADMIN_API_KEY>` and `API=https://cv.velarix.space/api`.
 
 ```bash
@@ -142,6 +143,7 @@ cd src && npm install && npm run dev       # http://localhost:3000
 ```
 
 - `http://localhost:3000` → tenant `demo` (public profile enabled in the sample).
+- `http://localhost:3000/admin` → admin UI (key `dev-admin-key`).
 - `http://127.0.0.1:3000` → behaves like the shared host (no access without invite).
 - Create an invite: `curl -X POST -H "X-Admin-Key: dev-admin-key" -H "Content-Type: application/json" -d '{"profile":"full"}' http://localhost:5080/api/admin/tenants/bob/invites`
   and open `http://127.0.0.1:3000/?c=<code>`.

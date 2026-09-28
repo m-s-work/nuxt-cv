@@ -1,0 +1,6 @@
+/*
+ * Nuxt UI theme for the admin page only. Imported from pages/admin.vue, so Vite puts it in the
+ * admin chunk and the CV pages keep their own styling (main.css).
+ */
+@import "tailwindcss";
+@import "@nuxt/ui";
