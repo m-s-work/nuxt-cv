@@ -495,15 +495,18 @@ hiding or downplaying the actual data is not (that would also make the consent i
 
 **Visual design of the modal**
 
-Icons make the key promises easier to grasp. The first layer gets a row of four small illustrated points
-under the text (icon + 2–4 words each, same content as the text – they illustrate, they never replace it):
+Icons make the two real promises about the data easier to grasp. The first layer gets two small illustrated
+points under the text (icon + a few words each, same content as the text – they illustrate, they never
+replace it):
 
 | Icon (Lucide via `@nuxt/ui`) | en | de |
 |---|---|---|
 | `i-lucide-server` / `i-lucide-house` | Stays on {name}'s server | Bleibt auf {name}s Server |
 | `i-lucide-shield-check` | Never shared with third parties | Nie an Dritte weitergegeben |
-| `i-lucide-book-open` | Read the CV either way | Lebenslauf in jedem Fall lesbar |
-| `i-lucide-toggle-right` | Change your mind any time | Jederzeit änderbar |
+
+"Read the CV either way" and "change your choice any time" get **no** icons: they are not benefits of the
+tracking but obligations (R9.7, GDPR Art. 7(3)), and presenting them as selling points would be filler. They
+stay as plain sentences in the text, where they are required (R9.17).
 
 Optionally a small, calm header illustration (e.g. an open book / document with a friendly accent) in the
 CV's theme colours, light and dark mode.
