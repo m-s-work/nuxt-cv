@@ -68,7 +68,8 @@ curl -H "X-Admin-Key: $KEY" -o classic.pdf \
      (`.cv-print { display: none }` + `@media print { .cv-print { display: block } }`).
    - Use pt/mm units, `break-inside: avoid` for entries and `break-after: avoid` for headings.
    - Show only fields that exist: every field can be hidden by redaction.
-   - Include the notice `label('notice')`.
+   - Include the notice `label('notice')`, a link to the online version (`qrUrl`, shown as `onlineHost`)
+     and the credit `label('createdWith')` + `platformUrl`/`platformHost` (see existing templates).
 2. Register it in `src/app/utils/printTemplates.ts` (name, title, description, component).
 3. Add labels to `src/app/utils/printLabels.ts` if needed (EN + DE).
 4. Check it: `pdf-preview` with `template=<name>` for a full and a heavily redacted profile.

@@ -2,7 +2,7 @@
 // Downloads the PDF of exactly this visitor's view. The API serves it from cache; if the CV changed
 // since the last rendering it is rendered on request, which takes a few seconds – hence the message.
 const { t, locale } = useI18n()
-const { features } = useCv()
+const { features, cv } = useCv()
 const apiBase = useRuntimeConfig().public.apiBase as string
 
 const loading = ref(false)
@@ -21,7 +21,7 @@ async function download() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `CV-${locale.value}.pdf`
+    link.download = cvPdfFileName(cv.value?.profile?.name, locale.value)
     document.body.appendChild(link)
     link.click()
     link.remove()

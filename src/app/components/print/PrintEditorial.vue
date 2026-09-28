@@ -2,7 +2,7 @@
 // Print/PDF template "editorial": typeset A4 document – serif name, labelled contact grid,
 // sidebar (skills, languages, licences, QR) and a main column with a date gutter.
 const {
-  locale, label, getAssetPath, qrDataUrl, profile, intro, photo, contact, period,
+  locale, label, getAssetPath, qrDataUrl, qrUrl, onlineHost, platformUrl, platformHost, profile, intro, photo, contact, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries
 } = usePrintData()
 </script>
@@ -73,6 +73,7 @@ const {
         <section v-if="qrDataUrl" class="side-section qr">
           <img :src="qrDataUrl" :alt="label('online')" class="qr-image">
           <p class="qr-caption">{{ label('online') }}</p>
+          <a v-if="onlineHost" :href="qrUrl" class="qr-link">{{ onlineHost }}</a>
         </section>
       </aside>
 
@@ -130,7 +131,10 @@ const {
       </main>
     </div>
 
-    <p class="notice">{{ label('notice') }}</p>
+    <p class="notice">
+      {{ label('notice') }}
+      <span v-if="platformHost" class="credit">{{ label('createdWith') }} <a :href="platformUrl">{{ platformHost }}</a></span>
+    </p>
   </article>
 </template>
 
@@ -329,13 +333,28 @@ const {
     color: var(--muted);
   }
 
+  .qr-link {
+    display: block;
+    margin-top: 0.8mm;
+    font-size: 7.5pt;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+  }
   .notice {
+    display: flex;
+    justify-content: space-between;
+    gap: 6mm;
     margin-top: 8mm;
     padding-top: 2mm;
     border-top: 0.5pt solid var(--rule);
     font-size: 7pt;
     color: var(--muted);
     break-inside: avoid;
+  }
+  .credit a {
+    color: var(--accent);
+    text-decoration: none;
   }
 }
 </style>

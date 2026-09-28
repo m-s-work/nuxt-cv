@@ -2,6 +2,7 @@
 export const printLabels = {
   "en": {
     "cv": "Curriculum Vitae",
+    "createdWith": "Created with",
     "profile": "Profile",
     "skillsAndLanguages": "Skills & languages",
     "contact": {
@@ -26,6 +27,7 @@ export const printLabels = {
   },
   "de": {
     "cv": "Lebenslauf",
+    "createdWith": "Erstellt mit",
     "profile": "Profil",
     "skillsAndLanguages": "Kenntnisse & Sprachen",
     "contact": {
