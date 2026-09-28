@@ -2,13 +2,16 @@
 const { t } = useI18n()
 const { scrollToElementSafely } = useSafeScroll()
 
-const menuItems = [
-  { id: 'skills', label: 'menu.skills' },
-  { id: 'experiences', label: 'menu.experiences' },
-  { id: 'studies', label: 'menu.studies' },
-  { id: 'projects', label: 'menu.projects' },
-  { id: 'other', label: 'menu.other' }
-]
+const { cv } = useCv()
+
+// Only link sections the visitor's profile actually delivers.
+const menuItems = computed(() => [
+  { id: 'skills', label: 'menu.skills', visible: true },
+  { id: 'experiences', label: 'menu.experiences', visible: !!cv.value?.experiences?.length },
+  { id: 'studies', label: 'menu.studies', visible: !!cv.value?.studies?.length },
+  { id: 'projects', label: 'menu.projects', visible: !!cv.value?.projects?.length },
+  { id: 'other', label: 'menu.other', visible: !!cv.value?.otherEntries?.length }
+].filter(item => item.visible))
 
 function navigateTo(event: Event, sectionId: string) {
   event.preventDefault()

@@ -18,26 +18,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  studies: () => [
-    {
-      id: 1,
-      institution: 'Technical University',
-      degree: 'Master of Science in Computer Science',
-      period: '2015 - 2017',
-      startDate: '2015-09-01',
-      endDate: '2017-06-30',
-      focus: 'Software Engineering & Distributed Systems'
-    },
-    {
-      id: 2,
-      institution: 'University of Technology',
-      degree: 'Bachelor of Science in Computer Science',
-      period: '2012 - 2015',
-      startDate: '2012-09-01',
-      endDate: '2015-06-30',
-      focus: 'Computer Science Fundamentals'
-    }
-  ],
+  studies: () => [],
   activeIds: () => []
 })
 

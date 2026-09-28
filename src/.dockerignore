@@ -1,0 +1,11 @@
+node_modules
+.output
+.nuxt
+.nitro
+.cache
+.data
+coverage
+app/coverage
+tests
+*.log
+.env

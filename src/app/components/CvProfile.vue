@@ -2,14 +2,8 @@
 const { t } = useI18n()
 const { getAssetPath } = useAssetPath()
 
-// Profile information with academic titles
-const profile = ref({
-  name: 'Max Mustermann',
-  title: 'Software Architect',
-  photoUrl: '/images/profile-small.jpg',
-  academicTitlePrefix: 'Dr.', // Prepended academic title (e.g., Dr., Prof., Prof. Dr.)
-  academicTitleSuffix: 'Ph.D.' // Appended academic title (e.g., Ph.D., M.Sc., MBA)
-})
+const { cv } = useCv()
+const profile = computed(() => cv.value?.profile ?? {})
 
 // Design option for displaying academic titles
 // Options: 'inline', 'above-name', 'below-title'
@@ -19,11 +13,10 @@ const titleDisplayMode = ref<'inline' | 'above-name' | 'below-title'>('above-nam
 <template>
   <div class="flex flex-col items-center space-y-4">
     <!-- Profile Picture -->
-    <div class="relative">
+    <div v-if="profile.photoUrl" class="relative">
       <img 
         :src="getAssetPath(profile.photoUrl)"
-        :srcset="`${getAssetPath('/images/profile-small.jpg')} 160w, ${getAssetPath('/images/profile-medium.jpg')} 192w, ${getAssetPath('/images/profile-large.jpg')} 320w, ${getAssetPath('/images/profile-xlarge.jpg')} 384w`"
-        sizes="(max-width: 640px) 160px, 192px"
+        :srcset="profile.photoUrlLarge ? `${getAssetPath(profile.photoUrl)} 1x, ${getAssetPath(profile.photoUrlLarge)} 2x` : undefined"
         :alt="profile.name"
         class="w-40 h-48 object-cover rounded-lg shadow-lg border-4 border-white dark:border-gray-800 print:border-gray-300"
         loading="lazy"

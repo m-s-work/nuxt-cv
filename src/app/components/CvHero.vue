@@ -2,13 +2,8 @@
 const { t } = useI18n()
 const { getAssetPath } = useAssetPath()
 
-// Profile information with academic titles
-const profile = ref({
-  name: 'Max Mustermann',
-  title: 'Software Architect',
-  academicTitlePrefix: 'Dr.', // Prepended academic title (e.g., Dr., Prof., Prof. Dr.)
-  academicTitleSuffix: 'Ph.D.' // Appended academic title (e.g., Ph.D., M.Sc., MBA)
-})
+const { cv } = useCv()
+const profile = computed(() => cv.value?.profile ?? {})
 
 // Design option for displaying academic titles
 // Options: 'inline', 'above-name', 'below-title'
@@ -34,12 +29,11 @@ function scrollToContent() {
   <div class="hero-section">
     <HeaderMenu />
     <div class="hero-content">
-      <div class="mb-8">
+      <div v-if="profile.photoUrl" class="mb-8">
         <img 
-          :src="getAssetPath('/images/profile-medium.jpg')"
-          :srcset="`${getAssetPath('/images/profile-small.jpg')} 160w, ${getAssetPath('/images/profile-medium.jpg')} 192w, ${getAssetPath('/images/profile-large.jpg')} 320w, ${getAssetPath('/images/profile-xlarge.jpg')} 384w`"
-          sizes="(max-width: 640px) 160px, 192px"
-          alt="Profile"
+          :src="getAssetPath(profile.photoUrl)"
+          :srcset="profile.photoUrlLarge ? `${getAssetPath(profile.photoUrl)} 1x, ${getAssetPath(profile.photoUrlLarge)} 2x` : undefined"
+          :alt="profile.name"
           class="profile-img"
         />
       </div>

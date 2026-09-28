@@ -1,12 +1,8 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// Languages with proficiency levels
-const languages = ref([
-  { name: 'German', level: 'Native', code: 'de' },
-  { name: 'English', level: 'Fluent (C1)', code: 'en' },
-  { name: 'French', level: 'Intermediate (B1)', code: 'fr' }
-])
+const { cv } = useCv()
+const languages = computed(() => cv.value?.languages ?? [])
 
 // Get level color
 const getLevelColor = (level: string) => {

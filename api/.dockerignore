@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+CvApi.Tests/
+sample-data/
+TestResults/

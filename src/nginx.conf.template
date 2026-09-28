@@ -1,0 +1,48 @@
+# Rendered by the nginx image's envsubst step at container start (${API_UPSTREAM}).
+
+# Log paths without query strings: invite codes (?c=...) must not end up in access logs.
+log_format cv_noquery '$remote_addr [$time_local] "$request_method $uri" $status $body_bytes_sent';
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    access_log /var/log/nginx/access.log cv_noquery;
+
+    # Docker's embedded DNS; resolving per request lets nginx start before the API is up.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # Note: add_header in a location replaces these, so locations below only use `expires`/proxy settings.
+    add_header Referrer-Policy "no-referrer" always;       # never leak ?c=... via Referer
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok";
+    }
+
+    location /api/ {
+        set $api_upstream ${API_UPSTREAM};
+        proxy_pass $api_upstream;
+        # Host decides the tenant. X-Forwarded-For/Proto are passed through unchanged from
+        # Coolify's Traefik, whose right-most X-Forwarded-For entry is the real client IP.
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $http_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        client_max_body_size 10m;
+    }
+
+    location /_nuxt/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # SPA: every other path (/, /de, ...) serves the app shell, never cached.
+    location / {
+        expires -1;
+        try_files $uri $uri/ /index.html;
+    }
+}

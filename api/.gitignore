@@ -1,0 +1,5 @@
+bin/
+obj/
+sample-data/app.db*
+sample-data/keys/
+TestResults/
