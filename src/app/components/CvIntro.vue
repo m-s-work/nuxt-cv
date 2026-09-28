@@ -1,17 +1,13 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// Intro data - in a real app, this would come from API or props
-const introData = ref({
-  text: '',
-  yearsOfExperience: 25,
-  programmingSince: 2000,
-  stats: [
-    { label: '', value: 100, max: 100, suffix: '+', icon: 'briefcase' },
-    { label: '', value: 50, max: 50, suffix: '+', icon: 'users' },
-    { label: '', value: 15, max: 20, suffix: '', icon: 'code' }
-  ]
-})
+const { cv } = useCv()
+const introData = computed(() => ({
+  text: cv.value?.intro?.text ?? '',
+  yearsOfExperience: cv.value?.intro?.yearsOfExperience ?? 0,
+  programmingSince: cv.value?.intro?.programmingSince,
+  stats: cv.value?.intro?.stats ?? []
+}))
 
 // Animation state
 const isVisible = ref(false)
@@ -132,7 +128,7 @@ function getCircleDasharray(progress: number): string {
           <div class="text-xl font-semibold text-gray-900 dark:text-white print:text-black mb-1">
             {{ t('intro.yearsLabel') }}
           </div>
-          <div class="text-sm text-gray-600 dark:text-gray-400 print:text-gray-700">
+          <div v-if="introData.programmingSince" class="text-sm text-gray-600 dark:text-gray-400 print:text-gray-700">
             {{ t('intro.programmingSince', { year: introData.programmingSince }) }}
           </div>
         </div>

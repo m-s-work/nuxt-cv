@@ -1,0 +1,207 @@
+# Requirements: Multi-Tenant CV Access & Invite Codes
+
+This document defines how the CV site decides **which CV** is shown and **how much of it**
+a visitor may see. The backend (C# / ASP.NET Core, `api/`) is the single source of truth;
+the Nuxt frontend (`src/`) contains **no CV data** and renders whatever the API returns.
+
+Keywords MUST / SHOULD / MAY follow RFC 2119.
+
+---
+
+## 1. Terms
+
+| Term | Meaning |
+|---|---|
+| **Tenant** | One person's CV (e.g. `bob`). Has its own master CV, profiles, assets, hostnames and settings. |
+| **Master CV** | The complete CV of a tenant, one JSON file per locale (`cv.en.json`, `cv.de.json`). Contains everything, including private fields. |
+| **Profile** | A named redaction policy of a tenant (e.g. `recruiter`, `full`, `public`). Decides which parts of the master CV are delivered. |
+| **Invite** | A secret code handed to a person. Belongs to exactly one tenant and one profile, optionally with per-invite overrides, expiry and usage limit. |
+| **Tenant host** | A hostname assigned to one tenant, e.g. `bob-cv.velarix.space`. |
+| **Shared host** | A hostname not assigned to any tenant, e.g. `cv.velarix.space`. Only invite codes decide the tenant there. |
+
+---
+
+## 2. Tenant resolution
+
+The tenant is resolved from the **hostname** and/or the **invite code**:
+
+| Request | Result |
+|---|---|
+| Tenant host, no invite | Tenant from host. Visitor gets the tenant's *public profile* if one is configured, otherwise **no access**. |
+| Tenant host + valid invite of the **same** tenant | Tenant from host, profile from invite. |
+| Tenant host + invite of **another** tenant | Invite is rejected (treated as invalid). |
+| Shared host + valid invite | Tenant and profile from invite. |
+| Shared host, no (valid) invite | **No access.** No tenant is revealed, not even its existence. |
+
+- R2.1 Hostnames MUST be matched case-insensitively and without port.
+- R2.2 A hostname MUST belong to at most one tenant. Conflicting configuration MUST be reported at load time and the conflicting host ignored.
+- R2.3 The frontend MUST NOT decide the tenant; it only forwards the host (implicitly) and the invite code.
+- R2.4 Examples:
+  - `https://bob-cv.velarix.space` → tenant `bob`, public profile (if enabled).
+  - `https://bob-cv.velarix.space/?c=K3x...` → tenant `bob`, profile of that invite.
+  - `https://cv.velarix.space/?c=23gfiuash...` → tenant and profile of that invite.
+  - `https://cv.velarix.space` → no access page.
+
+---
+
+## 3. Access gating
+
+- R3.1 **No CV is public by default.** Without a valid invite, a visitor sees nothing but a neutral
+  "no access / enter your invite code" page.
+- R3.2 A tenant MAY enable public access by setting `publicProfile` in its settings. This only
+  applies on that tenant's **own hosts** (never on the shared host).
+- R3.3 An **invalid, expired, revoked or exhausted** invite is treated exactly like "no invite":
+  the visitor gets the public profile if enabled, otherwise the no-access page.
+  The response MUST NOT reveal *why* a code is invalid beyond a generic "invite not valid".
+- R3.4 Access MUST be re-checked on **every** API request (not only at redemption), so that
+  revoking an invite or changing its expiry takes effect immediately.
+- R3.5 All CV responses MUST carry `Cache-Control: private, no-store` and
+  `X-Robots-Tag: noindex, nofollow`.
+
+---
+
+## 4. Invites
+
+- R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
+- R4.2 Codes MUST be stored only as a SHA-256 hash; the plain code is shown once, at creation.
+- R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
+  optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`.
+- R4.4 The invite link format is `https://<host>/?c=<code>`. `<host>` is the tenant's primary host
+  if it has one, otherwise the shared host.
+- R4.5 Redemption: the frontend sends the code once (`POST /api/access/redeem`); the API sets an
+  `HttpOnly; Secure; SameSite=Lax` cookie containing a signed reference to the invite and the
+  frontend removes `c` from the URL. The code MUST NOT be stored in browser storage.
+- R4.6 `useCount` counts redemptions (devices/browsers), not page views. When `maxUses` is reached,
+  further **redemptions** fail; existing sessions stay valid until expiry/revocation.
+- R4.7 The redemption endpoint MUST be rate-limited per client IP.
+- R4.8 Invite codes MUST NOT be logged.
+
+---
+
+## 5. Redaction: profiles, per-field visibility and global flags
+
+The master CV contains everything. For every request the API computes a **redacted copy**
+from the master CV and the effective profile. Redaction is applied server-side only;
+removed data MUST NOT be present in the response at all.
+
+### 5.1 Global flags (per profile, overridable per invite)
+
+| Flag | Effect |
+|---|---|
+| `hideCompanies` | Company names are replaced by `companyAlias` (e.g. "Automotive supplier") or removed. Company logos/images of experiences are removed. |
+| `hideTimeframeDays` | Dates are reduced to month precision (`2020-03-15` → `2020-03`). |
+| `hideTimeframeMonths` | Dates are reduced to year precision (`2020-03-15` → `2020`). Implies `hideTimeframeDays`. |
+| `hidePhoto` | Profile photo(s) are removed (`photoUrl` and every other `profile.photo*` field). |
+| `hideContactDetails` | E-mail and phone are removed. |
+| `hideBirthDate` | Birth date is removed. |
+| `hideMedia` | All images, screenshots and logos are removed. |
+
+When any timeframe flag is active, hand-written `period` texts are removed (they could leak
+the hidden precision); the frontend formats periods from the (reduced) dates.
+
+### 5.2 Per-field visibility (in the master CV)
+
+- Any object in the master CV MAY carry `"requires": ["<grant>", ...]`. The object is only
+  delivered if the effective profile grants at least one of the listed grants.
+- Any object MAY carry `"fieldRequires": { "<field>": ["<grant>", ...] }` to protect single fields
+  the same way.
+- Objects/fields without `requires` are visible to every profile.
+- `requires` / `fieldRequires` MUST be stripped from every response.
+
+### 5.3 Per-field hiding (in the profile)
+
+- A profile MAY list `hiddenFields` as dot paths, e.g. `details.phone`,
+  `experiences.description`, `projects`. A path segment applied to an array applies to every element.
+
+### 5.4 Profile definition & invite overrides
+
+```jsonc
+// /data/tenants/bob/tenant.json
+{
+  "name": "Bob Builder",
+  "hosts": ["bob-cv.velarix.space"],
+  "defaultLocale": "en",
+  "publicProfile": null,            // e.g. "public" to enable public access on bob's hosts
+  "profiles": {
+    "public":    { "flags": { "hideCompanies": true, "hideTimeframeMonths": true, "hidePhoto": true,
+                              "hideContactDetails": true, "hideBirthDate": true },
+                   "hiddenFields": ["projects"] },
+    "recruiter": { "grants": ["contact"], "flags": { "hideTimeframeDays": true, "hideBirthDate": true } },
+    "full":      { "grants": ["contact", "private"] }
+  }
+}
+```
+
+- Invite `overrides` use the same shape (`flags`, `hiddenFields`, `grants`):
+  flags set in the override replace the profile's value, `hiddenFields` are **added**,
+  `grants` (if set) **replace** the profile's grants.
+
+---
+
+## 6. Localisation
+
+- R6.1 Each tenant has one master CV file per locale (`cv.<locale>.json`). If the requested locale
+  does not exist, the tenant's `defaultLocale` is used.
+- R6.2 The UI texts stay in the frontend i18n files; only CV content comes from the API.
+
+---
+
+## 7. Assets (photos, logos, screenshots)
+
+- R7.1 Tenant assets live in `/data/tenants/<id>/assets/` and are served via `GET /api/assets/<file>`.
+- R7.2 An asset is only served if it is **referenced by the redacted CV of the current visitor**
+  (so `hidePhoto` also blocks direct URL access to the photo).
+- R7.3 No personal images may live in the frontend's `public/` folder.
+
+---
+
+## 8. API surface
+
+| Method & path | Auth | Purpose |
+|---|---|---|
+| `POST /api/access/redeem` `{ code }` | – (rate-limited) | Validate invite, set access cookie. `204` or `400 { error: "invalid_invite" }`. |
+| `POST /api/access/logout` | – | Clear access cookie. |
+| `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access" }`. |
+| `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
+| `GET /api/health` | – | Liveness for Coolify. |
+| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
+| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. |
+| `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite. |
+| `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed. |
+| `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en` | admin key | Show redacted CV for a profile. |
+
+- Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
+  admin endpoints are disabled (`404`).
+
+`access` object in `/api/cv`:
+
+```json
+{ "tenant": "bob", "profile": "recruiter", "viaInvite": true, "label": "ACME recruiting", "expiresAt": "2026-12-31T00:00:00Z" }
+```
+
+---
+
+## 9. Data layout (persistent volume `/data`)
+
+```
+/data
+├── app.db                       # SQLite: invites (all tenants)
+├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
+└── tenants/
+    └── bob/
+        ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale
+        ├── cv.en.json           # master CV (English)
+        ├── cv.de.json           # master CV (German)
+        └── assets/              # photos, logos, screenshots
+```
+
+Tenant files are re-read automatically (short cache), so CV edits need no redeploy.
+A sample tenant lives in `api/sample-data/`.
+
+---
+
+## 10. Non-goals (for now)
+
+- No web admin UI; tenants, files and invites are managed via the admin API (curl / scripts).
+- No user accounts or passwords for visitors.
+- No per-visitor analytics beyond `useCount` / `lastUsedAt`.

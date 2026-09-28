@@ -1,11 +1,8 @@
 <script setup lang="ts">
 const { t } = useI18n()
 
-// Driving licenses
-const licenses = ref([
-  { type: 'B', description: 'Car' },
-  { type: 'BE', description: 'Car with trailer' }
-])
+const { cv } = useCv()
+const licenses = computed(() => cv.value?.drivingLicenses ?? [])
 </script>
 
 <template>

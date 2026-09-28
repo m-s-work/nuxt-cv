@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { t } = useI18n()
+const { cv } = useCv()
 
 defineProps<{
   onComplete?: () => void
@@ -27,7 +27,7 @@ onMounted(() => {
       </div>
       
       <div class="splash-text">
-        <h1 class="text-5xl md:text-7xl font-bold">{{ t('splash.name') }}</h1>
+        <h1 class="text-5xl md:text-7xl font-bold">{{ cv?.profile?.name }}</h1>
       </div>
     </div>
   </div>
@@ -155,18 +155,3 @@ onMounted(() => {
   }
 }
 </style>
-
-<i18n lang="json">
-{
-  "en": {
-    "splash": {
-      "name": "Max Mustermann"
-    }
-  },
-  "de": {
-    "splash": {
-      "name": "Max Mustermann"
-    }
-  }
-}
-</i18n>

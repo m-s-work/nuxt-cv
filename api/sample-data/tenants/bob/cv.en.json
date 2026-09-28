@@ -1,0 +1,48 @@
+{
+  "profile": {
+    "name": "Bob Builder",
+    "title": "Site Engineer"
+  },
+  "details": {
+    "location": "Vienna, Austria",
+    "email": "bob@example.com",
+    "fieldRequires": {
+      "email": [
+        "contact"
+      ]
+    }
+  },
+  "skills": {
+    "skilled": [
+      "Concrete",
+      "Scaffolding"
+    ],
+    "liked": [
+      "Cranes"
+    ]
+  },
+  "languages": [
+    {
+      "name": "English",
+      "level": "Native",
+      "code": "en"
+    }
+  ],
+  "experiences": [
+    {
+      "id": 1,
+      "company": "Bob Construction Ltd.",
+      "companyAlias": "Construction company",
+      "position": "Owner",
+      "startDate": "2010-04-01",
+      "endDate": null,
+      "description": "Can we fix it? Yes we can.",
+      "technologies": [
+        "Concrete"
+      ]
+    }
+  ],
+  "studies": [],
+  "projects": [],
+  "otherEntries": []
+}
