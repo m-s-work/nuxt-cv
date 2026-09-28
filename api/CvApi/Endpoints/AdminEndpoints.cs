@@ -151,6 +151,24 @@ public static partial class AdminEndpoints
             return Results.NoContent();
         });
 
+        // PDF preview of a profile in any template (not cached), e.g. to choose a template.
+        admin.MapGet("/tenants/{tenantId}/pdf-preview", async (string tenantId, string profile, string? template, string? locale,
+            TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+        {
+            if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
+            var tenant = tenants.Get(tenantId);
+            if (tenant is null) return Results.NotFound();
+            if (template is not null && TemplateResolver.Valid(template) is null)
+                return Results.BadRequest(new { error = "invalid_template" });
+            if (AccessService.GrantForProfile(tenant, profile, template) is not { } grant)
+                return Results.BadRequest(new { error = "unknown_profile" });
+
+            var content = await pdf.RenderPreviewAsync(grant, locale, ct);
+            return content is null
+                ? Results.NotFound()
+                : Results.File(content, "application/pdf", $"preview-{profile}-{grant.Templates.Pdf ?? "default"}.pdf");
+        });
+
         admin.MapGet("/tenants/{tenantId}/preview", (string tenantId, string profile, string? locale, TenantStore tenants) =>
         {
             var tenant = tenants.Get(tenantId);

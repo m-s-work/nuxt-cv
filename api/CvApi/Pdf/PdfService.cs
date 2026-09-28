@@ -64,7 +64,7 @@ public sealed class PdfService(
         // The render URL carries the QR target (public host + QR invite code), so a changed host or
         // base URL makes the cached PDF stale as well.
         var renderUrl = await RenderUrlAsync(grant, locale, ct);
-        var hash = ContentHash(CvRedactor.Redact(master, grant.Policy).ToJsonString(), locale, renderUrl);
+        var hash = ContentHash(CvRedactor.Redact(master, grant.Policy).ToJsonString(), locale, renderUrl, grant.Templates.Pdf);
         var file = CacheFile(grant, locale);
         var hashFile = file + ".sha256";
 
@@ -85,6 +85,13 @@ public sealed class PdfService(
         {
             gate.Release();
         }
+    }
+
+    /// <summary>Renders without touching the cache (admin preview, e.g. to compare templates).</summary>
+    public async Task<byte[]?> RenderPreviewAsync(AccessGrant grant, string? requestedLocale, CancellationToken ct)
+    {
+        if (tenants.LoadCv(grant.Tenant, requestedLocale) is not { } loaded) return null;
+        return await RenderAsync(grant, await RenderUrlAsync(grant, loaded.Locale, ct), ct);
     }
 
     /// <summary>Renders all locales of a grant (used on invite creation so failures show up immediately).</summary>
@@ -163,6 +170,6 @@ public sealed class PdfService(
     /// <summary>
     /// Layout version (bump Pdf:LayoutVersion after UI changes) + locale + render URL (QR target) + redacted CV.
     /// </summary>
-    private string ContentHash(string redactedCv, string locale, Uri renderUrl) => Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{renderUrl}\n{redactedCv}")));
+    private string ContentHash(string redactedCv, string locale, Uri renderUrl, string? template) => Convert.ToHexStringLower(SHA256.HashData(
+        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{template}\n{renderUrl}\n{redactedCv}")));
 }
