@@ -11,6 +11,9 @@ public sealed record AccessGrant(Tenant Tenant, string ProfileName, EffectivePol
 
 public enum RedeemResult { Ok, Invalid }
 
+/// <summary>Short-lived, signed permission for the PDF renderer to open exactly one grant's view.</summary>
+public sealed record RenderTicket(string TenantId, string Profile, Guid? InviteId);
+
 /// <summary>
 /// Resolves tenant + profile from hostname and access cookie (see docs/REQUIREMENTS_ACCESS_AND_TENANCY.md §2–§4).
 /// </summary>
@@ -21,21 +24,26 @@ public sealed class AccessService(
     TimeProvider time)
 {
     public const string CookieName = "cv_access";
+    public const string RenderCookieName = "cv_render";
+    private static readonly TimeSpan RenderTicketLifetime = TimeSpan.FromMinutes(2);
+
     private readonly IDataProtector _protector = dataProtection.CreateProtector("CvApi.AccessCookie.v1");
+    private readonly ITimeLimitedDataProtector _renderProtector =
+        dataProtection.CreateProtector("CvApi.RenderTicket.v1").ToTimeLimitedDataProtector();
 
     /// <summary>Resolves access for the request, re-validating the invite on every call. Null = no access.</summary>
     public async Task<AccessGrant?> ResolveAsync(HttpContext context, CancellationToken ct)
     {
+        // The PDF renderer calls from inside the container network (host "web"), with a render ticket.
+        if (await ReadRenderTicketAsync(context, ct) is { } rendered) return rendered;
+
         var hostTenant = tenants.FindByHost(context.Request.Host.Host);
         var now = time.GetUtcNow();
 
         var invite = await ReadCookieInviteAsync(context, ct);
-        if (invite is not null && invite.IsActive(now) && (hostTenant is null || hostTenant.Id == invite.TenantId))
-        {
-            var tenant = tenants.Get(invite.TenantId);
-            if (tenant is not null && tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile))
-                return new AccessGrant(tenant, invite.Profile, EffectivePolicy.From(profile, ParseOverrides(invite.OverridesJson)), invite);
-        }
+        if (invite is not null && invite.IsActive(now) && (hostTenant is null || hostTenant.Id == invite.TenantId)
+            && GrantFor(invite) is { } inviteGrant)
+            return inviteGrant;
 
         // Public access only on the tenant's own hosts and only if explicitly configured.
         if (hostTenant?.Config.PublicProfile is { } publicName &&
@@ -75,6 +83,45 @@ public sealed class AccessService(
             MaxAge = maxAge,
         });
         return RedeemResult.Ok;
+    }
+
+    /// <summary>Grant of an invite (ignores expiry/revocation; callers check <see cref="Invite.IsActive"/>).</summary>
+    public AccessGrant? GrantFor(Invite invite)
+    {
+        var tenant = tenants.Get(invite.TenantId);
+        return tenant is not null && tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile)
+            ? new AccessGrant(tenant, invite.Profile, EffectivePolicy.From(profile, ParseOverrides(invite.OverridesJson)), invite)
+            : null;
+    }
+
+    public string CreateRenderTicket(AccessGrant grant) => _renderProtector.Protect(
+        JsonSerializer.Serialize(new RenderTicket(grant.Tenant.Id, grant.ProfileName, grant.Invite?.Id)),
+        RenderTicketLifetime);
+
+    private async Task<AccessGrant?> ReadRenderTicketAsync(HttpContext context, CancellationToken ct)
+    {
+        if (!context.Request.Cookies.TryGetValue(RenderCookieName, out var raw) || string.IsNullOrEmpty(raw)) return null;
+        RenderTicket? ticket;
+        try
+        {
+            ticket = JsonSerializer.Deserialize<RenderTicket>(_renderProtector.Unprotect(raw));
+        }
+        catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or JsonException)
+        {
+            return null;
+        }
+        if (ticket is null) return null;
+
+        if (ticket.InviteId is { } inviteId)
+        {
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == inviteId, ct);
+            return invite is not null && invite.IsActive(time.GetUtcNow()) ? GrantFor(invite) : null;
+        }
+
+        var tenant = tenants.Get(ticket.TenantId);
+        return tenant is not null && tenant.Config.Profiles.TryGetValue(ticket.Profile, out var profile)
+            ? new AccessGrant(tenant, ticket.Profile, EffectivePolicy.From(profile), null)
+            : null;
     }
 
     public static void ClearCookie(HttpContext context) =>

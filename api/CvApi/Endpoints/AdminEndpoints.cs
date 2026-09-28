@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CvApi.Access;
+using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
 using Microsoft.EntityFrameworkCore;
@@ -50,7 +51,8 @@ public static partial class AdminEndpoints
         });
 
         admin.MapPost("/tenants/{tenantId}/invites", async (string tenantId, CreateInviteRequest body,
-            TenantStore tenants, AppDbContext db, IConfiguration config, TimeProvider time, CancellationToken ct) =>
+            TenantStore tenants, AppDbContext db, IConfiguration config, TimeProvider time,
+            AccessService access, PdfService pdf, CancellationToken ct) =>
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
@@ -74,17 +76,35 @@ public static partial class AdminEndpoints
             db.Invites.Add(invite);
             await db.SaveChangesAsync(ct);
 
+            // Render the PDFs right away so rendering problems show up now, not when the recipient clicks.
+            IReadOnlyList<PdfRenderOutcome>? pdfOutcomes = null;
+            if (pdf.Enabled && access.GrantFor(invite) is { } grant)
+                pdfOutcomes = await pdf.RenderAllLocalesAsync(grant, ct);
+
             // The plain code is only ever returned here.
-            return Results.Ok(new { invite = ToDto(invite), code, link = BuildLink(tenant, config, code) });
+            return Results.Ok(new { invite = ToDto(invite), code, link = BuildLink(tenant, config, code), pdf = pdfOutcomes });
         });
 
-        admin.MapDelete("/tenants/{tenantId}/invites/{id:guid}", async (string tenantId, Guid id, AppDbContext db, TimeProvider time, CancellationToken ct) =>
+        admin.MapDelete("/tenants/{tenantId}/invites/{id:guid}", async (string tenantId, Guid id, AppDbContext db,
+            TimeProvider time, PdfService pdf, CancellationToken ct) =>
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
             if (invite is null) return Results.NotFound();
             invite.RevokedAt ??= time.GetUtcNow();
             await db.SaveChangesAsync(ct);
+            pdf.DeleteCached(tenantId, id);
             return Results.Ok(ToDto(invite));
+        });
+
+        // (Re-)render the PDFs of an invite, e.g. after fixing a rendering problem or changing the CV.
+        admin.MapPost("/tenants/{tenantId}/invites/{id:guid}/pdf", async (string tenantId, Guid id, AppDbContext db,
+            AccessService access, PdfService pdf, TimeProvider time, CancellationToken ct) =>
+        {
+            if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
+            if (invite is null || !invite.IsActive(time.GetUtcNow())) return Results.NotFound();
+            if (access.GrantFor(invite) is not { } grant) return Results.NotFound();
+            return Results.Ok(new { pdf = await pdf.RenderAllLocalesAsync(grant, ct) });
         });
 
         // File management, so tenants can be maintained without shell access to the volume.
@@ -153,7 +173,7 @@ public static partial class AdminEndpoints
     private static string BuildLink(Tenant tenant, IConfiguration config, string code)
     {
         var baseUrl = tenant.Config.Hosts.FirstOrDefault() is { } host
-            ? $"https://{host}"
+            ? $"https://{TenantStore.NormalizeHost(host)}"
             : config["Cv:SharedBaseUrl"]?.TrimEnd('/');
         return string.IsNullOrEmpty(baseUrl) ? $"/?c={code}" : $"{baseUrl}/?c={code}";
     }

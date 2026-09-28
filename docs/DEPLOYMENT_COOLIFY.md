@@ -5,12 +5,16 @@ The site consists of two containers, defined in [`docker-compose.yml`](../docker
 ```
 Internet ──► Coolify Traefik (TLS, domains) ──► web (nginx :80) ──┬─► static Nuxt SPA
                                                                   └─► /api/* ──► api (ASP.NET :8080) ──► /data volume
+                                                                                   │  ▲
+                                                               POST /render        ▼  │ opens http://web/?print=1
+                                                                               pdf (Chromium :3000)
 ```
 
 | Service | Source | Purpose |
 |---|---|---|
 | `web` | `src/Dockerfile`, `src/nginx.conf.template` | Builds the Nuxt SPA (`nuxt generate`) and serves it with nginx. Proxies `/api/` to the API, keeping the `Host` header (it decides the tenant). |
-| `api` | `api/Dockerfile` | C# API: tenant resolution, invites, redaction, assets. Not exposed publicly. |
+| `api` | `api/Dockerfile` | C# API: tenant resolution, invites, redaction, assets, PDF cache. Not exposed publicly. |
+| `pdf` | `pdf/Dockerfile` | Headless Chromium (Playwright) rendering the CV page to PDF. Internal only, called by the API. |
 
 Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENANCY.md](REQUIREMENTS_ACCESS_AND_TENANCY.md).
 
@@ -29,13 +33,27 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    |---|---|---|
    | `CV_ADMIN_API_KEY` | long random string (`openssl rand -base64 32`) | Enables the admin API. Mark as secret. Empty = admin API disabled. |
    | `CV_SHARED_BASE_URL` | `https://cv.velarix.space` | Used for invite links of tenants that have no own host. |
+   | `CV_CLIENT_IP_HEADER` | `CF-Connecting-IP` | Set when traffic arrives through a Cloudflare Tunnel (see below). |
+   | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
+   | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
 
 5. Deploy. Health checks: `web` → `GET /healthz`, `api` → `dotnet CvApi.dll --healthcheck` (both built into the images).
 
-### DNS
+### DNS / Cloudflare Tunnel
 
-Every host (shared + per tenant) needs an A/AAAA record pointing to the Coolify server,
-e.g. a wildcard `*.velarix.space`. Coolify/Traefik issues the Let's Encrypt certificates.
+The velarix Coolify server runs a `cloudflared` service, i.e. public traffic arrives through a
+**Cloudflare Tunnel**. Then:
+
+- Every host (shared + per tenant) needs a *Public Hostname* in the tunnel configuration
+  (Cloudflare Zero Trust → Networks → Tunnels), pointing to Traefik (e.g. `http://coolify-proxy:80`),
+  or one wildcard hostname `*.velarix.space`. A DNS record alone is not enough.
+- Set `CV_CLIENT_IP_HEADER=CF-Connecting-IP`, otherwise the API sees cloudflared's address for every
+  visitor and the invite rate limit applies to everyone at once.
+- If the server's ports 80/443 are also reachable directly (bypassing Cloudflare), the header could be
+  spoofed; this only weakens the rate limit, not access control.
+
+Without a tunnel, every host needs an A/AAAA record pointing to the server (e.g. wildcard
+`*.velarix.space`) and Traefik issues Let's Encrypt certificates.
 
 ### Persistent data
 
@@ -84,7 +102,10 @@ curl -X POST -H "X-Admin-Key: $KEY" -H "Content-Type: application/json" \
   -d '{ "profile": "recruiter", "label": "ACME – Jane Doe", "expiresInDays": 30, "maxUses": 3,
         "overrides": { "flags": { "hideCompanies": true } } }' \
   $API/admin/tenants/bob/invites
-# → { "code": "t9Ev8zv3tMXcFhEYD5br8w", "link": "https://bob-cv.velarix.space/?c=t9Ev8zv3tMXcFhEYD5br8w", ... }
+# → { "code": "t9Ev8zv3tMXcFhEYD5br8w", "link": "https://bob-cv.velarix.space/?c=t9Ev8zv3tMXcFhEYD5br8w",
+#     "pdf": [ { "locale": "de", "ok": true, "bytes": 196196 }, { "locale": "en", "ok": true, "bytes": 191782 } ] }
+# "pdf" shows immediately whether the PDFs could be rendered. Retry a failed render:
+curl -X POST -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>/pdf
 
 # list / revoke
 curl -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites
@@ -102,8 +123,7 @@ curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
 - All pages and API responses send `X-Robots-Tag: noindex, nofollow`; CV responses are `Cache-Control: private, no-store`.
 - Invite redemption is rate-limited per client IP (`Cv__RedeemPerMinute`, default 10). The client IP is the
   right-most `X-Forwarded-For` entry set by Traefik and passed through unchanged by nginx.
-- If Cloudflare (proxied) sits in front of Coolify, the right-most entry becomes a Cloudflare IP; configure
-  Traefik's trusted IPs / `CF-Connecting-IP` handling before relying on the rate limit.
+- If Cloudflare (proxy or tunnel) sits in front of Coolify, set `CV_CLIENT_IP_HEADER=CF-Connecting-IP`.
 
 ---
 
@@ -112,6 +132,10 @@ curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
 ```bash
 # API (sample tenants "demo" on localhost and "bob" via invite; admin key "dev-admin-key")
 cd api/CvApi && dotnet run                 # http://localhost:5080/api
+
+# optional: PDF renderer (needs a Chromium; then start the API with the two Pdf__ variables)
+cd pdf && npm install && PORT=3100 CHROMIUM_PATH=/path/to/chromium node server.mjs
+#   Pdf__RendererUrl=http://localhost:3100 Pdf__AppBaseUrl=http://localhost:3000 dotnet run
 
 # Frontend (proxies /api to the API, keeps the Host header)
 cd src && npm install && npm run dev       # http://localhost:3000

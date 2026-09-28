@@ -108,9 +108,14 @@ export type CvStatus = 'idle' | 'loading' | 'ready' | 'no-access' | 'error'
 /** "shared": host without own tenant (shows the showcase); "tenant": a tenant's own host. */
 export type CvHostKind = 'shared' | 'tenant'
 
+export interface CvFeatures {
+  pdf: boolean
+}
+
 interface CvResponse {
   access: CvAccess
   locale: string
+  features?: CvFeatures
   cv: CvData
 }
 
@@ -152,6 +157,7 @@ export function useCv() {
   const inviteRejected = useState<boolean>('cv-invite-rejected', () => false)
   const loadedLocale = useState<string | null>('cv-locale', () => null)
   const hostKind = useState<CvHostKind>('cv-host-kind', () => 'tenant')
+  const features = useState<CvFeatures>('cv-features', () => ({ pdf: false }))
 
   const apiBase = useRuntimeConfig().public.apiBase as string
 
@@ -170,6 +176,7 @@ export function useCv() {
       })
       cv.value = withPeriods(response.cv, presentLabel(locale))
       access.value = response.access
+      features.value = response.features ?? { pdf: false }
       status.value = 'ready'
     } catch (error: unknown) {
       cv.value = null
@@ -224,6 +231,7 @@ export function useCv() {
     access,
     status,
     hostKind,
+    features,
     inviteRejected,
     init,
     load,

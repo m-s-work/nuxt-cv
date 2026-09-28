@@ -212,6 +212,15 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Pdf_is_disabled_without_renderer()
+    {
+        _factory.SetPublicProfile("alice", "public");
+        var client = _factory.ClientFor(ApiFactory.AliceHost);
+        Assert.False((await Cv(client))["features"]!["pdf"]!.GetValue<bool>());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/pdf")).StatusCode);
+    }
+
+    [Fact]
     public async Task Works_without_api_prefix_when_proxy_strips_it()
     {
         Assert.Equal(HttpStatusCode.OK, (await _factory.ClientFor(ApiFactory.SharedHost).GetAsync("/health")).StatusCode);
