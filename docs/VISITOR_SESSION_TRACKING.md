@@ -336,8 +336,8 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 - R8.4 Limits: body ≤ 64 KB, ≤ 1 request/s per session, unknown event types ignored, rate-limited per IP.
 - R8.6 The API MUST only trust `X-Forwarded-For` from the configured reverse proxy (Coolify/Traefik);
   otherwise the socket address is used, so visitors cannot spoof the stored IP.
-- R8.5 No tracking when `?print=1`, with the `cv_render` ticket, for admin previews, or when the browser
-  sends `DNT: 1` / `Sec-GPC: 1` (client does not start the tracker; server discards anyway).
+- R8.5 No tracking when `?print=1`, with the `cv_render` ticket, for admin previews, or without accepted
+  consent (client does not start the tracker; server discards anyway). DNT/GPC: see R9.8.
 
 ### 8.2 Owner reports (admin key)
 
@@ -386,7 +386,7 @@ This section is a planning basis, **not legal advice**; it MUST be reviewed befo
   - Consent itself does **not** slide: an accepted consent is valid for 13 months from the moment it was given,
     then the modal asks again (R9.13). If the visitor declines at that point, tracking stops; already recorded data
     follows the table above (the clock is not restarted by a declined visit).
-- R9.3 **Opt-out**: `DNT`/`GPC` honoured (R8.5); visitor erasure endpoint (§8.2).
+- R9.3 **Opt-out**: decline / withdraw in the modal (§9.1); visitor erasure endpoint (§8.2).
 - R9.4 **Consent.** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25) the cookie `cv_vid`,
   browser fingerprinting (it reads information from the device just like a cookie) and client-side behaviour
   recording require **consent**; stored IP addresses are personal data and GDPR Art. 13 requires informing the
@@ -423,13 +423,28 @@ hiding or downplaying the actual data is not (that would also make the consent i
 - R9.7 **No blocking or redirect on decline.** Access to the CV MUST NOT depend on consent. A "consent or leave"
   wall makes consent not freely given (GDPR Art. 7(4), EDPB Guidelines 05/2020 on consent) and would therefore
   make *all* tracking unlawful – and it would lose exactly the readers the CV is for.
-- R9.8 `DNT: 1` / `Sec-GPC: 1` count as a decline; the modal is not shown.
+- R9.8 **DNT / GPC: still ask.** `DNT: 1` and `Sec-GPC: 1` do **not** block the modal; the visitor decides
+  explicitly. Reasoning (planning basis, not legal advice):
+  - Tracking here is based on **consent** (Art. 6(1)(a) GDPR). The EU has no rule that a browser signal replaces
+    or pre-empts a consent request. The German LG Berlin ruling on DNT (vzbv v. LinkedIn, 2023) treats DNT as an
+    *objection* under Art. 21(5) GDPR – an objection applies to processing based on legitimate interest, not to
+    processing based on consent, and we do nothing before consent.
+  - GPC is legally binding mainly in US states (e.g. California CCPA) as an opt-out of *selling/sharing*
+    data; this site neither sells nor shares data (R9.18).
+  - Both signals are often defaults, not choices (Brave sends GPC for everyone; DNT is deprecated in most
+    browsers), so treating them as a decline would lose many visitors who never decided anything.
+  - Nothing is recorded before the choice, so asking does not itself track anyone.
+  - With a signal present the modal is unchanged (same equal buttons, no pressure); it MAY add one neutral line:
+    "Your browser asks websites not to track you – you decide here."
+  - If a tenant wants to honour the signals anyway, `tracking.honorBrowserSignals: true` in `tenant.json`
+    treats them as a decline without showing the modal (logged as in R9.14, `source: dnt|gpc`).
 - R9.9 No modal in print mode (`?print=1`), for the PDF renderer or admin previews; nothing is tracked there.
 - R9.10 **Consent log** (proof, GDPR Art. 7(1)): `consents(id, tenant, invite_id, visitor_id?, choice,
   source, policy_version, created_at, withdrawn_at)`; `choice` = `accept | decline | withdraw`,
-  `source` = `modal | footer | gpc | dnt`.
+  `source` = `modal | footer | gpc | dnt` (the latter two only with `honorBrowserSignals`), `signals` = the
+  DNT/GPC signals present when the choice was made (to see how visitors with signals decide).
 - R9.14 **Declines are recorded – the decision, not the person.** A decline (modal, footer, or a DNT/GPC signal
-  counted as decline, R9.8) creates one consent-log row with tenant, invite, `choice`, `source`,
+  when the tenant honours it, R9.8) creates one consent-log row with tenant, invite, `choice`, `source`,
   `policyVersion` and time. It MUST NOT contain or be linked to `visitor_id`, IP, fingerprint, user agent or any
   later activity; no `cv_vid` is set. A DNT/GPC signal is logged at most once per invite and day.
   The existing invite counters (`useCount`, `lastUsedAt`) keep working for declining visitors as before.
@@ -546,7 +561,7 @@ so SQLite in the existing volume is sufficient. Summaries are computed when a se
 ## 11. Frontend implementation notes
 
 - A single composable `useVisitorTracking()` started from `pages/index.vue` after `useCv()` reports access
-  **and** consent is `accept` for the current `policyVersion`; no-op in print mode, without consent, or with DNT/GPC.
+  **and** consent is `accept` for the current `policyVersion`; no-op in print mode or without consent.
 - `CvConsentModal.vue` (§9.1) plus a footer "Privacy" link in `CvFooter.vue`; `/api/cv` returns
   `consent: { required, state, policyVersion, controller }` so the SPA knows whether to show the modal.
 - Listeners: `IntersectionObserver` (section_view), passive `pointermove`/`scroll`, delegated `click`,
