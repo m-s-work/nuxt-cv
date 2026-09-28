@@ -310,11 +310,50 @@ public sealed class AccessTests : IDisposable
         revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
         Assert.Equal(v2, revisions!["current"]!.GetValue<string>());
         Assert.False(revisions["modified"]!.GetValue<bool>());
+        Assert.Equal(2, revisions["revisions"]!.AsArray().Count);    // v1 kept: still pinned
+        var preview = await admin.GetFromJsonAsync<JsonObject>($"/api/admin/tenants/bob/preview?profile=full&revision={v1}");
+        Assert.Equal("Bob v1", preview!["cv"]!["profile"]!["name"]!.GetValue<string>());
+
         (await admin.PutAsJsonAsync($"/api/admin/tenants/bob/invites/{pinned["id"]}/revision", new { revision = v2 })).EnsureSuccessStatusCode();
         Assert.Equal("Bob v2", await NameFor(pinnedCode));
 
-        var preview = await admin.GetFromJsonAsync<JsonObject>($"/api/admin/tenants/bob/preview?profile=full&revision={v1}");
-        Assert.Equal("Bob v1", preview!["cv"]!["profile"]!["name"]!.GetValue<string>());
+        // v1 is no longer used by anything and has been removed.
+        revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        Assert.Equal([v2], revisions!["revisions"]!.AsArray().Select(r => r!["sha"]!.GetValue<string>()));
+        Assert.False(Directory.Exists(Path.Combine(_factory.DataPath, "tenants", "bob", "revisions", v1)));
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
+    }
+
+    [Fact]
+    public async Task Pinned_invites_get_the_assets_of_their_revision_until_revoked()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        const string v1 = "3333333333333333333333333333333333333333";
+        const string v2 = "4444444444444444444444444444444444444444";
+        var photo = Path.Combine(_factory.DataPath, "tenants", "bob", "assets", "bob.jpg");
+        _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob", "photoUrl": "/api/assets/bob.jpg" } }""");
+
+        File.WriteAllText(photo, "old photo");
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v1 })).EnsureSuccessStatusCode();
+        var pinned = await _factory.CreateInviteAsync("bob", new { profile = "full", overrides = new { revision = v1 } });
+
+        File.WriteAllText(photo, "new photo");
+        (await admin.PostAsJsonAsync("/api/admin/tenants/bob/revisions", new { sha = v2 })).EnsureSuccessStatusCode();
+        var revisions = await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/bob/revisions");
+        var old = revisions!["revisions"]!.AsArray().Single(r => r!["sha"]!.GetValue<string>() == v1)!;
+        Assert.True(old["outdated"]!.GetValue<bool>());           // only the photo changed
+
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, pinned);
+        Assert.Equal("old photo", await client.GetStringAsync("/api/assets/bob.jpg"));
+
+        var invites = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/bob/invites");
+        var id = invites!.Single(i => i!["revision"]?.GetValue<string>() == v1)!["id"]!.GetValue<string>();
+        (await admin.DeleteAsync($"/api/admin/tenants/bob/invites/{id}")).EnsureSuccessStatusCode();
+        Assert.False(Directory.Exists(Path.Combine(_factory.DataPath, "tenants", "bob", "revisions", v1)));
+
+        File.Delete(photo);
         _factory.WriteCv("bob", "en", """{ "profile": { "name": "Bob" }, "experiences": [] }""");
     }
 

@@ -90,11 +90,16 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
         return null;
     }
 
-    /// <summary>Resolves an asset file name inside the tenant's asset folder, or null if it is invalid/missing.</summary>
-    public string? AssetPath(Tenant tenant, string fileName)
+    /// <summary>
+    /// Resolves an asset file name inside the tenant's asset folder (of the pinned revision's snapshot, if any),
+    /// or null if it is invalid/missing.
+    /// </summary>
+    public string? AssetPath(Tenant tenant, string fileName, string? revision = null)
     {
         if (!AssetNameRegex().IsMatch(fileName)) return null;
-        var path = Path.Combine(tenant.Directory, "assets", fileName);
+        var dir = CvDirectory(tenant, revision);
+        if (!System.IO.Directory.Exists(Path.Combine(dir, "assets"))) dir = tenant.Directory; // snapshot without assets
+        var path = Path.Combine(dir, "assets", fileName);
         return File.Exists(path) ? path : null;
     }
 

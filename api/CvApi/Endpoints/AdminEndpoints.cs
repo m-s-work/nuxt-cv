@@ -74,13 +74,15 @@ public static partial class AdminEndpoints
             });
         });
 
-        admin.MapPost("/tenants/{tenantId}/revisions", (string tenantId, RegisterRevisionRequest body, TenantStore tenants, TimeProvider time) =>
+        admin.MapPost("/tenants/{tenantId}/revisions", async (string tenantId, RegisterRevisionRequest body, TenantStore tenants,
+            AppDbContext db, TimeProvider time, CancellationToken ct) =>
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var sha = body.Sha?.Trim().ToLowerInvariant() ?? "";
             if (!RevisionStore.ShaRegex().IsMatch(sha)) return Results.BadRequest(new { error = "invalid_sha" });
             if (TenantStore.Locales(tenant).Count == 0) return Results.BadRequest(new { error = "no_cv" });
             var revision = RevisionStore.Register(tenant, sha, body.Message, body.CommittedAt, time.GetUtcNow());
+            await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
             return Results.Ok(new { sha = revision.Sha, message = revision.Message, committedAt = revision.CommittedAt, registeredAt = revision.RegisteredAt });
         });
 
@@ -151,12 +153,13 @@ public static partial class AdminEndpoints
             }
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
+            if (tenants.Get(tenantId) is { } revokedTenant) await PruneRevisionsAsync(revokedTenant, db, now, ct);
             return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
         });
 
         // Pin an invite (and its QR invite) to a CV revision, e.g. to update an outdated pin.
         admin.MapPut("/tenants/{tenantId}/invites/{id:guid}/revision", async (string tenantId, Guid id, PinRequest body,
-            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, CancellationToken ct) =>
+            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, TimeProvider time, CancellationToken ct) =>
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
@@ -176,6 +179,7 @@ public static partial class AdminEndpoints
                 target.OverridesJson = JsonSerializer.Serialize(overrides, TenantStore.FileJsonOptions);
             }
             await db.SaveChangesAsync(ct);
+            await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
             return Results.Ok(ToDto(invite, access.RevealCode(invite), tenant, config));
         });
 
@@ -193,7 +197,7 @@ public static partial class AdminEndpoints
         // File management, so tenants can be maintained without shell access to the volume.
         // tenant.json and cv.<locale>.json must be valid JSON; assets are stored as-is.
         admin.MapPut("/tenants/{tenantId}/files/{**path}", async (string tenantId, string path, HttpRequest request,
-            TenantStore tenants, IConfiguration config, CancellationToken ct) =>
+            TenantStore tenants, IConfiguration config, AppDbContext db, TimeProvider time, CancellationToken ct) =>
         {
             if (!TenantIdRegex().IsMatch(tenantId)) return Results.BadRequest(new { error = "invalid_tenant_id" });
             if (!AllowedFileRegex().IsMatch(path)) return Results.BadRequest(new { error = "invalid_path" });
@@ -225,6 +229,9 @@ public static partial class AdminEndpoints
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             await File.WriteAllBytesAsync(target, buffer.ToArray(), ct);
             tenants.Invalidate();
+            // Profile pins may have changed.
+            if (path == "tenant.json" && tenants.Get(tenantId) is { } changed)
+                await PruneRevisionsAsync(changed, db, time.GetUtcNow(), ct);
             return Results.NoContent();
         });
 
@@ -308,6 +315,19 @@ public static partial class AdminEndpoints
         parentId = i.ParentId,
         source = i.Source,
     };
+
+    /// <summary>
+    /// Keeps only CV snapshots still in use: the current revision, pins of profiles and of active invites
+    /// (QR invites follow their parent). Called after anything that can release a pin.
+    /// </summary>
+    private static async Task PruneRevisionsAsync(Tenant tenant, AppDbContext db, DateTimeOffset now, CancellationToken ct)
+    {
+        var pins = tenant.Config.Profiles.Values.Select(p => p.Revision).OfType<string>().ToList();
+        var invites = await db.Invites.Where(i => i.TenantId == tenant.Id && i.ParentId == null && i.RevokedAt == null).ToListAsync(ct);
+        pins.AddRange(invites.Where(i => i.IsActive(now))
+            .Select(i => AccessService.ParseOverrides(i.OverridesJson)?.Revision).OfType<string>());
+        RevisionStore.Prune(tenant, pins);
+    }
 
     private static string? PinOf(Invite i, Tenant? tenant)
     {

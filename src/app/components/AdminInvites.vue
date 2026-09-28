@@ -203,6 +203,7 @@ onMounted(load)
           <label class="text-sm space-y-1 sm:col-span-2">
             <span class="text-gray-500">CV version</span>
             <USelect v-model="form.revision" :items="revisionItems" class="w-full" aria-label="CV version" />
+            <span class="block text-xs text-gray-500">Only the current version and versions still pinned somewhere are kept.</span>
           </label>
         </div>
 

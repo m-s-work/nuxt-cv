@@ -88,7 +88,7 @@ public static class PublicEndpoints
             var grant = await access.ResolveAsync(ctx, ct);
             if (grant is null) return Results.NotFound();
 
-            var path = tenants.AssetPath(grant.Tenant, file);
+            var path = tenants.AssetPath(grant.Tenant, file, grant.Policy.Revision);
             if (path is null || !IsReferenced(grant, tenants, file)) return Results.NotFound();
 
             var contentType = new FileExtensionContentTypeProvider().TryGetContentType(file, out var type)

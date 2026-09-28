@@ -70,8 +70,9 @@ tenants/<tenant-id>/assets/…
   Example workflow: [`docs/examples/cv-repo-deploy.yml`](examples/cv-repo-deploy.yml)
   (secrets `CV_API_URL`, `CV_ADMIN_API_KEY`).
 - **Pinned versions**: `cv-sync.sh` registers every deploy under its commit SHA. An invite (or a profile)
-  can be pinned to that SHA, so a recipient keeps seeing the version that was sent; the admin UI warns
-  when the CV has changed since and offers to move the pin to the current version.
+  can be pinned to that SHA, so a recipient keeps seeing the version that was sent (text and images); the
+  admin UI warns when the CV has changed since and offers to move the pin to the current version. Only
+  versions still pinned (plus the current one) are kept on the server.
 - **Rollback**: `git revert` + push restores the previous CV everywhere; cached PDFs become stale
   automatically (their hash no longer matches) and are re-rendered on the next request.
 - **Diff-friendly**: one JSON value per line (2-space indentation) keeps diffs readable; `//` comments are allowed.
