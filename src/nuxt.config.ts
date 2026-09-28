@@ -9,7 +9,12 @@ export default defineNuxtConfig({
   ],
 
   // Import Tailwind CSS
-  css: ['~/assets/css/main.css'],
+  css: [
+    '~/assets/css/main.css',
+    // Bundled fonts for the print/PDF layout (no network needed in the PDF renderer)
+    '@fontsource-variable/inter',
+    '@fontsource-variable/source-serif-4'
+  ],
 
   // Static SPA; served by nginx in the web container (see Dockerfile)
   ssr: false,

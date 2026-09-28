@@ -1,37 +1,6 @@
 <script setup lang="ts">
-import QRCode from 'qrcode'
-
 const { t } = useI18n()
-
-// Ref for the QR code data URL
-const qrCodeDataUrl = ref<string>('')
-
-// Generate QR code when component is mounted
-onMounted(async () => {
-  if (typeof window !== 'undefined') {
-    try {
-      // Get current URL without hash
-      // In PDF rendering (?print=1) the page runs on an internal URL; the API passes the public one as ?qr=.
-      const params = new URLSearchParams(window.location.search)
-      const publicUrl = params.has('print') ? params.get('qr') : null
-      const url = publicUrl && /^https?:\/\//.test(publicUrl)
-        ? publicUrl
-        : new URL(window.location.pathname, window.location.origin).toString()
-      
-      // Generate QR code as data URL
-      qrCodeDataUrl.value = await QRCode.toDataURL(url, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      })
-    } catch (error) {
-      console.error('Failed to generate QR code:', error)
-    }
-  }
-})
+const { dataUrl: qrCodeDataUrl } = useCvQrCode()
 </script>
 
 <template>

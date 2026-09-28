@@ -12,13 +12,24 @@ const PORT = Number(process.env.PORT || 3000)
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2)
 const DEFAULT_TIMEOUT_MS = Number(process.env.RENDER_TIMEOUT_MS || 45000)
 
-// Same output settings as the former GitHub PDF export workflow.
+// Page size and margins come from the page's @page rule (A4, see src/app/app.vue); the print
+// layout (src/app/components/CvPrint.vue) is typeset in pt/mm, so no scaling.
 const PDF_OPTIONS = {
   format: 'A4',
   printBackground: true,
-  scale: 0.6,
-  margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
   preferCSSPageSize: true
+}
+
+const escapeHtml = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+
+// Running footer in the bottom page margin: "<name> · Curriculum Vitae" left, page numbers right.
+// Text comes from window.__CV_PDF_FOOTER__ (set by the page).
+function footerTemplate(text) {
+  return `<div style="width:100%;margin:0 15mm;display:flex;justify-content:space-between;
+    font-family:system-ui,sans-serif;font-size:7pt;color:#9aa1ad;letter-spacing:0.02em">
+    <span>${escapeHtml(text)}</span>
+    <span><span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span></span>
+  </div>`
 }
 
 let browserPromise = null
@@ -76,7 +87,14 @@ async function render({ url, cookies = [], timeoutMs = DEFAULT_TIMEOUT_MS }) {
     await page.waitForFunction(() => window.__CV_READY__, null, { timeout: timeoutMs })
     const state = await page.evaluate(() => window.__CV_READY__)
     if (state !== 'ready') throw new RenderError(422, `page not renderable: ${state}`)
-    return await page.pdf(PDF_OPTIONS)
+    await page.evaluate(() => document.fonts.ready)
+    const footer = await page.evaluate(() => window.__CV_PDF_FOOTER__ || '')
+    return await page.pdf({
+      ...PDF_OPTIONS,
+      displayHeaderFooter: Boolean(footer),
+      headerTemplate: '<span></span>',
+      footerTemplate: footerTemplate(footer)
+    })
   } finally {
     await context.close()
   }

@@ -24,9 +24,11 @@ watch(locale, newLocale => ensure(newLocale))
 onMounted(async () => {
   if (!new URLSearchParams(window.location.search).has('print')) return
   await nextTick()
-  await Promise.all(Array.from(document.images)
-    .filter(img => !img.complete)
-    .map(img => new Promise(resolve => { img.onload = img.onerror = resolve })))
+  // Wait for visible images only (lazy images of the hidden screen layout never load), at most 10 s.
+  const pending = Array.from(document.images)
+    .filter(img => !img.complete && img.getClientRects().length > 0)
+    .map(img => new Promise(resolve => { img.onload = img.onerror = resolve }))
+  await Promise.race([Promise.all(pending), new Promise(resolve => setTimeout(resolve, 10_000))])
   // Let the intro counters finish animating.
   await new Promise(resolve => setTimeout(resolve, 2500))
   ;(window as unknown as { __CV_READY__?: string }).__CV_READY__ = status.value === 'ready' ? 'ready' : status.value
@@ -198,7 +200,10 @@ onUnmounted(() => {
   <CvShowcase v-if="status === 'no-access' && hostKind === 'shared'" />
   <CvNoAccess v-else-if="status === 'no-access' || status === 'error'" :error="status === 'error'" />
   <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
-  <div v-else class="min-h-screen bg-white dark:bg-gray-900 print:bg-white">
+  <div v-else>
+    <!-- Typeset A4 layout for print / PDF; the screen layout below is hidden in print -->
+    <CvPrint />
+    <div class="min-h-screen bg-white dark:bg-gray-900 print:hidden">
     <!-- Hero Section - Full page height -->
     <CvHero />
     
@@ -317,6 +322,7 @@ onUnmounted(() => {
         </div>
       </main>
     </div>
+  </div>
   </div>
 </template>
 

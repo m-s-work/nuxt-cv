@@ -1,0 +1,36 @@
+# CV as Code: GitHub Actions workflow for a (private) repository that holds your CV.
+#
+# Repository layout:
+#   tenants/<tenant-id>/tenant.json        hosts, profiles, flags (who sees what)
+#   tenants/<tenant-id>/cv.en.json         master CV per language
+#   tenants/<tenant-id>/assets/...         photo, logos, screenshots
+#
+# Pull requests: validated only (JSON, file names, referenced assets).
+# Push to main:  validated and deployed to the CV API.
+#
+# Secrets: CV_API_URL (e.g. https://cv.velarix.space/api), CV_ADMIN_API_KEY
+name: Deploy CV
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get sync tool
+        run: curl -fsSL -o cv-sync.sh https://raw.githubusercontent.com/m-s-work/nuxt-cv/main/tools/cv-sync.sh && chmod +x cv-sync.sh
+
+      - name: Validate
+        run: for dir in tenants/*/; do ./cv-sync.sh --check "$dir"; done
+
+      - name: Deploy
+        if: github.event_name == 'push'
+        env:
+          CV_API_URL: ${{ secrets.CV_API_URL }}
+          CV_ADMIN_API_KEY: ${{ secrets.CV_ADMIN_API_KEY }}
+        run: for dir in tenants/*/; do ./cv-sync.sh "$dir"; done

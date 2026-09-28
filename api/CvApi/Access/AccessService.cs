@@ -28,6 +28,7 @@ public sealed class AccessService(
     private static readonly TimeSpan RenderTicketLifetime = TimeSpan.FromMinutes(2);
 
     private readonly IDataProtector _protector = dataProtection.CreateProtector("CvApi.AccessCookie.v1");
+    private readonly IDataProtector _codeProtector = dataProtection.CreateProtector("CvApi.DerivedInviteCode.v1");
     private readonly ITimeLimitedDataProtector _renderProtector =
         dataProtection.CreateProtector("CvApi.RenderTicket.v1").ToTimeLimitedDataProtector();
 
@@ -41,7 +42,7 @@ public sealed class AccessService(
         var now = time.GetUtcNow();
 
         var invite = await ReadCookieInviteAsync(context, ct);
-        if (invite is not null && invite.IsActive(now) && (hostTenant is null || hostTenant.Id == invite.TenantId)
+        if (invite is not null && await IsActiveAsync(invite, now, ct) && (hostTenant is null || hostTenant.Id == invite.TenantId)
             && GrantFor(invite) is { } inviteGrant)
             return inviteGrant;
 
@@ -60,7 +61,7 @@ public sealed class AccessService(
         var hash = InviteCodes.Hash(code);
         var invite = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
         var now = time.GetUtcNow();
-        if (invite is null || !invite.CanRedeem(now)) return RedeemResult.Invalid;
+        if (invite is null || !invite.CanRedeem(now) || !await IsActiveAsync(invite, now, ct)) return RedeemResult.Invalid;
 
         var tenant = tenants.Get(invite.TenantId);
         if (tenant is null || !tenant.Config.Profiles.ContainsKey(invite.Profile)) return RedeemResult.Invalid;
@@ -85,7 +86,52 @@ public sealed class AccessService(
         return RedeemResult.Ok;
     }
 
-    /// <summary>Grant of an invite (ignores expiry/revocation; callers check <see cref="Invite.IsActive"/>).</summary>
+    /// <summary>An invite is active if it and (for derived invites) its parent are neither expired nor revoked.</summary>
+    public async Task<bool> IsActiveAsync(Invite invite, DateTimeOffset now, CancellationToken ct)
+    {
+        if (!invite.IsActive(now)) return false;
+        if (invite.ParentId is not { } parentId) return true;
+        var parent = await db.Invites.SingleOrDefaultAsync(i => i.Id == parentId, ct);
+        return parent is not null && parent.IsActive(now);
+    }
+
+    /// <summary>
+    /// Code for the QR code printed into an invite's PDF: a linked invite with the same view, expiry and
+    /// revocation as its parent, marked <see cref="InviteSources.PdfQr"/> so the owner can tell scans of
+    /// the printed PDF apart. Created on first use and reused for every re-render.
+    /// </summary>
+    public async Task<string> GetOrCreateQrCodeAsync(Invite invite, CancellationToken ct)
+    {
+        if (invite.Source == InviteSources.PdfQr && invite.CodeProtected is { } own)
+            return _codeProtector.Unprotect(own);
+
+        var child = await db.Invites.FirstOrDefaultAsync(i => i.ParentId == invite.Id && i.Source == InviteSources.PdfQr, ct);
+        if (child?.CodeProtected is { } existing)
+        {
+            child.ExpiresAt = invite.ExpiresAt;       // follow the parent if it was changed
+            await db.SaveChangesAsync(ct);
+            return _codeProtector.Unprotect(existing);
+        }
+
+        var code = InviteCodes.Generate();
+        db.Invites.Add(new Invite
+        {
+            TenantId = invite.TenantId,
+            Profile = invite.Profile,
+            CodeHash = InviteCodes.Hash(code),
+            CodeProtected = _codeProtector.Protect(code),
+            Label = invite.Label,
+            OverridesJson = invite.OverridesJson,
+            CreatedAt = time.GetUtcNow(),
+            ExpiresAt = invite.ExpiresAt,
+            ParentId = invite.Id,
+            Source = InviteSources.PdfQr,
+        });
+        await db.SaveChangesAsync(ct);
+        return code;
+    }
+
+    /// <summary>Grant of an invite (ignores expiry/revocation; callers check <see cref="IsActiveAsync"/>).</summary>
     public AccessGrant? GrantFor(Invite invite)
     {
         var tenant = tenants.Get(invite.TenantId);
@@ -115,7 +161,7 @@ public sealed class AccessService(
         if (ticket.InviteId is { } inviteId)
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == inviteId, ct);
-            return invite is not null && invite.IsActive(time.GetUtcNow()) ? GrantFor(invite) : null;
+            return invite is not null && await IsActiveAsync(invite, time.GetUtcNow(), ct) ? GrantFor(invite) : null;
         }
 
         var tenant = tenants.Get(ticket.TenantId);

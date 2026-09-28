@@ -65,7 +65,8 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
 - R4.2 Codes MUST be stored only as a SHA-256 hash; the plain code is shown once, at creation.
 - R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
-  optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`.
+  optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`,
+  and for derived invites `parentId` + `source` (§12, R12.10).
 - R4.4 The invite link format is `https://<host>/?c=<code>`. `<host>` is the tenant's primary host
   if it has one, otherwise the shared host.
 - R4.5 Redemption: the frontend sends the code once (`POST /api/access/redeem`); the API sets an
@@ -166,7 +167,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
-| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. |
+| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
 | `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
 | `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed. |
@@ -253,6 +254,23 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
 - R12.7 **Print mode.** With `?print=1` the frontend skips the splash screen and sets
   `window.__CV_READY__` to `ready` / `no-access` / `error` once the page is complete; the renderer waits for it.
   The QR code in the PDF points to the public URL (tenant host or shared base URL), passed as `?qr=`.
+- R12.10 **QR invite.** For an invite's PDF, the QR code contains a **linked invite** (`?c=<code>`):
+  - created on the first rendering, reused for all later renderings and locales;
+  - same tenant, profile, overrides and expiry as its parent; revoked together with its parent, and only
+    usable while the parent is active;
+  - marked `source: "pdf-qr"` with `parentId`, so the owner sees in the admin API how often the printed
+    PDF was scanned (`useCount`, `lastUsedAt`). This marker is owner-only and never sent to invitees;
+  - its plain code is stored encrypted (data protection) so re-rendered PDFs can embed it again;
+    regular invites keep storing only the hash;
+  - the PDF of a QR invite embeds its own code (no QR-of-QR chains).
+  Public-profile PDFs (no invite) link to the public URL without a code.
 - R12.8 Revoking an invite deletes its cached PDFs.
-- R12.9 PDF settings: A4, background graphics, scale 0.6, 1 cm margins (as the former GitHub export).
+- R12.9 **Typeset print layout.** Print and PDF use a dedicated layout (`src/app/components/CvPrint.vue`),
+  not the screen layout: A4 with 16/15/18/15 mm margins (`@page`), type scale in pt, bundled fonts
+  (Source Serif 4 for name/intro, Inter for text – no network access needed), masthead with photo and
+  labelled contact grid, sidebar (skills, languages, licences, QR code) and main column with a date gutter
+  (experience, education, projects, further stations, newest first). Entries never break across pages.
+  The renderer prints at 100 % scale and adds a running footer (`<name> · Curriculum Vitae`, page x / y)
+  from `window.__CV_PDF_FOOTER__`. Browser printing (Ctrl+P) uses the same layout without the footer.
+  After layout changes bump `CV_PDF_LAYOUT_VERSION` so cached PDFs are re-rendered.
 

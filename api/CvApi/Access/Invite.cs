@@ -22,9 +22,27 @@ public sealed class Invite
     public int UseCount { get; set; }
     public DateTimeOffset? LastUsedAt { get; set; }
 
+    /// <summary>Set for invites derived from another invite, e.g. the one printed as QR code into its PDF.</summary>
+    public Guid? ParentId { get; set; }
+
+    /// <summary>Owner-only origin marker (e.g. <see cref="InviteSources.PdfQr"/>); never shown to invitees.</summary>
+    public string? Source { get; set; }
+
+    /// <summary>
+    /// Plain code, encrypted with data protection. Only for derived invites whose code must be
+    /// re-embedded later (QR code on re-rendered PDFs); normal invites store the hash only.
+    /// </summary>
+    public string? CodeProtected { get; set; }
+
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && (ExpiresAt is null || ExpiresAt > now);
 
     public bool CanRedeem(DateTimeOffset now) => IsActive(now) && (MaxUses is null || UseCount < MaxUses);
+}
+
+public static class InviteSources
+{
+    /// <summary>Invite printed as QR code into the PDF of its parent invite.</summary>
+    public const string PdfQr = "pdf-qr";
 }
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
@@ -36,6 +54,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         var invite = modelBuilder.Entity<Invite>();
         invite.HasIndex(i => i.CodeHash).IsUnique();
         invite.HasIndex(i => i.TenantId);
+        invite.HasIndex(i => i.ParentId);
+        invite.Property(i => i.Source).HasMaxLength(32);
         invite.Property(i => i.TenantId).HasMaxLength(64);
         invite.Property(i => i.Profile).HasMaxLength(64);
         invite.Property(i => i.CodeHash).HasMaxLength(64);
