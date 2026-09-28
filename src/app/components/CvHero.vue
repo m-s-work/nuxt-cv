@@ -115,7 +115,9 @@ function scrollToContent() {
 }
 
 .hero-title {
-  font-size: 3.75rem;
+  /* Scales down on phones so long names never overflow */
+  font-size: clamp(2.25rem, 11vw, 3.75rem);
+  line-height: 1.1;
   font-weight: bold;
   margin-bottom: 1rem;
 }

@@ -128,4 +128,17 @@ function switchLanguage(newLocale: string) {
     display: none;
   }
 }
+
+/* Phones: compact switcher */
+@media (max-width: 640px) {
+  .language-selector {
+    top: 0.75rem;
+    right: 0.75rem;
+  }
+  .language-btn {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    min-width: 2.25rem;
+  }
+}
 </style>

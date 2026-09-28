@@ -96,21 +96,11 @@ function navigateTo(event: Event, sectionId: string) {
 }
 
 /* Responsive adjustments */
+/* Phones: sections follow each other in one column, and the menu would collide with the
+   language switcher – hide it. */
 @media (max-width: 640px) {
   .header-menu {
-    top: 1rem;
-    right: 1rem;
-  }
-  
-  .menu-list {
-    flex-direction: column;
-    gap: 0.25rem;
-    align-items: flex-end;
-  }
-  
-  .menu-link {
-    font-size: 0.75rem;
-    padding: 0.375rem 0.75rem;
+    display: none;
   }
 }
 

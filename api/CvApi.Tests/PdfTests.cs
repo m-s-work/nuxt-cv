@@ -60,10 +60,11 @@ public sealed class PdfTests : IDisposable
         var outcomes = created["pdf"]!.AsArray();
         Assert.Equal(["de", "en"], outcomes.Select(o => o!["locale"]!.GetValue<string>()));
         Assert.All(outcomes, o => Assert.True(o!["ok"]!.GetValue<bool>()));
-        // alice has an own host: the PDF's QR code points there, not to the internal render URL.
-        Assert.Equal(
-            ["http://web/de?print=1&qr=https%3A%2F%2Falice-cv.example.org%2Fde", "http://web/?print=1&qr=https%3A%2F%2Falice-cv.example.org%2F"],
-            _factory.Renderer.Calls.Select(c => c.Url.OriginalString));
+        // alice has an own host: the PDF's QR code points there (with a QR invite code), not to the internal render URL.
+        var qrUrls = _factory.Renderer.Calls.Select(QrUrl).ToList();
+        Assert.StartsWith("https://alice-cv.example.org/de?c=", qrUrls[0]);
+        Assert.StartsWith("https://alice-cv.example.org/?c=", qrUrls[1]);
+        Assert.Equal(["http://web/de", "http://web/"], _factory.Renderer.Calls.Select(c => c.Url.GetLeftPart(UriPartial.Path)));
     }
 
     [Fact]
@@ -134,6 +135,58 @@ public sealed class PdfTests : IDisposable
         _factory.Renderer.Fail = true;
 
         Assert.Equal(HttpStatusCode.BadGateway, (await client.GetAsync("/api/pdf?locale=en")).StatusCode);
+    }
+
+    private static string QrUrl((Uri Url, IReadOnlyDictionary<string, string> Cookies) call) =>
+        Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(call.Url.Query)["qr"].ToString();
+
+    private static string QrCode((Uri Url, IReadOnlyDictionary<string, string> Cookies) call) =>
+        QrUrl(call).Split("?c=")[1];
+
+    [Fact]
+    public async Task Qr_code_in_pdf_is_a_linked_invite_with_the_same_view()
+    {
+        var created = await CreateInvite(new { profile = "full", label = "ACME", overrides = new { flags = new { hideCompanies = true } } });
+        var parentCode = created["code"]!.GetValue<string>();
+        var qrCode = QrCode(_factory.Renderer.Calls[0]);
+
+        Assert.NotEqual(parentCode, qrCode);
+        Assert.Equal(qrCode, QrCode(_factory.Renderer.Calls[1]));        // same code for every locale / re-render
+
+        // Scanning the QR code opens the same view as the parent invite.
+        var scanner = _factory.ClientFor(ApiFactory.AliceHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await scanner.PostAsJsonAsync("/api/access/redeem", new { code = qrCode })).StatusCode);
+        var body = await (await scanner.GetAsync("/api/cv")).Content.ReadFromJsonAsync<JsonObject>();
+        Assert.Equal("full", body!["access"]!["profile"]!.GetValue<string>());
+        Assert.Equal("Big corp", body["cv"]!["experiences"]![0]!["company"]!.GetValue<string>());
+        Assert.DoesNotContain("pdf-qr", body.ToJsonString());             // origin marker is owner-only
+
+        // The owner sees the linked invite and its usage.
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var invites = (await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/invites"))!;
+        var qrInvite = invites.Single(i => i!["source"]?.GetValue<string>() == "pdf-qr")!;
+        Assert.Equal(created["invite"]!["id"]!.GetValue<string>(), qrInvite["parentId"]!.GetValue<string>());
+        Assert.Equal(1, qrInvite["useCount"]!.GetValue<int>());
+
+        // Revoking the parent revokes the QR invite as well.
+        await admin.DeleteAsync($"/api/admin/tenants/alice/invites/{created["invite"]!["id"]}");
+        Assert.Equal(HttpStatusCode.Forbidden, (await scanner.GetAsync("/api/cv")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await _factory.ClientFor(ApiFactory.SharedHost).PostAsJsonAsync("/api/access/redeem", new { code = qrCode })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Pdf_of_the_qr_invite_reuses_its_own_code()
+    {
+        await CreateInvite(new { profile = "full" });
+        var qrCode = QrCode(_factory.Renderer.Calls[0]);
+        var scanner = _factory.ClientFor(ApiFactory.SharedHost);
+        await scanner.PostAsJsonAsync("/api/access/redeem", new { code = qrCode });
+        _factory.Renderer.Calls.Clear();
+
+        (await scanner.GetAsync("/api/pdf?locale=en")).EnsureSuccessStatusCode();
+        Assert.Equal(qrCode, QrCode(_factory.Renderer.Calls.Single()));   // no QR-of-QR chain
     }
 
     [Fact]

@@ -90,7 +90,14 @@ public static partial class AdminEndpoints
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
             if (invite is null) return Results.NotFound();
-            invite.RevokedAt ??= time.GetUtcNow();
+            var now = time.GetUtcNow();
+            invite.RevokedAt ??= now;
+            // Derived invites (QR code in the PDF) are revoked together with their parent.
+            foreach (var child in await db.Invites.Where(i => i.ParentId == id).ToListAsync(ct))
+            {
+                child.RevokedAt ??= now;
+                pdf.DeleteCached(tenantId, child.Id);
+            }
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
             return Results.Ok(ToDto(invite));
@@ -102,7 +109,7 @@ public static partial class AdminEndpoints
         {
             if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
-            if (invite is null || !invite.IsActive(time.GetUtcNow())) return Results.NotFound();
+            if (invite is null || !await access.IsActiveAsync(invite, time.GetUtcNow(), ct)) return Results.NotFound();
             if (access.GrantFor(invite) is not { } grant) return Results.NotFound();
             return Results.Ok(new { pdf = await pdf.RenderAllLocalesAsync(grant, ct) });
         });
@@ -168,6 +175,8 @@ public static partial class AdminEndpoints
         maxUses = i.MaxUses,
         useCount = i.UseCount,
         lastUsedAt = i.LastUsedAt,
+        parentId = i.ParentId,
+        source = i.Source,
     };
 
     private static string BuildLink(Tenant tenant, IConfiguration config, string code)
