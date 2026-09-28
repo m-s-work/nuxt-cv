@@ -486,6 +486,39 @@ hiding or downplaying the actual data is not (that would also make the consent i
   data processing agreement) and is not a third party (Art. 4(10)). Adding any external service that
   receives tracking data requires changing this text first.
 
+**Visual design of the modal**
+
+Icons make the key promises easier to grasp. The first layer gets a row of four small illustrated points
+under the text (icon + 2–4 words each, same content as the text – they illustrate, they never replace it):
+
+| Icon (Lucide via `@nuxt/ui`) | en | de |
+|---|---|---|
+| `i-lucide-server` / `i-lucide-house` | Stays on {name}'s server | Bleibt auf {name}s Server |
+| `i-lucide-shield-check` | Never shared with third parties | Nie an Dritte weitergegeben |
+| `i-lucide-book-open` | Read the CV either way | Lebenslauf in jedem Fall lesbar |
+| `i-lucide-toggle-right` | Change your mind any time | Jederzeit änderbar |
+
+Optionally a small, calm header illustration (e.g. an open book / document with a friendly accent) in the
+CV's theme colours, light and dark mode.
+
+- R9.20 **Icons and images MUST be bundled** (Iconify client bundle / inline SVG, like the bundled fonts).
+  `@nuxt/icon` fetches missing icons from `api.iconify.design` at runtime by default – that would send the
+  visitor's IP to a third party and break R9.18. Same for illustrations: local files only, no image CDNs.
+- R9.21 **Buttons: equal and neutral – no green accept / red decline.** Colour-coding the choices
+  ("green = good, red = danger/wrong") is exactly the kind of nudging data protection authorities list as a
+  deceptive design pattern (EDPB Cookie Banner Taskforce report 2023, EDPB Guidelines 03/2022 on deceptive
+  design patterns); it can make the consent invalid (R9.6) – and a red button next to a CV feels hostile to
+  the reader anyway. Instead:
+  - both buttons have the same size, shape, font weight and contrast, in the CV's own accent style
+    (e.g. both `UButton` `color="primary"` `variant="soft"`, or both solid);
+  - labels are positive and plain: **Accept** / **Continue without** – no "No thanks, I don't care" style
+    wording;
+  - icons on buttons MAY be used if both get one (e.g. `i-lucide-check` / `i-lucide-arrow-right`);
+  - the modal has no close "×" that silently counts as accept; Esc / clicking outside does nothing
+    (a choice is needed, and both choices open the CV).
+- R9.22 The modal MUST be accessible: focus trapped in the modal, first focus on the text (not on Accept),
+  buttons reachable by keyboard, `aria-labelledby` / `aria-describedby`, contrast ≥ WCAG AA in both themes.
+
 **First layer (draft, en)**
 
 > **Welcome!**
