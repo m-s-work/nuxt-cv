@@ -12,6 +12,9 @@ namespace CvApi.Pdf;
 public interface IPdfRenderer
 {
     Task<byte[]> RenderAsync(Uri url, IReadOnlyDictionary<string, string> cookies, CancellationToken ct);
+
+    /// <summary>Build identity of the renderer (GET /version), e.g. { commit, builtAt }.</summary>
+    Task<System.Text.Json.Nodes.JsonObject?> VersionAsync(CancellationToken ct);
 }
 
 public sealed class PdfRenderException(string message) : Exception(message);
@@ -19,6 +22,9 @@ public sealed class PdfRenderException(string message) : Exception(message);
 /// <summary>Calls the renderer service (pdf/server.mjs): POST /render { url, cookies } → application/pdf.</summary>
 public sealed class HttpPdfRenderer(HttpClient http) : IPdfRenderer
 {
+    public async Task<System.Text.Json.Nodes.JsonObject?> VersionAsync(CancellationToken ct) =>
+        await http.GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("version", ct);
+
     public async Task<byte[]> RenderAsync(Uri url, IReadOnlyDictionary<string, string> cookies, CancellationToken ct)
     {
         using var response = await http.PostAsJsonAsync("render", new

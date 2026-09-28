@@ -6,6 +6,7 @@ using CvApi.Access;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
+using CvApi.Versioning;
 using Microsoft.EntityFrameworkCore;
 
 namespace CvApi.Endpoints;
@@ -42,7 +43,16 @@ public static partial class AdminEndpoints
             defaultLocale = t.Config.DefaultLocale,
             publicProfile = t.Config.PublicProfile,
             profiles = t.Config.Profiles.Keys,
+            dataHash = TenantHashes.Compute(t).Combined,
         }));
+
+        // SHA-256 of every data file of a tenant (compare with `sha256sum` in the CV repository).
+        admin.MapGet("/tenants/{tenantId}/hash", (string tenantId, TenantStore tenants) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var hashes = TenantHashes.Compute(tenant);
+            return Results.Ok(new { tenant = tenant.Id, combined = hashes.Combined, files = hashes.Files });
+        });
 
         admin.MapGet("/tenants/{tenantId}/invites", async (string tenantId, TenantStore tenants, AppDbContext db, CancellationToken ct) =>
         {

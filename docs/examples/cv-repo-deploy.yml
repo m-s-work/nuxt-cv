@@ -34,3 +34,10 @@ jobs:
           CV_API_URL: ${{ secrets.CV_API_URL }}
           CV_ADMIN_API_KEY: ${{ secrets.CV_ADMIN_API_KEY }}
         run: for dir in tenants/*/; do ./cv-sync.sh "$dir"; done
+
+      - name: Verify
+        if: github.event_name == 'push'
+        env:
+          CV_API_URL: ${{ secrets.CV_API_URL }}
+          CV_ADMIN_API_KEY: ${{ secrets.CV_ADMIN_API_KEY }}
+        run: for dir in tenants/*/; do ./cv-sync.sh --verify "$dir"; done

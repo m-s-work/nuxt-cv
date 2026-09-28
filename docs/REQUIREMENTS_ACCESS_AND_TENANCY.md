@@ -169,6 +169,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/health` | – | Liveness for Coolify. |
+| `GET /api/version` | – | Deployed build: `{ api: { commit, builtAt }, pdf: { commit, builtAt } }`. The web container serves `/version.json` (`{ commit, builtAt }`). |
+| `GET /api/admin/tenants/{tenant}/hash` | admin key | SHA-256 per data file (`tenant.json`, `cv.<locale>.json`, `assets/*`) + `combined`. |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
 | `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
@@ -186,7 +188,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 { "tenant": "bob", "profile": "recruiter", "viaInvite": true, "label": "ACME recruiting", "expiresAt": "2026-12-31T00:00:00Z" }
 ```
 
-`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available.
+`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available,
+and `cvHash`: the SHA-256 of the compact JSON of the returned `cv` (for tests and deployment checks).
 
 ---
 
