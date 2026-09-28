@@ -91,8 +91,23 @@ curl -H "X-Admin-Key: $KEY" -o preview.pdf -G \
   "$API/admin/tenants/bob/pdf-preview?profile=full&template=banner"
 ```
 
-The schemas live in `src/app/utils/printTemplates.ts` (types in `utils/templateVars.ts`). A template
-builder UI that renders these schemas as a form with live preview is planned in #87.
+The schemas live in `src/app/utils/printTemplates.ts` (types in `utils/templateVars.ts`).
+
+### Template builder (admin "Design" tab)
+
+`/admin` → tenant → **Design** renders these schemas as a form with a live PDF preview:
+
+1. **Applies to**: the tenant default or one profile (invites keep their own overrides).
+2. **PDF template**: pick one, or "Not set here" to inherit (profile → tenant → system default).
+3. **Colour set**: the template's presets; **Variables**: colour pickers with suggestions, switches,
+   palettes and choices generated from the schema. "Reset to defaults" returns to the template defaults.
+4. The preview (any profile and locale) re-renders about 0.7 s after the last change (`…/pdf-preview`).
+5. **Save to tenant.json** writes only the `templates` object of that scope; comments and formatting in
+   the rest of the file are kept. Only the preset and values that differ from it are stored, so template
+   defaults can evolve. "Copy JSON" gives the same snippet for the CV repository.
+
+If the tenant's files are deployed from Git (`cv-sync.sh`), the next sync overwrites a choice saved in
+the UI: copy the snippet into the repository as well.
 
 ### Adding a PDF template
 
