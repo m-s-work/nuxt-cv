@@ -23,7 +23,8 @@ Keywords MUST / SHOULD / MAY follow RFC 2119.
 
 **Non-goals**
 
-- No fingerprinting (canvas, fonts, IP+UA hashing, …). If a visitor deletes the cookie, they count as a new visitor.
+- No cross-site tracking. The IP address and the browser fingerprint recorded per session (§3.2) are only
+  used inside this CV site and never shared or matched with external data sets.
 - No full session replay (DOM recording). Too invasive and too heavy for the value it adds.
 - No third-party analytics (Google Analytics, Hotjar, …). Everything stays first-party in the API's volume.
 - No tracking of the showcase page, the PDF renderer (`cv_render`, `?print=1`) or admin previews.
@@ -57,9 +58,35 @@ Hierarchy: **Tenant → Visitor group (invite) → Visitor (cookie) → Session 
   to the invite that was active when the session started.
 - R3.4 Server-side we store per visitor only: `firstSeen`, `lastSeen`, coarse device class
   (`desktop | tablet | mobile`), browser family, OS family, preferred language, time-zone offset.
-  **No IP address** is stored (only used transiently for rate limiting).
+  IP address and fingerprint are stored **per session**, not per visitor (§3.2).
 - R3.5 Useful derived fact: **number of distinct visitors per invite**. An invite with 3+ visitors was very
   likely forwarded inside the company – a strong interest signal (§7).
+
+### 3.2 IP address and fingerprint per session
+
+Every session records the network origin and a browser fingerprint. Together with `cv_vid` they allow
+recognising a visitor again after the cookie was deleted, spotting the same person on several devices
+of one network, and seeing *where* an invite is being opened.
+
+- R3.6 **IP address.** The API stores the client IP of the `session_start` request with the session
+  (taken from `X-Forwarded-For` of the trusted reverse proxy only). If the IP changes during the session
+  (mobile network, VPN), each distinct IP is added to `session_ips` with first/last seen.
+- R3.7 **Derived network info** is resolved once per session from the IP with a **local** database
+  (e.g. DB-IP Lite / MaxMind GeoLite2 files in the data volume – no external lookup service):
+  country, region, city (coarse), ASN and AS organisation (e.g. "ACME Corp" vs. "Deutsche Telekom").
+- R3.8 **Fingerprint.** On session start the client computes a fingerprint from stable browser traits:
+  user agent / client hints, platform, languages, time zone, screen size and colour depth, device memory,
+  hardware concurrency, touch support, installed-font probe (fixed list), canvas and WebGL renderer hashes,
+  audio-context hash. Only the resulting **SHA-256 hash** (`fp`) and a small list of component hashes
+  (`fpParts`, to compute similarity when single traits change) are sent – never the raw values.
+- R3.9 The fingerprint is sent inside the `session_start` event; the server additionally derives a
+  server-side hash from request headers (`User-Agent`, `Accept-Language`, client hints) so a session without
+  JavaScript fingerprint still gets `fpServer`.
+- R3.10 **Linking.** The report groups sessions into a *probable person* when they share `cv_vid`, or share
+  `fp` (exact) / ≥ 90 % of `fpParts` **and** the same IP /24 (IPv4) or /48 (IPv6) within 30 days.
+  Linking is shown as "probably the same visitor" and never overrides the cookie-based visitor id.
+- R3.11 IP and fingerprint are owner-only data (R9.5), fall under the same consent gating as `cv_vid`
+  (R9.4) and are shortened after the retention period (R9.2).
 
 ---
 
@@ -92,7 +119,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 
 | Event | Payload | Purpose |
 |---|---|---|
-| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour | Context of the visit |
+| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2) | Context of the visit; IP is taken server-side from the request |
 | `heartbeat` | visible, active | Durations (R4.5) |
 | `visibility` | `visible` / `hidden` | Tab switches, visible time |
 | `section_view` | anchor, visible ms (≥ 50 % in viewport), max visible ratio | Dwell time per section / entry |
@@ -184,13 +211,24 @@ Raw time and clicks are noisy. The following signals turn them into "what did th
 - **Tab switching** – frequent visibility changes while on one section may indicate comparing against
   a job ad or other candidates (interpret carefully).
 
-### 7.3 Per visitor group (invite)
+### 7.3 Per network (from IP, §3.2)
 
-- **Spread** – distinct visitors per invite (forwarded internally), QR-invite scans (printed PDF passed around).
+- **Organisation** – the AS organisation shows whether the CV was opened from a company network
+  ("ACME Corp") or a home/mobile provider. Opened from the inviting company's own network = reviewed at work.
+- **Location** – city/country of each session; several cities for one invite = forwarded to another office.
+- **Same network, several devices** – sessions with different `cv_vid`/fingerprints from one company network
+  = several colleagues looked at it (complements "spread", §7.4).
+- **Unexpected organisation** – an invite opened from a network of a *different* company than the one it
+  was issued to (e.g. recruiting agency → client) shows where the CV travelled.
+
+### 7.4 Per visitor group (invite)
+
+- **Spread** – distinct visitors per invite (forwarded internally), QR-invite scans (printed PDF passed around), distinct probable persons
+  and organisations (§3.2, §7.3).
 - **Time to first open** after invite creation, and time between first and last visit.
 - **Consensus** – sections that several visitors of the same invite read → what that company cares about.
 
-### 7.4 Interest score
+### 7.5 Interest score
 
 A simple, explainable 0–100 score per visitor and per group, e.g.
 
@@ -205,7 +243,7 @@ score = 25·min(activeMinutes/5, 1)
 
 Weights are configuration, not code. The report MUST always show the underlying numbers next to the score.
 
-### 7.5 UX signals (for the owner as product maker)
+### 7.6 UX signals (for the owner as product maker)
 
 Rage clicks, dead clicks and sections with zero attention show layout problems, independent of any single visitor.
 
@@ -231,6 +269,8 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 - R8.3 Batches are flushed every 10 s, at 50 events, and on `visibilitychange → hidden` / `pagehide` via
   `navigator.sendBeacon`. `seq` makes retries idempotent.
 - R8.4 Limits: body ≤ 64 KB, ≤ 1 request/s per session, unknown event types ignored, rate-limited per IP.
+- R8.6 The API MUST only trust `X-Forwarded-For` from the configured reverse proxy (Coolify/Traefik);
+  otherwise the socket address is used, so visitors cannot spoof the stored IP.
 - R8.5 No tracking when `?print=1`, with the `cv_render` ticket, for admin previews, or when the browser
   sends `DNT: 1` / `Sec-GPC: 1` (client does not start the tracker; server discards anyway).
 
@@ -241,7 +281,8 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 | `GET /api/admin/tenants/{tenant}/analytics/invites` | Per invite: visitors, sessions, active time, last visit, score. |
 | `GET /api/admin/tenants/{tenant}/analytics/invites/{id}` | Visitors of the invite, section/entry ranking, tech intent, score breakdown. |
 | `GET /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Sessions of a visitor. |
-| `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session. |
+| `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info and fingerprint. |
+| `GET /api/admin/tenants/{tenant}/analytics/persons` | Probable persons (sessions linked by cookie, fingerprint and network, R3.10). |
 | `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&type=move\|click\|attention` | Aggregated heat cells for rendering (R6.8). |
 | `DELETE /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Erase a visitor (data subject request). |
 
@@ -254,19 +295,24 @@ Anchor labels in responses are resolved from the master CV (unredacted – the o
 Tracking identifiable business contacts (recruiters, hiring managers) is processing of personal data.
 This section is a planning basis, **not legal advice**; it MUST be reviewed before going live.
 
-- R9.1 **Data minimisation**: no IP, no fingerprint, no CV text or typed/copied text in events, device info coarse only.
-- R9.2 **Retention**: raw events 90 days, aggregated heat cells and session summaries 13 months, then deleted
+- R9.1 **Data minimisation**: no CV text or typed/copied text in events. IP and fingerprint are stored per
+  session only (§3.2), fingerprints only as hashes, geo lookups only locally.
+- R9.2 **Retention**: raw events 90 days; full IP addresses and fingerprints 90 days, then the IP is
+  truncated (/24 resp. /48) and the fingerprint removed (network info and "probable person" links stay);
+  aggregated heat cells and session summaries 13 months, then deleted
   by a daily job. Revoking an invite MAY optionally purge its tracking data.
 - R9.3 **Opt-out**: `DNT`/`GPC` honoured (R8.5); visitor erasure endpoint (§8.2).
 - R9.4 **Consent / notice (open decision).** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25)
-  a non-essential cookie such as `cv_vid` and client-side behaviour recording usually require **consent**;
+  a non-essential cookie such as `cv_vid`, **browser fingerprinting** (it reads information from the device just
+  like a cookie) and client-side behaviour recording usually require **consent**; stored IP addresses are
+  personal data under GDPR;
   GDPR Art. 13 requires information about the processing. This conflicts with R11.4 ("no tracking features
   visible to invitees"). Proposed resolution:
   - R11.4 is about **not advertising** analytics as a product feature on the showcase / CV. A neutral, legally
     required **privacy notice** (linked in the footer) is not a feature advertisement and is allowed.
   - Option A (recommended): short consent prompt on first visit ("usage statistics to improve this CV");
     without consent only server-side counters (`useCount`, `lastUsedAt`, request-level visit time) are kept,
-    no `cv_vid`, no client tracker.
+    no `cv_vid`, no fingerprint, no stored IP, no client tracker.
   - Option B: no consent prompt, only a privacy notice, and restrict to cookieless, non-behavioural
     session counts. Heatmaps and per-visitor profiles would not be possible.
   The owner has to choose; the implementation MUST support Option A's gating either way.
@@ -280,7 +326,12 @@ This section is a planning basis, **not legal advice**; it MUST be reviewed befo
 visitors        (id, tenant, first_seen, last_seen, device, browser, os, lang, tz_offset)
 visitor_groups  (visitor_id, invite_id | public_profile, first_seen)
 sessions        (id, visitor_id, tenant, invite_id, started_at, ended_at, open_ms, visible_ms, active_ms,
-                 locale, breakpoint, end_reason)
+                 locale, breakpoint, end_reason,
+                 ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated after 90 days
+                 fp, fp_parts_json, fp_server)                             -- removed after 90 days
+session_ips     (session_id, ip, first_seen, last_seen)                    -- IP changes within a session
+persons         (id, tenant, first_seen, last_seen)                        -- probable person (R3.10)
+person_links    (person_id, session_id, reason: cookie|fp|fp_similar+net)
 events          (session_id, seq, t, type, anchor, payload_json)          -- raw, 90 days
 section_stats   (session_id, anchor, visible_ms, active_ms, views, hovers) -- summary, 13 months
 heat_cells      (tenant, group, breakpoint, type, anchor, cx, cy, weight)  -- aggregate, 13 months
@@ -308,10 +359,10 @@ so SQLite in the existing volume is sufficient. Summaries are computed when a se
 
 | Phase | Scope | Result |
 |---|---|---|
-| **P1 Sessions & time** | `cv_vid`, `/api/events`, sessions with open/visible/active time, `visitors`/`sessions` tables, invite report | "Who opened it, how often, how long" |
+| **P1 Sessions & time** | `cv_vid`, `/api/events`, sessions with open/visible/active time, IP + local geo/ASN lookup + fingerprint per session, `visitors`/`sessions` tables, invite report | "Who opened it, how often, how long" |
 | **P2 Sections & clicks** | Anchors in all components, `section_view`, `scroll`, `click`, semantic events (tech filter, PDF, contact, …), section ranking | "What did they look at" |
 | **P3 Heatmap** | Pointer sampling, `heat_cells`, heatmap endpoint, overlay renderer | Cursor / click / attention heatmaps |
-| **P4 Interest** | Reading ratio, tech intent, spread, interest score, session timeline | Comparable interest per visitor and invite |
+| **P4 Interest** | Reading ratio, tech intent, spread, network/organisation signals, probable-person linking, interest score, session timeline | Comparable interest per visitor and invite |
 | **P5 Owner UI** | Small owner-only dashboard (separate from the invitee SPA, admin key) | Reports without curl |
 | **P0 (before P1 goes live)** | Decide R9.4 (consent option), privacy notice, retention job | Legally deployable |
 
@@ -328,3 +379,4 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
    "contact clicked"?
 4. Track the showcase page anonymously (conversion: showcase → invite code entered)?
 5. Where does the owner UI (P5) live – separate static app, or a route of the API?
+6. Which local geo/ASN database (DB-IP Lite: CC BY, no account; MaxMind GeoLite2: licence key) and how is it updated?
