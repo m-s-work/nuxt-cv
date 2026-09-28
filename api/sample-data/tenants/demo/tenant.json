@@ -8,6 +8,7 @@
   "publicProfile": "public",
   "profiles": {
     "public": {
+      // As the public profile, every flag not listed here defaults to "hide" (e.g. hideMedia, hideTimeframeDays).
       "flags": {
         "hideCompanies": true,
         "hideTimeframeMonths": true,

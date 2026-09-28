@@ -48,11 +48,12 @@ public static partial class AdminEndpoints
         admin.MapGet("/tenants/{tenantId}/profiles", (string tenantId, TenantStore tenants) =>
             tenants.Get(tenantId) is { } tenant ? Results.Ok(tenant.Config.Profiles) : Results.NotFound());
 
-        admin.MapGet("/tenants/{tenantId}/invites", async (string tenantId, TenantStore tenants, AppDbContext db, CancellationToken ct) =>
+        admin.MapGet("/tenants/{tenantId}/invites", async (string tenantId, TenantStore tenants, AppDbContext db,
+            AccessService access, IConfiguration config, CancellationToken ct) =>
         {
-            if (tenants.Get(tenantId) is null) return Results.NotFound();
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var invites = await db.Invites.Where(i => i.TenantId == tenantId).ToListAsync(ct);
-            return Results.Ok(invites.OrderByDescending(i => i.CreatedAt).Select(ToDto));
+            return Results.Ok(invites.OrderByDescending(i => i.CreatedAt).Select(i => ToDto(i, access.RevealCode(i), tenant, config)));
         });
 
         admin.MapPost("/tenants/{tenantId}/invites", async (string tenantId, CreateInviteRequest body,
@@ -72,6 +73,7 @@ public static partial class AdminEndpoints
                 TenantId = tenant.Id,
                 Profile = body.Profile,
                 CodeHash = InviteCodes.Hash(code),
+                CodeProtected = access.ProtectCode(code),
                 Label = body.Label ?? "",
                 OverridesJson = body.Overrides is null ? null : JsonSerializer.Serialize(body.Overrides, TenantStore.FileJsonOptions),
                 CreatedAt = now,
@@ -86,12 +88,11 @@ public static partial class AdminEndpoints
             if (pdf.Enabled && access.GrantFor(invite) is { } grant)
                 pdfOutcomes = await pdf.RenderAllLocalesAsync(grant, ct);
 
-            // The plain code is only ever returned here.
-            return Results.Ok(new { invite = ToDto(invite), code, link = BuildLink(tenant, config, code), pdf = pdfOutcomes });
+            return Results.Ok(new { invite = ToDto(invite, code, tenant, config), code, link = BuildLink(tenant, config, code), pdf = pdfOutcomes });
         });
 
         admin.MapDelete("/tenants/{tenantId}/invites/{id:guid}", async (string tenantId, Guid id, AppDbContext db,
-            TimeProvider time, PdfService pdf, CancellationToken ct) =>
+            TimeProvider time, PdfService pdf, AccessService access, TenantStore tenants, IConfiguration config, CancellationToken ct) =>
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
             if (invite is null) return Results.NotFound();
@@ -105,7 +106,7 @@ public static partial class AdminEndpoints
             }
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
-            return Results.Ok(ToDto(invite));
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
         });
 
         // (Re-)render the PDFs of an invite, e.g. after fixing a rendering problem or changing the CV.
@@ -202,7 +203,7 @@ public static partial class AdminEndpoints
             if (!tenant.Config.Profiles.TryGetValue(profile, out var policy))
                 return Results.BadRequest(new { error = "unknown_profile" });
             if (tenants.LoadCv(tenant, locale) is not { } loaded) return Results.NotFound();
-            return Results.Ok(new { locale = loaded.Locale, cv = CvRedactor.Redact(loaded.Cv, EffectivePolicy.From(policy)) });
+            return Results.Ok(new { locale = loaded.Locale, cv = CvRedactor.Redact(loaded.Cv, tenant.PolicyFor(profile, policy)) });
         });
     }
 
@@ -211,9 +212,12 @@ public static partial class AdminEndpoints
     private static string TenantDir(IConfiguration config, string tenantId) =>
         Path.Combine(Path.GetFullPath(config["Cv:DataPath"] ?? "/data"), "tenants", tenantId);
 
-    private static object ToDto(Invite i) => new
+    // Codes are not secret towards the admin: they are shown with their link on every listing.
+    private static object ToDto(Invite i, string? code, Tenant? tenant, IConfiguration config) => new
     {
         id = i.Id,
+        code,
+        link = code is not null && tenant is not null ? BuildLink(tenant, config, code) : null,
         tenant = i.TenantId,
         profile = i.Profile,
         label = i.Label,

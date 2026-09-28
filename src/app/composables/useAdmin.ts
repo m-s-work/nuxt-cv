@@ -37,6 +37,9 @@ export interface AdminTenant {
 
 export interface AdminInvite {
   id: string
+  /** Plain code and link; missing for invites created before codes were stored. */
+  code?: string
+  link?: string
   tenant: string
   profile: string
   label: string

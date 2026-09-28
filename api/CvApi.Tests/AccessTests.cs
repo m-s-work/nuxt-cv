@@ -239,6 +239,37 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Public_profile_hides_unset_flags_by_default()
+    {
+        _factory.SetPublicProfile("alice", "full");                // "full" sets no flags
+        var experience = (await Cv(_factory.ClientFor(ApiFactory.AliceHost)))["cv"]!["experiences"]![0]!;
+        Assert.Equal("Big corp", experience["company"]!.GetValue<string>());
+        Assert.Equal("2020", experience["startDate"]!.GetValue<string>());
+
+        // The same profile via invite on a tenant that has no public profile shows everything.
+        _factory.SetPublicProfile("alice", null);
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, code);
+        var full = (await Cv(client))["cv"]!["experiences"]![0]!;
+        Assert.Equal("ACME", full["company"]!.GetValue<string>());
+        Assert.Equal("2020-03-15", full["startDate"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Admin_invite_list_includes_code_and_link()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", label = "listed" });
+
+        var invites = await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/invites");
+        var listed = invites!.Single(i => i!["label"]!.GetValue<string>() == "listed")!;
+        Assert.Equal(code, listed["code"]!.GetValue<string>());
+        Assert.Equal($"https://alice-cv.example.org/?c={code}", listed["link"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Pdf_is_disabled_without_renderer()
     {
         _factory.SetPublicProfile("alice", "public");

@@ -63,7 +63,10 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 ## 4. Invites
 
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
-- R4.2 Codes MUST be stored only as a SHA-256 hash; the plain code is shown once, at creation.
+- R4.2 Codes are looked up by their SHA-256 hash. The plain code is additionally stored encrypted
+  (ASP.NET data protection, keys in `/data/keys`) so the owner can view and copy code and link again at any
+  time in the admin API/UI; codes are not secret towards the admin. They MUST NOT be sent to anyone else.
+  Invites created before this change only have the hash; their code cannot be shown.
 - R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
   optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`,
   and for derived invites `parentId` + `source` (§12, R12.10).
@@ -96,6 +99,11 @@ removed data MUST NOT be present in the response at all.
 | `hideContactDetails` | E-mail and phone are removed. |
 | `hideBirthDate` | Birth date is removed. |
 | `hideMedia` | All images, screenshots and logos are removed. |
+
+**Public profile defaults to hide.** For the profile named as a tenant's `publicProfile`, every flag it
+does not set (and an invite override does not set) counts as `true`: public visitors only see what the
+owner explicitly allowed with `"<flag>": false`. For all other profiles unset flags count as `false`.
+This applies wherever the profile is used (public view, its PDF, invites of that profile, admin preview).
 
 When any timeframe flag is active, hand-written `period` texts are removed (they could leak
 the hidden precision); the frontend formats periods from the (reduced) dates.
@@ -168,7 +176,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`). |
 | `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
-| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
+| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
 | `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
 | `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed; takes effect immediately. |
@@ -263,8 +271,8 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
     usable while the parent is active;
   - marked `source: "pdf-qr"` with `parentId`, so the owner sees in the admin API how often the printed
     PDF was scanned (`useCount`, `lastUsedAt`). This marker is owner-only and never sent to invitees;
-  - its plain code is stored encrypted (data protection) so re-rendered PDFs can embed it again;
-    regular invites keep storing only the hash;
+  - its plain code is stored encrypted (data protection, like every invite's code, R4.2) so re-rendered
+    PDFs can embed it again;
   - the PDF of a QR invite embeds its own code (no QR-of-QR chains).
   Public-profile PDFs (no invite) link to the public URL without a code.
 - R12.8 Revoking an invite deletes its cached PDFs.
@@ -288,7 +296,8 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   cookies or `localStorage`, never in the URL). "Log out" clears it.
 - R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted),
   usage and linked QR invites; create invites (profile, label, expiry, max. redemptions, per-invite
-  overrides) showing code, link and PDF render outcome once; revoke; re-render PDFs; edit `tenant.json`
+  overrides) showing code, link and PDF render outcome; code and link of every invite stay visible and
+  copyable in the list; revoke; re-render PDFs; edit `tenant.json`
   and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
   assets; preview the redacted CV of any profile and locale.
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,

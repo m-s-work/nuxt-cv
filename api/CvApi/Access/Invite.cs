@@ -29,8 +29,8 @@ public sealed class Invite
     public string? Source { get; set; }
 
     /// <summary>
-    /// Plain code, encrypted with data protection. Only for derived invites whose code must be
-    /// re-embedded later (QR code on re-rendered PDFs); normal invites store the hash only.
+    /// Plain code, encrypted with data protection, so the admin can show it again and re-rendered
+    /// PDFs can embed QR codes. Null for invites created before codes were stored. Lookup uses <see cref="CodeHash"/>.
     /// </summary>
     public string? CodeProtected { get; set; }
 

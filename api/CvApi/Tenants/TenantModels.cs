@@ -33,4 +33,13 @@ public sealed class RedactionFlags
     public bool? HideMedia { get; set; }
 }
 
-public sealed record Tenant(string Id, TenantConfig Config, string Directory);
+public sealed record Tenant(string Id, TenantConfig Config, string Directory)
+{
+    /// <summary>Unset redaction flags of the public profile default to "hide".</summary>
+    public bool IsPublicProfile(string profile) =>
+        Config.PublicProfile is { } p && string.Equals(p, profile, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Effective policy of one of this tenant's profiles (with optional invite overrides).</summary>
+    public Redaction.EffectivePolicy PolicyFor(string profile, AccessPolicy definition, AccessPolicy? overrides = null) =>
+        Redaction.EffectivePolicy.From(definition, overrides, hideByDefault: IsPublicProfile(profile));
+}

@@ -194,7 +194,6 @@ onMounted(load)
           <strong>Invite created for "{{ created.invite.label || created.invite.profile }}"</strong>
           <UButton icon="i-lucide-x" size="xs" color="neutral" variant="ghost" aria-label="Dismiss" @click="created = null" />
         </div>
-        <p class="text-gray-600 dark:text-gray-400">The code is shown only now; it is stored as a hash on the server.</p>
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-gray-500 w-10">Link</span>
           <code class="break-all select-all" data-testid="invite-link">{{ created.link }}</code>
@@ -247,6 +246,22 @@ onMounted(load)
                   <span class="text-gray-500">QR code in PDF</span>
                 </template>
                 <template v-else>{{ invite.label || '–' }}</template>
+                <div v-if="invite.link" class="mt-1 flex items-center gap-1">
+                  <code class="text-xs text-gray-500 select-all" data-testid="invite-code">{{ invite.code }}</code>
+                  <UButton
+                    size="xs" color="neutral" variant="ghost"
+                    :icon="copied === `link-${invite.id}` ? 'i-lucide-check' : 'i-lucide-link'"
+                    :aria-label="`Copy link for ${invite.label || invite.id}`" title="Copy link"
+                    @click="copy(invite.link, `link-${invite.id}`)"
+                  />
+                  <UButton
+                    size="xs" color="neutral" variant="ghost"
+                    :icon="copied === `code-${invite.id}` ? 'i-lucide-check' : 'i-lucide-copy'"
+                    :aria-label="`Copy code for ${invite.label || invite.id}`" title="Copy code"
+                    @click="copy(invite.code!, `code-${invite.id}`)"
+                  />
+                </div>
+                <div v-else-if="invite.source !== 'pdf-qr'" class="text-xs text-gray-400 mt-1">code not stored (created before codes were kept)</div>
                 <div v-if="overridesSummary(invite)" class="text-xs text-gray-500 mt-0.5">{{ overridesSummary(invite) }}</div>
                 <div v-if="pdfResults[invite.id]" class="mt-1 flex gap-1 flex-wrap">
                   <span v-if="typeof pdfResults[invite.id] === 'string'" class="text-xs text-red-600">{{ pdfResults[invite.id] }}</span>

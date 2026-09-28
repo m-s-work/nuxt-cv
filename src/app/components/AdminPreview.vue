@@ -54,7 +54,10 @@ onMounted(async () => {
       <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 text-sm">
         <h3 class="font-semibold mb-2">Profile definition</h3>
         <pre class="text-xs whitespace-pre-wrap break-all">{{ JSON.stringify(profiles[profile] ?? {}, null, 2) }}</pre>
-        <p v-if="tenant.publicProfile === profile" class="mt-2 text-xs text-amber-600">This is the public profile: visible without invite on the tenant's own hosts.</p>
+        <p v-if="tenant.publicProfile?.toLowerCase() === profile.toLowerCase()" class="mt-2 text-xs text-amber-600">
+          This is the public profile: visible without invite on the tenant's own hosts. Flags it does not set
+          are treated as <strong>hide</strong>; set a flag to <code>false</code> to show that data.
+        </p>
       </section>
       <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 min-w-0">
         <h3 class="font-semibold text-sm mb-2">

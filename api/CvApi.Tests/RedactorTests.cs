@@ -24,6 +24,23 @@ public sealed class RedactorTests
         CvRedactor.Redact(Master(), EffectivePolicy.From(profile, overrides));
 
     [Fact]
+    public void Hide_by_default_hides_unset_flags_but_keeps_explicit_ones()
+    {
+        var policy = EffectivePolicy.From(
+            new AccessPolicy { Flags = new RedactionFlags { HidePhoto = false } },
+            new AccessPolicy { Flags = new RedactionFlags { HideMedia = false } },
+            hideByDefault: true);
+
+        Assert.False(policy.Flags.HidePhoto);
+        Assert.False(policy.Flags.HideMedia);
+        Assert.True(policy.Flags.HideCompanies);
+        Assert.True(policy.Flags.HideTimeframeMonths);
+        Assert.True(policy.Flags.HideContactDetails);
+        Assert.True(policy.Flags.HideBirthDate);
+        Assert.False(EffectivePolicy.From(new AccessPolicy()).Flags.HideCompanies);
+    }
+
+    [Fact]
     public void Requires_and_field_requires_are_enforced_and_stripped()
     {
         var cv = Redact(new AccessPolicy());

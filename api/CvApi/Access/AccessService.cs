@@ -28,6 +28,7 @@ public sealed class AccessService(
     private static readonly TimeSpan RenderTicketLifetime = TimeSpan.FromMinutes(2);
 
     private readonly IDataProtector _protector = dataProtection.CreateProtector("CvApi.AccessCookie.v1");
+    // Purpose name predates storing codes of all invites; kept so existing codes stay readable.
     private readonly IDataProtector _codeProtector = dataProtection.CreateProtector("CvApi.DerivedInviteCode.v1");
     private readonly ITimeLimitedDataProtector _renderProtector =
         dataProtection.CreateProtector("CvApi.RenderTicket.v1").ToTimeLimitedDataProtector();
@@ -49,7 +50,7 @@ public sealed class AccessService(
         // Public access only on the tenant's own hosts and only if explicitly configured.
         if (hostTenant?.Config.PublicProfile is { } publicName &&
             hostTenant.Config.Profiles.TryGetValue(publicName, out var publicProfile))
-            return new AccessGrant(hostTenant, publicName, EffectivePolicy.From(publicProfile), null);
+            return new AccessGrant(hostTenant, publicName, hostTenant.PolicyFor(publicName, publicProfile), null);
 
         return null;
     }
@@ -131,12 +132,23 @@ public sealed class AccessService(
         return code;
     }
 
+    /// <summary>Encrypts a plain invite code for storage (<see cref="Invite.CodeProtected"/>).</summary>
+    public string ProtectCode(string code) => _codeProtector.Protect(code);
+
+    /// <summary>Plain code of an invite for the admin, or null if it was not stored (or the keys changed).</summary>
+    public string? RevealCode(Invite invite)
+    {
+        if (invite.CodeProtected is not { } protectedCode) return null;
+        try { return _codeProtector.Unprotect(protectedCode); }
+        catch (System.Security.Cryptography.CryptographicException) { return null; }
+    }
+
     /// <summary>Grant of an invite (ignores expiry/revocation; callers check <see cref="IsActiveAsync"/>).</summary>
     public AccessGrant? GrantFor(Invite invite)
     {
         var tenant = tenants.Get(invite.TenantId);
         return tenant is not null && tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile)
-            ? new AccessGrant(tenant, invite.Profile, EffectivePolicy.From(profile, ParseOverrides(invite.OverridesJson)), invite)
+            ? new AccessGrant(tenant, invite.Profile, tenant.PolicyFor(invite.Profile, profile, ParseOverrides(invite.OverridesJson)), invite)
             : null;
     }
 
@@ -166,7 +178,7 @@ public sealed class AccessService(
 
         var tenant = tenants.Get(ticket.TenantId);
         return tenant is not null && tenant.Config.Profiles.TryGetValue(ticket.Profile, out var profile)
-            ? new AccessGrant(tenant, ticket.Profile, EffectivePolicy.From(profile), null)
+            ? new AccessGrant(tenant, ticket.Profile, tenant.PolicyFor(ticket.Profile, profile), null)
             : null;
     }
 
