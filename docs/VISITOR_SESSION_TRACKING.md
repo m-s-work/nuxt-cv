@@ -119,7 +119,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 
 | Event | Payload | Purpose |
 |---|---|---|
-| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2) | Context of the visit; IP is taken server-side from the request |
+| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2), `appSha`, `cvVersion` (§6.4) | Context of the visit; IP is taken server-side from the request |
 | `heartbeat` | visible, active | Durations (R4.5) |
 | `visibility` | `visible` / `hidden` | Tab switches, visible time |
 | `section_view` | anchor, visible ms (≥ 50 % in viewport), max visible ratio | Dwell time per section / entry |
@@ -141,6 +141,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 | `theme_switch` | dark/light | UX only |
 | `rage_click` | anchor, count (≥ 3 clicks in 1 s within 30 px) | UX problem (something looks clickable but is not) |
 | `dead_click` | anchor | UX problem |
+| `version` | new `appSha` / `cvVersion` (R6.11) | Keep heatmap samples version-correct |
 | `session_end` | reason (`pagehide`, `timeout`) | Close of the session |
 
 - R5.1 Event payloads MUST NOT contain CV text, form input or copied text – only anchors, kinds and numbers.
@@ -174,13 +175,42 @@ Positions are therefore stored **relative to anchors**.
 
 ### 6.3 Aggregation and rendering
 
-- R6.7 The API aggregates samples into `heat_cells(tenant, group, breakpoint, anchor, cellX, cellY, weight)`
+- R6.7 The API aggregates samples into
+  `heat_cells(tenant, group, breakpoint, appSha, cvVersion, anchor, cellX, cellY, weight)`
   where weight = dwell ms. Raw samples MAY be deleted after aggregation (retention §9).
-- R6.8 To render a heatmap, the owner view loads the CV in the matching breakpoint, looks up every anchor's
-  bounding box in the live DOM and paints the cells into it (canvas overlay). This works even after the CV
-  text changed, as long as anchor keys stay stable.
+- R6.8 To render a heatmap, the owner view loads the CV in the matching breakpoint **and version** (§6.4),
+  looks up every anchor's bounding box in the live DOM and paints the cells into it (canvas overlay).
 - R6.9 Heatmap types: **move** (cursor dwell), **click**, **attention** (section_view dwell, one colour per
   section/entry – works for mobile visitors too).
+
+### 6.4 Versions (git SHA and CV version)
+
+Relative coordinates only mean something against the layout and content the visitor actually saw.
+A changed component (new padding, reordered block) or an edited entry (longer text) moves the hot spots
+inside an anchor. Every session is therefore stamped with the versions it was rendered with.
+
+| Version | Source | Changes when |
+|---|---|---|
+| `appSha` | Git commit SHA of the SPA build, injected at build time (`NUXT_PUBLIC_GIT_SHA`, from Coolify's `SOURCE_COMMIT` build arg, fallback `git rev-parse HEAD`, else `dev`) and exposed as `runtimeConfig.public.gitSha` | Frontend code / layout changes |
+| `apiSha` | Git commit SHA of the API build (`GIT_SHA` build arg → assembly metadata), recorded server-side | Redaction or API behaviour changes |
+| `cvVersion` | SHA-256 (first 16 hex chars) of the **redacted CV JSON** the visitor received, computed by the API and returned in `/api/cv` as `cvVersion` | Master CV edited, profile/invite overrides changed, other locale |
+| `layoutVersion` | Existing `Pdf__LayoutVersion` / `CV_PDF_LAYOUT_VERSION` | Print layout changes (PDF events only) |
+
+- R6.10 `session_start` carries `appSha` and `cvVersion` (as seen by the client); the server adds `apiSha`
+  and verifies `cvVersion` against its own computation (mismatch → stored anyway, flagged).
+- R6.11 If `appSha` or `cvVersion` changes during a session (deploy or CV edit while the tab is open and the
+  CV is re-fetched, e.g. locale switch), the client sends a `version` event and following samples are
+  aggregated under the new version.
+- R6.12 **CV snapshots.** The CV lives in the data volume, not in git, so its history is kept by the API:
+  every distinct redacted CV is stored once as `cv_snapshots(tenant, cvVersion, locale, json, firstSeen)`
+  (deduplicated by hash, stored when first delivered). The heatmap view renders that snapshot, so a heatmap
+  of an old CV version shows the text the visitor actually read.
+- R6.13 **App versions.** Old SPA builds are not kept. The heatmap view renders with the current app and
+  shows a warning when `appSha` of the selected cells differs; the owner can filter by `appSha`
+  (`git log` of that SHA explains what changed). Heatmaps across versions MAY be merged, but only per anchor
+  (section-level attention stays comparable; cursor/click cells are only exact within one `appSha`).
+- R6.14 Reports list the versions per invite (first/last seen per `appSha` / `cvVersion`), so "they read the
+  CV before I added project X" is visible.
 
 ---
 
@@ -258,7 +288,7 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 | `POST /api/events` | `cv_access` or public profile + `cv_vid` | Batch of events of one session. `204`. |
 
 ```jsonc
-{ "sessionId": "b1…", "seq": 7, "bp": "lg",
+{ "sessionId": "b1…", "seq": 7, "bp": "lg", "appSha": "71676ff…", "cvVersion": "9f2c…",
   "events": [ { "t": 15230, "e": "section_view", "a": "experience:acme-2021", "ms": 8400, "r": 0.93 },
               { "t": 15310, "e": "pointer", "s": [["experience:acme-2021", 42, 17, 100], …] } ] }
 ```
@@ -283,7 +313,8 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 | `GET /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Sessions of a visitor. |
 | `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info and fingerprint. |
 | `GET /api/admin/tenants/{tenant}/analytics/persons` | Probable persons (sessions linked by cookie, fingerprint and network, R3.10). |
-| `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&type=move\|click\|attention` | Aggregated heat cells for rendering (R6.8). |
+| `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&appSha=&cvVersion=&type=move\|click\|attention` | Aggregated heat cells for rendering (R6.8), filterable by version (§6.4). |
+| `GET /api/admin/tenants/{tenant}/analytics/cv-snapshots/{cvVersion}` | Redacted CV as the visitor saw it (R6.12). |
 | `DELETE /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Erase a visitor (data subject request). |
 
 Anchor labels in responses are resolved from the master CV (unredacted – the owner may see everything).
@@ -299,7 +330,8 @@ This section is a planning basis, **not legal advice**; it MUST be reviewed befo
   session only (§3.2), fingerprints only as hashes, geo lookups only locally.
 - R9.2 **Retention**: raw events 90 days; full IP addresses and fingerprints 90 days, then the IP is
   truncated (/24 resp. /48) and the fingerprint removed (network info and "probable person" links stay);
-  aggregated heat cells and session summaries 13 months, then deleted
+  aggregated heat cells and session summaries 13 months, then deleted; CV snapshots as long as a session
+  or heat cell references them
   by a daily job. Revoking an invite MAY optionally purge its tracking data.
 - R9.3 **Opt-out**: `DNT`/`GPC` honoured (R8.5); visitor erasure endpoint (§8.2).
 - R9.4 **Consent / notice (open decision).** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25)
@@ -328,13 +360,15 @@ visitor_groups  (visitor_id, invite_id | public_profile, first_seen)
 sessions        (id, visitor_id, tenant, invite_id, started_at, ended_at, open_ms, visible_ms, active_ms,
                  locale, breakpoint, end_reason,
                  ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated after 90 days
-                 fp, fp_parts_json, fp_server)                             -- removed after 90 days
+                 fp, fp_parts_json, fp_server,                             -- removed after 90 days
+                 app_sha, api_sha, cv_version, version_mismatch)           -- §6.4
 session_ips     (session_id, ip, first_seen, last_seen)                    -- IP changes within a session
 persons         (id, tenant, first_seen, last_seen)                        -- probable person (R3.10)
 person_links    (person_id, session_id, reason: cookie|fp|fp_similar+net)
 events          (session_id, seq, t, type, anchor, payload_json)          -- raw, 90 days
 section_stats   (session_id, anchor, visible_ms, active_ms, views, hovers) -- summary, 13 months
-heat_cells      (tenant, group, breakpoint, type, anchor, cx, cy, weight)  -- aggregate, 13 months
+heat_cells      (tenant, group, breakpoint, app_sha, cv_version, type, anchor, cx, cy, weight) -- aggregate, 13 months
+cv_snapshots    (tenant, cv_version, locale, json, first_seen)            -- redacted CV per version, kept while referenced
 ```
 
 Expected volume: ~5–20 KB per session raw; a CV with a few hundred sessions per year stays in the low MB range,
@@ -359,9 +393,9 @@ so SQLite in the existing volume is sufficient. Summaries are computed when a se
 
 | Phase | Scope | Result |
 |---|---|---|
-| **P1 Sessions & time** | `cv_vid`, `/api/events`, sessions with open/visible/active time, IP + local geo/ASN lookup + fingerprint per session, `visitors`/`sessions` tables, invite report | "Who opened it, how often, how long" |
+| **P1 Sessions & time** | `cv_vid`, `/api/events`, sessions with open/visible/active time, IP + local geo/ASN lookup + fingerprint per session, version stamping (`appSha`, `apiSha`, `cvVersion`, CV snapshots), `visitors`/`sessions` tables, invite report | "Who opened it, how often, how long" |
 | **P2 Sections & clicks** | Anchors in all components, `section_view`, `scroll`, `click`, semantic events (tech filter, PDF, contact, …), section ranking | "What did they look at" |
-| **P3 Heatmap** | Pointer sampling, `heat_cells`, heatmap endpoint, overlay renderer | Cursor / click / attention heatmaps |
+| **P3 Heatmap** | Pointer sampling, version-keyed `heat_cells`, heatmap endpoint, overlay renderer on CV snapshots | Cursor / click / attention heatmaps |
 | **P4 Interest** | Reading ratio, tech intent, spread, network/organisation signals, probable-person linking, interest score, session timeline | Comparable interest per visitor and invite |
 | **P5 Owner UI** | Small owner-only dashboard (separate from the invitee SPA, admin key) | Reports without curl |
 | **P0 (before P1 goes live)** | Decide R9.4 (consent option), privacy notice, retention job | Legally deployable |
