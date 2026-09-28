@@ -50,7 +50,8 @@ Hierarchy: **Tenant → Visitor group (invite) → Visitor (cookie) → Session 
 
 - R3.1 When the visitor **accepts** the consent modal (§9.1), the API sets `cv_vid` if absent:
   a random 128-bit id, signed with Data Protection (same key ring as `cv_access`),
-  `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=13 months`.
+  `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=13 months`, refreshed on every visit with valid consent
+  (so it lives as long as the visitor keeps coming back, like the retention in R9.2).
 - R3.2 The browser never reads `cv_vid`; the API resolves it from the cookie on every tracking request.
   JavaScript therefore cannot leak or forge it.
 - R3.3 The visitor → group relation is recorded server-side from `cv_access` (which invite) at the time of the
@@ -83,10 +84,11 @@ of one network, and seeing *where* an invite is being opened.
   server-side hash from request headers (`User-Agent`, `Accept-Language`, client hints) so a session without
   JavaScript fingerprint still gets `fpServer`.
 - R3.10 **Linking.** The report groups sessions into a *probable person* when they share `cv_vid`, or share
-  `fp` (exact) / ≥ 90 % of `fpParts` **and** the same IP /24 (IPv4) or /48 (IPv6) within 30 days.
+  `fp` (exact) / ≥ 90 % of `fpParts` **and** the same IP /24 (IPv4) or /48 (IPv6), as long as both sessions
+  are within their retention period (R9.2).
   Linking is shown as "probably the same visitor" and never overrides the cookie-based visitor id.
 - R3.11 IP and fingerprint are owner-only data (R9.5), fall under the same consent gating as `cv_vid`
-  (R9.4) and are shortened after the retention period (R9.2).
+  (R9.4) and are shortened after the retention period, which slides with every new visit (R9.2).
 
 ---
 
@@ -330,10 +332,27 @@ This section is a planning basis, **not legal advice**; it MUST be reviewed befo
 
 - R9.1 **Data minimisation**: no CV text or typed/copied text in events. IP and fingerprint are stored per
   session only (§3.2), fingerprints only as hashes, geo lookups only locally.
-- R9.2 **Retention**: raw events 90 days; full IP addresses and fingerprints 90 days, then the IP is
-  truncated (/24 resp. /48) and the fingerprint removed (network info and "probable person" links stay);
-  aggregated heat cells and session summaries 13 months; CV snapshots as long as a session or heat cell
-  references them. Expired data is deleted by a daily job. Revoking an invite MAY optionally purge its tracking data.
+- R9.2 **Retention – sliding, counted from the last visit.** Retention periods do not start at the session
+  but at the **last session of the same probable person** (R3.10). Every new session of that person (accepted
+  consent) restarts the clock for all of that person's sessions, so a visitor who keeps coming back keeps their
+  history – including IPs and fingerprints, which are what makes re-recognition after a lost cookie possible.
+
+  | Data | Kept until (default) | Config key in `tenant.json` → `tracking.retention` |
+  |---|---|---|
+  | Full IP addresses, fingerprints (`fp`, `fpParts`, `fpServer`) | 13 months after the person's last visit, then IP truncated (/24 resp. /48) and fingerprint removed | `identifiersMonths` |
+  | Raw events (session timelines) | 13 months after the person's last visit | `eventsMonths` |
+  | Session summaries, section stats, network info, person links | 25 months after the person's last visit | `summaryMonths` |
+  | Heat cells (aggregated per invite, no person reference) | 25 months after the last session that contributed | `heatMonths` |
+  | CV snapshots | as long as a session or heat cell references them | – |
+
+  - Upper limit: each value MAY be raised up to **36 months**; longer periods are rejected at load time
+    (storage limitation, GDPR Art. 5(1)(e) – the period must stay proportionate to the purpose).
+  - The periods are shown in the consent text (R9.12). Changing them changes `policyVersion`, so visitors are
+    asked again.
+  - A daily job applies the rules. Revoking an invite MAY optionally purge its tracking data.
+  - Consent itself does **not** slide: an accepted consent is valid for 13 months from the moment it was given,
+    then the modal asks again (R9.13). If the visitor declines at that point, tracking stops; already recorded data
+    follows the table above (the clock is not restarted by a declined visit).
 - R9.3 **Opt-out**: `DNT`/`GPC` honoured (R8.5); visitor erasure endpoint (§8.2).
 - R9.4 **Consent.** Under ePrivacy rules (e.g. Austrian TKG 2021 §165, German TDDDG §25) the cookie `cv_vid`,
   browser fingerprinting (it reads information from the device just like a cookie) and client-side behaviour
@@ -378,9 +397,12 @@ hiding or downplaying the actual data is not (that would also make the consent i
 - R9.11 **Controller.** The CV owner is the controller. `tenant.json` gets
   `privacy: { controller: "Bob Builder", contact: "privacy@…" }`; the modal and the full policy show it.
   Without `privacy` settings the tenant runs without tracking (no modal).
-- R9.12 **Policy text** is part of the frontend i18n (en, de); `policyVersion` is a hash of the text in all
-  locales, so any change of the text asks again. The full policy is a second layer ("Details") in the same
-  modal – no separate page that could be linked from the showcase.
+- R9.12 **Policy text** is part of the frontend i18n (en, de), with the retention periods (R9.2) filled in from
+  the tenant settings; `policyVersion` is a hash of the rendered text in all locales, so any change asks again.
+  The full policy is a second layer ("Details") in the same modal – no separate page that could be linked from
+  the showcase.
+- R9.13 **Consent renewal**: 13 months after acceptance, `cv_consent` expires and the modal is shown again;
+  the `cv_vid` cookie is kept on renewal so the visitor stays the same.
 
 **Wording (draft, first layer, en)**
 
@@ -389,7 +411,7 @@ hiding or downplaying the actual data is not (that would also make the consent i
 > To see which parts of this CV are most useful to readers like you, {name} would like to record how the CV
 > is read: time spent on the page and its sections, clicks and mouse movement, and technical details of the
 > visit (IP address, device and browser characteristics). This is stored only for {name}, never shared, and
-> deleted after at most 13 months.
+> deleted {identifiersMonths} months after your last visit (summaries after {summaryMonths} months).
 >
 > You can read the CV either way.
 >
@@ -402,7 +424,8 @@ hiding or downplaying the actual data is not (that would also make the consent i
 > Damit {name} sieht, welche Teile dieses Lebenslaufs für Leser wie Sie am hilfreichsten sind, möchte {name}
 > erfassen, wie der Lebenslauf gelesen wird: Verweildauer auf der Seite und in den Abschnitten, Klicks und
 > Mausbewegungen sowie technische Daten des Besuchs (IP-Adresse, Geräte- und Browsermerkmale). Die Daten sind
-> nur für {name} bestimmt, werden nicht weitergegeben und nach spätestens 13 Monaten gelöscht.
+> nur für {name} bestimmt, werden nicht weitergegeben und {identifiersMonths} Monate nach Ihrem letzten Besuch gelöscht
+> (Zusammenfassungen nach {summaryMonths} Monaten).
 >
 > Sie können den Lebenslauf in jedem Fall lesen.
 >
@@ -427,15 +450,15 @@ visitors        (id, tenant, first_seen, last_seen, device, browser, os, lang, t
 visitor_groups  (visitor_id, invite_id | public_profile, first_seen)
 sessions        (id, visitor_id, tenant, invite_id, started_at, ended_at, open_ms, visible_ms, active_ms,
                  locale, breakpoint, end_reason,
-                 ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated after 90 days
-                 fp, fp_parts_json, fp_server,                             -- removed after 90 days
+                 ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated per R9.2
+                 fp, fp_parts_json, fp_server,                             -- removed per R9.2
                  app_sha, api_sha, cv_version, version_mismatch)           -- §6.4
 session_ips     (session_id, ip, first_seen, last_seen)                    -- IP changes within a session
-persons         (id, tenant, first_seen, last_seen)                        -- probable person (R3.10)
+persons         (id, tenant, first_seen, last_seen)                        -- probable person (R3.10); last_seen drives retention (R9.2)
 person_links    (person_id, session_id, reason: cookie|fp|fp_similar+net)
-events          (session_id, seq, t, type, anchor, payload_json)          -- raw, 90 days
-section_stats   (session_id, anchor, visible_ms, active_ms, views, hovers) -- summary, 13 months
-heat_cells      (tenant, group, breakpoint, app_sha, cv_version, type, anchor, cx, cy, weight) -- aggregate, 13 months
+events          (session_id, seq, t, type, anchor, payload_json)          -- raw, R9.2
+section_stats   (session_id, anchor, visible_ms, active_ms, views, hovers) -- summary, R9.2
+heat_cells      (tenant, group, breakpoint, app_sha, cv_version, type, anchor, cx, cy, weight) -- aggregate, R9.2
 cv_snapshots    (tenant, cv_version, locale, json, first_seen)            -- redacted CV per version, kept while referenced
 ```
 
