@@ -1,6 +1,11 @@
 <script setup lang="ts">
 // Print/PDF template "editorial": typeset A4 document – serif name, labelled contact grid,
 // sidebar (skills, languages, licences, QR) and a main column with a date gutter.
+import type { TemplateVarValue } from '~/utils/templateVars'
+
+const props = defineProps<{ vars?: Record<string, TemplateVarValue> }>()
+const style = computed(() => (props.vars?.accent ? { '--accent': props.vars.accent as string } : {}))
+
 const {
   locale, label, getAssetPath, qrDataUrl, qrUrl, onlineHost, platformUrl, platformHost, profile, intro, photo, contact, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries
@@ -8,7 +13,7 @@ const {
 </script>
 
 <template>
-  <article class="cv-print" :lang="locale">
+  <article class="cv-print" :lang="locale" :style="style">
     <!-- Masthead -->
     <header class="masthead">
       <div class="masthead-text">

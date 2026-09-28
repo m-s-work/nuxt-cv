@@ -4,11 +4,14 @@
 // Only visible in print media; the screen layout is hidden there.
 import { printTemplates, resolvePrintTemplate } from '~/utils/printTemplates'
 import { printLabels, type PrintLocale } from '~/utils/printLabels'
+import { resolveTemplateVars } from '~/utils/templateVars'
 
 const { locale } = useI18n()
 const { cv, templates } = useCv()
 
 const template = computed(() => printTemplates[resolvePrintTemplate(templates.value?.pdf)])
+// Template variables: template defaults → preset → owner's values (validated against the template's schema).
+const vars = computed(() => resolveTemplateVars(template.value.vars, templates.value?.pdfVars))
 
 // Footer text for the PDF renderer (pdf/server.mjs reads it for the running footer).
 watchEffect(() => {
@@ -21,5 +24,5 @@ watchEffect(() => {
 </script>
 
 <template>
-  <component :is="template.component" :data-print-template="template.name" />
+  <component :is="template.component" :vars="vars" :data-print-template="template.name" />
 </template>

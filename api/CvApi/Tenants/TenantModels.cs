@@ -24,6 +24,12 @@ public sealed class TemplateSelection
 {
     public string? Pdf { get; set; }
     public string? Html { get; set; }
+
+    /// <summary>
+    /// Variables of the PDF template (colours, toggles, preset …), e.g. { "preset": "graphite", "accent": "#29a8e0" }.
+    /// Merged per key across levels; the template defines names, types and defaults.
+    /// </summary>
+    public Dictionary<string, System.Text.Json.JsonElement>? PdfVars { get; set; }
 }
 
 /// <summary>A redaction policy. Used for profiles and (as partial override) for invites.</summary>

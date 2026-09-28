@@ -175,14 +175,21 @@ public static partial class AdminEndpoints
 
         // PDF preview of a profile in any template (not cached), e.g. to choose a template.
         admin.MapGet("/tenants/{tenantId}/pdf-preview", async (string tenantId, string profile, string? template, string? locale,
-            TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+            string? vars, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
         {
             if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
             if (template is not null && TemplateResolver.Valid(template) is null)
                 return Results.BadRequest(new { error = "invalid_template" });
-            if (AccessService.GrantForProfile(tenant, profile, template) is not { } grant)
+            // vars: JSON object of template variables, e.g. {"preset":"graphite","chapterColors":true}
+            Dictionary<string, JsonElement>? pdfVars = null;
+            if (!string.IsNullOrEmpty(vars))
+            {
+                try { pdfVars = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(vars); }
+                catch (JsonException) { return Results.BadRequest(new { error = "invalid_vars" }); }
+            }
+            if (AccessService.GrantForProfile(tenant, profile, template, pdfVars) is not { } grant)
                 return Results.BadRequest(new { error = "unknown_profile" });
 
             var content = await pdf.RenderPreviewAsync(grant, locale, ct);
