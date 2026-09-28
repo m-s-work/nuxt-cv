@@ -6,8 +6,7 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY server.mjs ./
 # Build identity for GET /version (Coolify passes SOURCE_COMMIT); last, to keep the layers above cached.
 ARG SOURCE_COMMIT=unknown
-ENV SOURCE_COMMIT=$SOURCE_COMMIT
-RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/BUILD_TIME
+RUN echo "$SOURCE_COMMIT" > /app/SOURCE_COMMIT && date -u +%Y-%m-%dT%H:%M:%SZ > /app/BUILD_TIME
 USER pwuser
 ENV PORT=3000 NODE_ENV=production
 EXPOSE 3000
