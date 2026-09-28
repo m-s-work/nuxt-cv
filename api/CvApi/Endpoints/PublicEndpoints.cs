@@ -3,6 +3,7 @@ using CvApi.Access;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
+using CvApi.Versioning;
 using Microsoft.AspNetCore.StaticFiles;
 
 namespace CvApi.Endpoints;
@@ -17,6 +18,27 @@ public static class PublicEndpoints
     public static void MapPublicEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+        // Deployed software version: Git commit + build time of the API and the PDF renderer
+        // (the web container serves /version.json). Used to check that a deployment is current.
+        app.MapGet("/version", async (HttpContext ctx, PdfService pdf, IServiceProvider services) =>
+        {
+            NoStore(ctx);
+            object? renderer = null;
+            if (pdf.Enabled)
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try
+                {
+                    renderer = await services.GetRequiredService<IPdfRenderer>().VersionAsync(timeout.Token);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+                {
+                    renderer = new { error = "unreachable" };
+                }
+            }
+            return Results.Ok(new { api = BuildInfo.Current, pdf = renderer });
+        });
 
         app.MapPost("/access/redeem", async (RedeemRequest body, HttpContext ctx, AccessService access, CancellationToken ct) =>
         {
@@ -43,6 +65,7 @@ public static class PublicEndpoints
             if (loaded is null) return NoAccess(ctx, tenants);
 
             var (master, resolvedLocale) = loaded.Value;
+            var redacted = CvRedactor.Redact(master, grant.Policy);
             return Results.Ok(new
             {
                 access = new
@@ -58,7 +81,9 @@ public static class PublicEndpoints
                 templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html },
                 // Platform site for the "Created with …" credit (shared base URL, if configured).
                 links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
-                cv = CvRedactor.Redact(master, grant.Policy),
+                // SHA-256 of exactly this redacted CV (the "cv" value below) – for tests and deployment checks.
+                cvHash = Sha256.OfText(redacted.ToJsonString()),
+                cv = redacted,
             });
         });
 

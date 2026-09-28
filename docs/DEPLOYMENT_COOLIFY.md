@@ -120,7 +120,32 @@ curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
 
 ---
 
-## 4. Security notes
+## 4. Is the deployment up to date?
+
+**Software.** Each image carries the Git commit it was built from (Coolify: *Configuration → Advanced →
+Include Source Commit in Build* must be on; otherwise the commit reads `unknown`).
+
+```bash
+curl -s https://cv.velarix.space/version.json        # web (Nuxt build)
+curl -s https://cv.velarix.space/api/version         # api + pdf renderer
+git rev-parse origin/main                            # expected commit
+```
+
+**CV data.** Hashes of the files on the server, comparable with `sha256sum` on the files in Git:
+
+```bash
+curl -s -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/hash
+tools/cv-sync.sh --verify tenants/bob     # exit 1 and a list of differing files if not up to date
+
+# combined hash, reproducible in the shell (same value as "combined"):
+cd tenants/bob && find . -type f \( -name tenant.json -o -name 'cv.*.json' -o -path './assets/*' \) \
+  | sed 's#^\./##' | LC_ALL=C sort | xargs sha256sum | sha256sum
+```
+
+`GET /api/admin/tenants` lists the combined `dataHash` of every tenant. `/api/cv` returns `cvHash`, the hash of
+exactly the redacted CV the visitor receives.
+
+## 5. Security notes
 
 - The admin API is reachable through the public domain but requires `X-Admin-Key`. Use a long random key.
   To keep it off the internet entirely, leave `CV_ADMIN_API_KEY` empty and only set it temporarily when needed.
@@ -133,7 +158,7 @@ curl -X DELETE -H "X-Admin-Key: $KEY" $API/admin/tenants/bob/invites/<id>
 
 ---
 
-## 5. Local development
+## 6. Local development
 
 ```bash
 # API (sample tenants "demo" on localhost and "bob" via invite; admin key "dev-admin-key")
