@@ -17,7 +17,7 @@ Catalogue of the product's features. **Visibility** says where a feature may be 
 | [PDF per invite](#pdf-per-invite) | public | ✅ implemented, not yet deployed |
 | Selectable PDF templates (per person, profile or invite) | public | ✅ `editorial`, `classic`, `banner` |
 | Template variables: colour sets, colours, toggles (e.g. chapter colours) | public | ✅ |
-| Template builder UI | owner | 📝 planned (#87) |
+| Template builder UI (admin "Design" tab, live PDF preview) | owner | ✅ |
 | Selectable web templates | public | 📝 planned (#77) |
 | Multilingual content and UI (EN/DE) | public | ✅ |
 | Interactive timeline, technology filter | public | ✅ |

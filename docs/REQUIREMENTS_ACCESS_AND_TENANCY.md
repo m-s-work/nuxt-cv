@@ -322,6 +322,10 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   assets; preview any profile, locale and stored CV version either as data (the redacted JSON exactly as
   delivered) or as PDF in any template and colour set (`…/pdf-preview`, needs the renderer); pin invites to
   CV versions and see outdated pins (§14).
+- R13.5 Template builder ("Design" tab): choose the PDF template, colour set and template variables for the
+  tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
+  profile and locale. Saving edits only `templates` of that scope in `tenant.json` (comments kept) and
+  stores only the preset plus values that differ from it. See `docs/TEMPLATES.md`.
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
   admin page's own CSS chunk, so the public pages are unaffected.
