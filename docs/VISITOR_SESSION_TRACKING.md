@@ -444,49 +444,78 @@ hiding or downplaying the actual data is not (that would also make the consent i
   Without `privacy` settings the tenant runs without tracking (no modal).
 - R9.12 **Policy text** is part of the frontend i18n (en, de), with the retention periods (R9.2) filled in from
   the tenant settings; `policyVersion` is a hash of the rendered text in all locales, so any change asks again.
-  The full policy is a second layer ("Details") in the same modal – no separate page that could be linked from
-  the showcase.
+  The full policy is a second layer ("What exactly is recorded") expanded inside the same modal – no separate
+  page that could be linked from the showcase.
 - R9.13 **Consent renewal**: 13 months after acceptance, `cv_consent` expires and the modal is shown again;
   the `cv_vid` cookie is kept on renewal so the visitor stays the same.
 
-**Wording (draft, first layer, en)**
+**Two layers.** The modal shows a short, friendly text (first layer). The specifics are behind a link
+"What exactly is recorded" that expands the second layer inside the modal (R9.12) – no separate page.
 
-> **Before you start reading**
->
-> To see which parts of this CV are most useful to readers like you, {name} would like to record how the CV
-> is read: time spent on the page and its sections, clicks and mouse movement, and technical details of the
-> visit (IP address, device and browser characteristics). This is stored only for {name}, never shared, and
-> deleted {identifiersMonths} months after your last visit (summaries after {summaryMonths} months).
->
-> You can read the CV either way.
->
-> [ Accept ]   [ Continue without ]        Details
+- R9.17 The first layer MUST still name the purpose, the controller ({name}), the **categories** of data
+  (reading behaviour on this page; technical details of the visit and device) and that the CV can be read
+  either way. The individual data points (mouse movement, IP address, fingerprint, …) MAY move to the second
+  layer, but MUST be there completely.
+- R9.18 **"Never passed on to third parties" must stay true.** Tracking data is only processed by the
+  owner's own API and database: no analytics/CDN/font/geo services receive it, geo/ASN lookups are local
+  (R3.7), and the tracker loads nothing external. The hosting provider only acts as a processor (GDPR Art. 28,
+  data processing agreement) and is not a third party (Art. 4(10)). Adding any external service that
+  receives tracking data requires changing this text first.
 
-**Wording (draft, first layer, de)**
+**First layer (draft, en)**
 
-> **Bevor Sie loslegen**
+> **Welcome!**
 >
-> Damit {name} sieht, welche Teile dieses Lebenslaufs für Leser wie Sie am hilfreichsten sind, möchte {name}
-> erfassen, wie der Lebenslauf gelesen wird: Verweildauer auf der Seite und in den Abschnitten, Klicks und
-> Mausbewegungen sowie technische Daten des Besuchs (IP-Adresse, Geräte- und Browsermerkmale). Die Daten sind
-> nur für {name} bestimmt, werden nicht weitergegeben und {identifiersMonths} Monate nach Ihrem letzten Besuch gelöscht
-> (Zusammenfassungen nach {summaryMonths} Monaten).
+> {name} is glad you are taking a look. To find out which parts of this CV are most helpful to readers like
+> you, {name} would like to learn how it is read – your reading behaviour on this page and a few technical
+> details of your visit and device.
 >
-> Sie können den Lebenslauf in jedem Fall lesen.
+> Everything stays with {name}: it is stored on {name}'s own server and **never passed on to third parties**.
+> You can read the CV either way and change your choice any time.
 >
-> [ Zustimmen ]   [ Ohne fortfahren ]        Details
+> [ Accept ]   [ Continue without ]
+>
+> What exactly is recorded ›
 
-**Details layer** (short headings, plain language): controller and contact (R9.11); what is recorded (§5 in
-visitor terms: time, sections, clicks, cursor, PDF/print/contact actions, IP address with approximate location
-and network provider, device fingerprint, the invite used); purpose (understanding which content matters to
-readers and how they read it); legal basis (consent, Art. 6(1)(a) GDPR); retention (R9.2); no third parties,
-stored on the owner's server; the choice itself (accept or decline, with the invite and time, but nothing else
-about the visitor) is kept as proof of consent; rights (access, erasure, withdrawal, complaint to the data
-protection authority).
+**First layer (draft, de)**
 
-Notes on the wording: "how the CV is read" and "which parts are most useful" honestly describe the interest
-analysis without calling it a product feature; it avoids words like "analytics platform" or "heatmap", but the
-recorded data (mouse movement, IP, fingerprint) is named explicitly.
+> **Willkommen!**
+>
+> Schön, dass Sie vorbeischauen. Um herauszufinden, welche Teile dieses Lebenslaufs für Leser wie Sie am
+> hilfreichsten sind, möchte {name} erfahren, wie er gelesen wird – Ihr Leseverhalten auf dieser Seite und
+> einige technische Daten Ihres Besuchs und Geräts.
+>
+> Alles bleibt bei {name}: Die Daten liegen auf {name}s eigenem Server und werden **niemals an Dritte
+> weitergegeben**. Sie können den Lebenslauf in jedem Fall lesen und Ihre Wahl jederzeit ändern.
+>
+> [ Zustimmen ]   [ Ohne fortfahren ]
+>
+> Was genau erfasst wird ›
+
+**Second layer (draft, en; de analogous in i18n)**
+
+> **What is recorded**
+> - How you read: time on the page and in each section, scrolling, clicks, mouse movement, text you select
+>   or copy (only its length, never the text), opened images and links, PDF download and printing.
+> - Your visit: the invite link you used, date and time, language, screen size, device type, browser and
+>   operating system.
+> - Technical details: your IP address with approximate location and network provider, and a
+>   characteristic of your browser and device (a so-called fingerprint) to recognise a returning visit.
+>
+> **Why** – so {name} can see which content matters to readers and improve the CV.
+>
+> **Who** – {controller}, {contact}. Stored on {name}'s own server; never passed on to third parties.
+>
+> **How long** – details of your visit and device: {identifiersMonths} months after your last visit;
+> summaries: {summaryMonths} months. Your accept/decline choice is kept (invite and time only) as proof.
+>
+> **Legal basis** – your consent (Art. 6(1)(a) GDPR). You can withdraw it at any time via "Privacy" at the
+> bottom of the page; you may request access to or deletion of your data from {contact} and complain to a data
+> protection authority.
+
+Notes on the wording: friendly and reader-centred ("learn how it is read", "most helpful to readers like
+you") without calling it a product feature or using words like "analytics" or "heatmap". Nothing is hidden:
+the first layer names the categories, the second lists every data point.
 
 ---
 
