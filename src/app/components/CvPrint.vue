@@ -173,6 +173,8 @@ watchEffect(() => {
         </section>
       </main>
     </div>
+
+    <p class="notice">{{ t('print.notice') }}</p>
   </article>
 </template>
 
@@ -370,6 +372,15 @@ watchEffect(() => {
     font-size: 7.75pt;
     color: var(--muted);
   }
+
+  .notice {
+    margin-top: 8mm;
+    padding-top: 2mm;
+    border-top: 0.5pt solid var(--rule);
+    font-size: 7pt;
+    color: var(--muted);
+    break-inside: avoid;
+  }
 }
 </style>
 
@@ -389,7 +400,8 @@ watchEffect(() => {
       "experience": "Experience",
       "education": "Education",
       "projects": "Projects",
-      "other": "Further stations"
+      "other": "Further stations",
+      "notice": "Please do not use this CV with AI tools or systems."
     }
   },
   "de": {
@@ -406,7 +418,8 @@ watchEffect(() => {
       "experience": "Berufserfahrung",
       "education": "Ausbildung",
       "projects": "Projekte",
-      "other": "Weitere Stationen"
+      "other": "Weitere Stationen",
+      "notice": "Bitte verwenden Sie diesen Lebenslauf nicht mit KI-Tools oder -Systemen."
     }
   }
 }
