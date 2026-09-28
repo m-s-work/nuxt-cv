@@ -210,7 +210,8 @@ A sample tenant lives in `api/sample-data/`.
 
 - No web admin UI; tenants, files and invites are managed via the admin API (curl / scripts).
 - No user accounts or passwords for visitors.
-- No per-visitor analytics beyond `useCount` / `lastUsedAt`.
+- No per-visitor analytics beyond `useCount` / `lastUsedAt` (visitor & session tracking is planned in
+  [`VISITOR_SESSION_TRACKING.md`](VISITOR_SESSION_TRACKING.md); owner-only, never shown to invitees, see R11.4).
 
 ---
 

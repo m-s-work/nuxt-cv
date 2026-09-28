@@ -57,6 +57,7 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`
 | `docker-compose.yml` | Deployment (Coolify): `web` (nginx + SPA), `api`, `pdf` |
 | `docs/REQUIREMENTS_ACCESS_AND_TENANCY.md` | Source of truth for tenancy, invites, redaction, API, showcase |
 | `docs/DEPLOYMENT_COOLIFY.md` | Deployment and operations |
+| `docs/VISITOR_SESSION_TRACKING.md` | Plan: visitor/session tracking, heatmap, interest signals (owner-only) |
 
 ## Commands
 
