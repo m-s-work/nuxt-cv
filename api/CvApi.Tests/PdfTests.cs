@@ -124,6 +124,23 @@ public sealed class PdfTests : IDisposable
     }
 
     [Fact]
+    public async Task Cached_pdf_is_rerendered_when_the_qr_target_changes()
+    {
+        var created = await CreateInvite(new { profile = "full" });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await client.PostAsJsonAsync("/api/access/redeem", new { code = created["code"]!.GetValue<string>() });
+        Assert.Equal("hit", (await client.GetAsync("/api/pdf?locale=en")).Headers.GetValues("X-Pdf-Cache").Single());
+
+        // Same CV, but the tenant moved to another host: the QR code in the cached PDF would be wrong.
+        _factory.SetHosts("alice", "new-alice.example.org");
+        _factory.Renderer.Calls.Clear();
+
+        var response = await client.GetAsync("/api/pdf?locale=en");
+        Assert.Equal("miss", response.Headers.GetValues("X-Pdf-Cache").Single());
+        Assert.StartsWith("https://new-alice.example.org/?c=", QrUrl(_factory.Renderer.Calls.Single()));
+    }
+
+    [Fact]
     public async Task Pdf_requires_access_and_reports_failures()
     {
         Assert.Equal(HttpStatusCode.Forbidden, (await _factory.ClientFor(ApiFactory.SharedHost).GetAsync("/api/pdf")).StatusCode);

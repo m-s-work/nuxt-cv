@@ -48,6 +48,14 @@ public class ApiFactory : WebApplicationFactory<Program>
     public void WriteCv(string tenant, string locale, string json) =>
         File.WriteAllText(Path.Combine(DataPath, "tenants", tenant, $"cv.{locale}.json"), json);
 
+    public void SetHosts(string tenant, params string[] hosts)
+    {
+        var file = Path.Combine(DataPath, "tenants", tenant, "tenant.json");
+        var node = JsonNode.Parse(File.ReadAllText(file))!.AsObject();
+        node["hosts"] = new JsonArray(hosts.Select(h => (JsonNode?)JsonValue.Create(h)).ToArray());
+        File.WriteAllText(file, node.ToJsonString());
+    }
+
     public void SetPublicProfile(string tenant, string? profile)
     {
         var file = Path.Combine(DataPath, "tenants", tenant, "tenant.json");

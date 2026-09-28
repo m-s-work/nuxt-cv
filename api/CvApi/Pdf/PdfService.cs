@@ -61,7 +61,10 @@ public sealed class PdfService(
         if (tenants.LoadCv(grant.Tenant, requestedLocale) is not { } loaded) return null;
         var (master, locale) = loaded;
 
-        var hash = ContentHash(CvRedactor.Redact(master, grant.Policy).ToJsonString(), locale);
+        // The render URL carries the QR target (public host + QR invite code), so a changed host or
+        // base URL makes the cached PDF stale as well.
+        var renderUrl = await RenderUrlAsync(grant, locale, ct);
+        var hash = ContentHash(CvRedactor.Redact(master, grant.Policy).ToJsonString(), locale, renderUrl);
         var file = CacheFile(grant, locale);
         var hashFile = file + ".sha256";
 
@@ -72,7 +75,7 @@ public sealed class PdfService(
             if (File.Exists(file) && File.Exists(hashFile) && await File.ReadAllTextAsync(hashFile, ct) == hash)
                 return new PdfResult(await File.ReadAllBytesAsync(file, ct), FromCache: true);
 
-            var pdf = await RenderAsync(grant, locale, ct);
+            var pdf = await RenderAsync(grant, renderUrl, ct);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             await File.WriteAllBytesAsync(file, pdf, ct);
             await File.WriteAllTextAsync(hashFile, hash, ct);
@@ -120,9 +123,8 @@ public sealed class PdfService(
             .Select(f => Path.GetFileName(f)["cv.".Length..^".json".Length])
             .Order(StringComparer.Ordinal);
 
-    private async Task<byte[]> RenderAsync(AccessGrant grant, string locale, CancellationToken ct)
+    private async Task<Uri> RenderUrlAsync(AccessGrant grant, string locale, CancellationToken ct)
     {
-        var renderer = services.GetRequiredService<IPdfRenderer>();
         var appBase = (configuration["Pdf:AppBaseUrl"] ?? "http://web").TrimEnd('/');
         // Nuxt i18n: default locale "en" has no prefix (prefix_except_default).
         var path = locale == (configuration["Pdf:DefaultUiLocale"] ?? "en") ? "/" : $"/{locale}";
@@ -131,8 +133,12 @@ public sealed class PdfService(
         var publicUrl = PublicUrl(grant.Tenant, path);
         if (publicUrl is not null && grant.Invite is { } invite)
             publicUrl += "?c=" + await access.GetOrCreateQrCodeAsync(invite, ct);
-        var url = new Uri($"{appBase}{path}?print=1" + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}"));
+        return new Uri($"{appBase}{path}?print=1" + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}"));
+    }
 
+    private async Task<byte[]> RenderAsync(AccessGrant grant, Uri url, CancellationToken ct)
+    {
+        var renderer = services.GetRequiredService<IPdfRenderer>();
         var cookies = new Dictionary<string, string> { [AccessService.RenderCookieName] = access.CreateRenderTicket(grant) };
         var pdf = await renderer.RenderAsync(url, cookies, ct);
         if (pdf.Length < 5 || Encoding.ASCII.GetString(pdf, 0, 5) != "%PDF-")
@@ -154,7 +160,9 @@ public sealed class PdfService(
         return Path.Combine(DataPath, "pdf", grant.Tenant.Id, $"{key}.{locale}.pdf");
     }
 
-    /// <summary>Redacted CV + locale + optional layout version (bump Pdf:LayoutVersion after UI changes).</summary>
-    private string ContentHash(string redactedCv, string locale) => Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{redactedCv}")));
+    /// <summary>
+    /// Layout version (bump Pdf:LayoutVersion after UI changes) + locale + render URL (QR target) + redacted CV.
+    /// </summary>
+    private string ContentHash(string redactedCv, string locale, Uri renderUrl) => Convert.ToHexStringLower(SHA256.HashData(
+        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{renderUrl}\n{redactedCv}")));
 }
