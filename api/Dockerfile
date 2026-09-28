@@ -13,9 +13,10 @@ COPY --from=build /out .
 # /data holds tenants, invites (SQLite) and cookie-signing keys. Owned by the non-root app user,
 # so a fresh named volume inherits the permissions.
 RUN mkdir -p /data/tenants && chown -R $APP_UID /data
-# Build identity for GET /api/version (Coolify passes SOURCE_COMMIT).
+# Build identity for GET /api/version (Coolify passes SOURCE_COMMIT as build arg). Written to a file,
+# because Coolify's runtime environment may override an ENV of the same name.
 ARG SOURCE_COMMIT=unknown
-ENV SOURCE_COMMIT=$SOURCE_COMMIT
+RUN echo "$SOURCE_COMMIT" > /app/SOURCE_COMMIT
 USER $APP_UID
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     Cv__DataPath=/data

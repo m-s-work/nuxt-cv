@@ -121,7 +121,8 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/version') {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
-        commit: process.env.SOURCE_COMMIT || 'unknown',
+        // Baked into the image at build time (the runtime env may be overridden by Coolify).
+        commit: (() => { try { const c = fs.readFileSync(new URL('./SOURCE_COMMIT', import.meta.url), 'utf8').trim(); if (c && c !== 'unknown') return c } catch {} return process.env.SOURCE_COMMIT || 'unknown' })(),
         builtAt: (() => { try { return fs.readFileSync(new URL('./BUILD_TIME', import.meta.url), 'utf8').trim() } catch { return null } })()
       }))
       return
