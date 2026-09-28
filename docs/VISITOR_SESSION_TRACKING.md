@@ -97,11 +97,15 @@ of one network, and seeing *where* an invite is being opened.
 A session is the time a visitor had the CV open in one tab.
 
 - R4.1 The client creates a random `sessionId` on page load and keeps it in `sessionStorage`
-  (survives reloads of the same tab, not new tabs).
+  (survives reloads of the same tab, not new tabs), together with a `tabId` that lives as long as the tab.
 - R4.2 **Start**: first `session_start` event after the CV is rendered (splash screen finished, `access` granted).
 - R4.3 **Heartbeat**: while the tab is visible the client sends a heartbeat every 15 s (piggy-backed on the event batch).
 - R4.4 **End**: `pagehide` / tab close (sent with `navigator.sendBeacon`), or no heartbeat for 30 min.
-  A tab hidden for more than 30 min that becomes visible again starts a **new** session.
+  A tab hidden for more than 30 min that becomes visible again starts a **new** session (R4.7).
+- R4.7 **Split & link.** A session also ends when the versions it was rendered with change (§6.4, R6.11).
+  In both cases the client ends the current session (`session_end`, reason `resume_timeout` / `version_change`)
+  and immediately starts a new one with `previousSessionId` set. So **every session has exactly one set of
+  versions**, and no event or heatmap sample ever needs to be re-attributed.
 - R4.5 Three durations are computed per session:
 
   | Duration | Definition |
@@ -110,8 +114,10 @@ A session is the time a visitor had the CV open in one tab.
   | **Visible time** | Sum of intervals with `document.visibilityState === "visible"`. |
   | **Active time** | Visible time in which there was input (mouse move, scroll, key, touch) in the last 30 s. The most honest "reading time". |
 
-- R4.6 Concurrent tabs of the same visitor are separate sessions; reports MAY merge overlapping sessions of a
-  visitor into one **visit**.
+- R4.6 **Visits.** Reports group sessions into a **visit**: the chain of sessions linked by `previousSessionId`
+  (same tab, split by R4.7) plus overlapping sessions of the same visitor in other tabs. Durations of a visit
+  are the sums of its sessions (overlaps counted once), so a deploy or CV update during reading does not make
+  one visit look like two. Heatmaps and version reports use the individual sessions.
 
 ---
 
@@ -121,7 +127,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 
 | Event | Payload | Purpose |
 |---|---|---|
-| `session_start` | locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2), `appSha`, `cvSourceSha`, `cvVersion` (§6.4) | Context of the visit; IP is taken server-side from the request |
+| `session_start` | `previousSessionId` (if split, R4.7), locale, viewport w×h, device pixel ratio, color scheme, referrer kind (`direct`/`qr`/`link`), local hour, `fp`, `fpParts` (§3.2), `appSha`, `cvSourceSha`, `cvVersion` (§6.4) | Context of the visit; IP is taken server-side from the request |
 | `heartbeat` | visible, active | Durations (R4.5) |
 | `visibility` | `visible` / `hidden` | Tab switches, visible time |
 | `section_view` | anchor, visible ms (≥ 50 % in viewport), max visible ratio | Dwell time per section / entry |
@@ -143,8 +149,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 | `theme_switch` | dark/light | UX only |
 | `rage_click` | anchor, count (≥ 3 clicks in 1 s within 30 px) | UX problem (something looks clickable but is not) |
 | `dead_click` | anchor | UX problem |
-| `version` | new `appSha` / `cvSourceSha` / `cvVersion` (R6.11) | Keep heatmap samples version-correct |
-| `session_end` | reason (`pagehide`, `timeout`) | Close of the session |
+| `session_end` | reason (`pagehide`, `timeout`, `resume_timeout`, `version_change`) | Close of the session; the last two are followed by a linked session (R4.7) |
 
 - R5.1 Event payloads MUST NOT contain CV text, form input or copied text – only anchors, kinds and numbers.
   Anchors are resolved to labels **server-side** against the master CV when the owner looks at reports.
@@ -202,9 +207,15 @@ inside an anchor. Every session is therefore stamped with the versions it was re
 - R6.10 `session_start` carries `appSha`, `cvSourceSha` and `cvVersion` (as seen by the client; `/api/cv`
   returns the latter two); the server adds `apiSha`
   and verifies `cvVersion` against its own computation (mismatch → stored anyway, flagged).
-- R6.11 If `appSha`, `cvSourceSha` or `cvVersion` changes during a session (deploy or CV edit while the tab is open and the
-  CV is re-fetched, e.g. locale switch), the client sends a `version` event and following samples are
-  aggregated under the new version.
+- R6.11 **Version change → new linked session.** If `appSha`, `cvSourceSha` or `cvVersion` differs from the
+  current session's, the session is split (R4.7): pending events are flushed, `session_end`
+  (`version_change`) is sent and a new session starts with `previousSessionId`. Cases:
+  - reload of the tab after a frontend deploy (same `sessionId` in `sessionStorage`, new `appSha`);
+  - the CV is re-fetched with a different result (locale switch, CV deploy picked up on re-fetch,
+    changed invite overrides) → new `cvSourceSha` / `cvVersion`;
+  A session's versions are always those **rendered in the tab**. A deploy on the server alone does not split a
+  session: the visitor still sees the CV and code they loaded, so their data belongs to that version until the
+  tab reloads or re-fetches.
 - R6.12 **CV snapshots.** The master CV is versioned in its git repository (`cvSourceSha`), but one commit
   yields many *redacted* CVs (per profile, invite overrides, locale), and invite overrides live in the database,
   not in git. So every distinct redacted CV is also stored once as
@@ -469,7 +480,7 @@ recorded data (mouse movement, IP, fingerprint) is named explicitly.
 ```
 visitors        (id, tenant, first_seen, last_seen, device, browser, os, lang, tz_offset)
 visitor_groups  (visitor_id, invite_id | public_profile, first_seen)
-sessions        (id, visitor_id, tenant, invite_id, started_at, ended_at, open_ms, visible_ms, active_ms,
+sessions        (id, visitor_id, tenant, invite_id, tab_id, previous_session_id, visit_id, started_at, ended_at, open_ms, visible_ms, active_ms,
                  locale, breakpoint, end_reason,
                  ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated per R9.2
                  fp, fp_parts_json, fp_server,                             -- removed per R9.2
