@@ -343,7 +343,8 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 
 | Method & path | Purpose |
 |---|---|
-| `GET /api/admin/tenants/{tenant}/analytics/invites` | Per invite: visitors, sessions, active time, last visit, score. |
+| `GET /api/admin/tenants/{tenant}/analytics/invites` | Per invite: visitors, sessions, active time, last visit, score, consent counts (accept / decline by source / withdraw, R9.15). |
+| `GET /api/admin/tenants/{tenant}/analytics/consent` | Consent rate per tenant, invite and `policyVersion` (R9.15). |
 | `GET /api/admin/tenants/{tenant}/analytics/invites/{id}` | Visitors of the invite, section/entry ranking, tech intent, score breakdown. |
 | `GET /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Sessions of a visitor. |
 | `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info and fingerprint. |
@@ -425,7 +426,19 @@ hiding or downplaying the actual data is not (that would also make the consent i
 - R9.8 `DNT: 1` / `Sec-GPC: 1` count as a decline; the modal is not shown.
 - R9.9 No modal in print mode (`?print=1`), for the PDF renderer or admin previews; nothing is tracked there.
 - R9.10 **Consent log** (proof, GDPR Art. 7(1)): `consents(id, tenant, invite_id, visitor_id?, choice,
-  policy_version, created_at, withdrawn_at)`. Declines are logged without `visitor_id`.
+  source, policy_version, created_at, withdrawn_at)`; `choice` = `accept | decline | withdraw`,
+  `source` = `modal | footer | gpc | dnt`.
+- R9.14 **Declines are recorded – the decision, not the person.** A decline (modal, footer, or a DNT/GPC signal
+  counted as decline, R9.8) creates one consent-log row with tenant, invite, `choice`, `source`,
+  `policyVersion` and time. It MUST NOT contain or be linked to `visitor_id`, IP, fingerprint, user agent or any
+  later activity; no `cv_vid` is set. A DNT/GPC signal is logged at most once per invite and day.
+  The existing invite counters (`useCount`, `lastUsedAt`) keep working for declining visitors as before.
+- R9.15 **Owner view of consent.** Reports show per invite: accepts, declines (by `source`), withdrawals, the
+  time of the last decision, and the consent rate per tenant and per `policyVersion` (to see whether a new
+  wording changed the rate). This is information about the *choice* only: e.g. "ACME invite: opened 3×,
+  1 accept, 2 declines" – nothing about what the declining visitors did on the page.
+- R9.16 The decision itself MUST NOT change anything for the visitor: same CV, same features, no reminder
+  or nagging beyond the renewal in R9.13.
 - R9.11 **Controller.** The CV owner is the controller. `tenant.json` gets
   `privacy: { controller: "Bob Builder", contact: "privacy@…" }`; the modal and the full policy show it.
   Without `privacy` settings the tenant runs without tracking (no modal).
@@ -467,7 +480,9 @@ hiding or downplaying the actual data is not (that would also make the consent i
 visitor terms: time, sections, clicks, cursor, PDF/print/contact actions, IP address with approximate location
 and network provider, device fingerprint, the invite used); purpose (understanding which content matters to
 readers and how they read it); legal basis (consent, Art. 6(1)(a) GDPR); retention (R9.2); no third parties,
-stored on the owner's server; rights (access, erasure, withdrawal, complaint to the data protection authority).
+stored on the owner's server; the choice itself (accept or decline, with the invite and time, but nothing else
+about the visitor) is kept as proof of consent; rights (access, erasure, withdrawal, complaint to the data
+protection authority).
 
 Notes on the wording: "how the CV is read" and "which parts are most useful" honestly describe the interest
 analysis without calling it a product feature; it avoids words like "analytics platform" or "heatmap", but the
