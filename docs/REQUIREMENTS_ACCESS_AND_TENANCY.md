@@ -269,6 +269,10 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   - the PDF of a QR invite embeds its own code (no QR-of-QR chains).
   Public-profile PDFs (no invite) link to the public URL without a code.
 - R12.8 Revoking an invite deletes its cached PDFs.
+- R12.12 **Links & file name.** Every PDF template contains a clickable link to the online version (same
+  target as the QR code, incl. the QR invite code) and a "Created with <platform>" credit linking to the shared
+  site (`CV_SHARED_BASE_URL`, returned as `links.platform` by `/api/cv`). Downloads are named
+  `cv-<name>-<locale>.pdf` (umlauts transliterated, `cv-<locale>.pdf` if the name is hidden).
 - R12.11 **Templates.** Print/PDF output uses a selectable template (`editorial` default, `classic`), chosen per
   tenant, profile or invite (invite overrides allowed unless `allowInviteTemplateOverride: false`).
   Details and how to add templates: [TEMPLATES.md](TEMPLATES.md).

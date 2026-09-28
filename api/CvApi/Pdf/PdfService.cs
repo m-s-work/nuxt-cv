@@ -32,7 +32,7 @@ public sealed class HttpPdfRenderer(HttpClient http) : IPdfRenderer
     }
 }
 
-public sealed record PdfResult(byte[] Content, bool FromCache);
+public sealed record PdfResult(byte[] Content, bool FromCache, string FileName);
 
 public sealed record PdfRenderOutcome(string Locale, bool Ok, bool FromCache, long? Bytes, string? Error);
 
@@ -64,7 +64,9 @@ public sealed class PdfService(
         // The render URL carries the QR target (public host + QR invite code), so a changed host or
         // base URL makes the cached PDF stale as well.
         var renderUrl = await RenderUrlAsync(grant, locale, ct);
-        var hash = ContentHash(CvRedactor.Redact(master, grant.Policy).ToJsonString(), locale, renderUrl, grant.Templates.Pdf);
+        var redacted = CvRedactor.Redact(master, grant.Policy);
+        var fileName = PdfFileName.For(redacted["profile"]?["name"]?.GetValue<string>(), locale);
+        var hash = ContentHash(redacted.ToJsonString(), locale, renderUrl, grant.Templates.Pdf);
         var file = CacheFile(grant, locale);
         var hashFile = file + ".sha256";
 
@@ -73,13 +75,13 @@ public sealed class PdfService(
         try
         {
             if (File.Exists(file) && File.Exists(hashFile) && await File.ReadAllTextAsync(hashFile, ct) == hash)
-                return new PdfResult(await File.ReadAllBytesAsync(file, ct), FromCache: true);
+                return new PdfResult(await File.ReadAllBytesAsync(file, ct), FromCache: true, fileName);
 
             var pdf = await RenderAsync(grant, renderUrl, ct);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             await File.WriteAllBytesAsync(file, pdf, ct);
             await File.WriteAllTextAsync(hashFile, hash, ct);
-            return new PdfResult(pdf, FromCache: false);
+            return new PdfResult(pdf, FromCache: false, fileName);
         }
         finally
         {

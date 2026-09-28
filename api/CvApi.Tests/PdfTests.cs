@@ -112,6 +112,7 @@ public sealed class PdfTests : IDisposable
         var cached = await client.GetAsync("/api/pdf?locale=en");
         Assert.Equal(HttpStatusCode.OK, cached.StatusCode);
         Assert.Equal("application/pdf", cached.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("cv-alice-en.pdf", cached.Content.Headers.ContentDisposition?.FileName?.Trim('"'));
         Assert.Equal("hit", cached.Headers.GetValues("X-Pdf-Cache").Single());
         Assert.Equal(rendersAfterCreation, _factory.Renderer.Calls.Count);
 

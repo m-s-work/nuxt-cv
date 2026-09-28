@@ -32,7 +32,8 @@ public static class PublicEndpoints
             return Results.NoContent();
         });
 
-        app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+        app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf,
+            IConfiguration config, CancellationToken ct) =>
         {
             NoStore(ctx);
             var grant = await access.ResolveAsync(ctx, ct);
@@ -55,6 +56,8 @@ public static class PublicEndpoints
                 locale = resolvedLocale,
                 features = new { pdf = pdf.Enabled },
                 templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html },
+                // Platform site for the "Created with …" credit (shared base URL, if configured).
+                links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
                 cv = CvRedactor.Redact(master, grant.Policy),
             });
         });
@@ -74,7 +77,7 @@ public static class PublicEndpoints
                 var result = await pdf.GetOrRenderAsync(grant, locale, ct);
                 if (result is null) return Results.NotFound();
                 ctx.Response.Headers["X-Pdf-Cache"] = result.FromCache ? "hit" : "miss";
-                return Results.File(result.Content, "application/pdf", $"CV-{locale ?? grant.Tenant.Config.DefaultLocale}.pdf");
+                return Results.File(result.Content, "application/pdf", result.FileName);
             }
             catch (Exception ex) when (ex is PdfRenderException or HttpRequestException or TaskCanceledException)
             {

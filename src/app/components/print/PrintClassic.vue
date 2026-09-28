@@ -2,7 +2,7 @@
 // Print/PDF template "classic": single column, black and white, no photo. Compact and easy for
 // applicant tracking systems to parse (linear reading order, real text, no multi-column flow).
 const {
-  locale, label, qrDataUrl, profile, intro, contact, period,
+  locale, label, qrDataUrl, qrUrl, onlineHost, platformUrl, platformHost, profile, intro, contact, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries
 } = usePrintData()
 
@@ -101,9 +101,17 @@ const fullName = computed(() => [
     <footer class="end">
       <div v-if="qrDataUrl" class="qr">
         <img :src="qrDataUrl" :alt="label('online')">
-        <span>{{ label('online') }}</span>
+        <span>
+          {{ label('online') }}<br>
+          <a v-if="onlineHost" :href="qrUrl">{{ onlineHost }}</a>
+        </span>
       </div>
-      <p class="notice">{{ label('notice') }}</p>
+      <p class="notice">
+        {{ label('notice') }}
+        <template v-if="platformHost">
+          <br>{{ label('createdWith') }} <a :href="platformUrl">{{ platformHost }}</a>
+        </template>
+      </p>
     </footer>
   </article>
 </template>
@@ -204,6 +212,11 @@ const fullName = computed(() => [
     width: 18mm;
     height: 18mm;
     image-rendering: pixelated;
+  }
+  .end a {
+    color: #000;
+    text-decoration: underline;
+    text-decoration-thickness: 0.4pt;
   }
   .notice {
     font-size: 7.5pt;

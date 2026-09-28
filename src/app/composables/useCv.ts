@@ -112,6 +112,11 @@ export interface CvFeatures {
   pdf: boolean
 }
 
+/** Links provided by the API (platform = shared site, for the "Created with" credit). */
+export interface CvLinks {
+  platform?: string | null
+}
+
 /** Template names resolved by the API (null = frontend default). */
 export interface CvTemplates {
   pdf?: string | null
@@ -123,6 +128,7 @@ interface CvResponse {
   locale: string
   features?: CvFeatures
   templates?: CvTemplates
+  links?: CvLinks
   cv: CvData
 }
 
@@ -166,6 +172,7 @@ export function useCv() {
   const hostKind = useState<CvHostKind>('cv-host-kind', () => 'tenant')
   const features = useState<CvFeatures>('cv-features', () => ({ pdf: false }))
   const templates = useState<CvTemplates>('cv-templates', () => ({}))
+  const links = useState<CvLinks>('cv-links', () => ({}))
 
   const apiBase = useRuntimeConfig().public.apiBase as string
 
@@ -186,6 +193,7 @@ export function useCv() {
       access.value = response.access
       features.value = response.features ?? { pdf: false }
       templates.value = response.templates ?? {}
+      links.value = response.links ?? {}
       status.value = 'ready'
     } catch (error: unknown) {
       cv.value = null
@@ -242,6 +250,7 @@ export function useCv() {
     hostKind,
     features,
     templates,
+    links,
     inviteRejected,
     init,
     load,

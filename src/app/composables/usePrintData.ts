@@ -7,7 +7,7 @@ import { printLabels, type PrintLocale } from '~/utils/printLabels'
  */
 export function usePrintData() {
   const { locale } = useI18n()
-  const { cv } = useCv()
+  const { cv, links } = useCv()
   const { getAssetPath } = useAssetPath()
   const { dataUrl: qrDataUrl, url: qrUrl } = useCvQrCode(400)
 
@@ -39,6 +39,15 @@ export function usePrintData() {
     { key: 'born', value: birthDate.value }
   ]).filter((item): item is { key: string, value: string } => !!item.value))
 
+  // Clickable links in the PDF: the online version (same target as the QR code, incl. invite code)
+  // and the platform for the "Created with …" credit. Displayed as bare host names.
+  const host = (url?: string | null) => {
+    try { return url ? new URL(url).host : '' } catch { return '' }
+  }
+  const onlineHost = computed(() => host(qrUrl.value))
+  const platformUrl = computed(() => links.value?.platform ?? '')
+  const platformHost = computed(() => host(platformUrl.value))
+
   /** Typographic dash between dates ("2017 – 2020"). */
   const period = (value?: string) => value?.replace(' - ', ' – ') ?? ''
 
@@ -52,6 +61,9 @@ export function usePrintData() {
     getAssetPath,
     qrDataUrl,
     qrUrl,
+    onlineHost,
+    platformUrl,
+    platformHost,
     profile,
     details,
     intro,
