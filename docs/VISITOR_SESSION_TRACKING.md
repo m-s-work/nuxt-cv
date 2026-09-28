@@ -78,11 +78,18 @@ of one network, and seeing *where* an invite is being opened.
 - R3.8 **Fingerprint.** On session start the client computes a fingerprint from stable browser traits:
   user agent / client hints, platform, languages, time zone, screen size and colour depth, device memory,
   hardware concurrency, touch support, installed-font probe (fixed list), canvas and WebGL renderer hashes,
-  audio-context hash. Only the resulting **SHA-256 hash** (`fp`) and a small list of component hashes
+  audio-context hash, and the privacy signals `navigator.doNotTrack` / `navigator.globalPrivacyControl`
+  (R3.12). Only the resulting **SHA-256 hash** (`fp`) and a small list of component hashes
   (`fpParts`, to compute similarity when single traits change) are sent – never the raw values.
 - R3.9 The fingerprint is sent inside the `session_start` event; the server additionally derives a
-  server-side hash from request headers (`User-Agent`, `Accept-Language`, client hints) so a session without
-  JavaScript fingerprint still gets `fpServer`.
+  server-side hash from request headers (`User-Agent`, `Accept-Language`, client hints, `DNT`, `Sec-GPC`)
+  so a session without JavaScript fingerprint still gets `fpServer`.
+- R3.12 **DNT / GPC as fingerprint traits.** Once the visitor has accepted (R9.8: the signals do not block the
+  modal), their values are ordinary browser settings and part of the fingerprint. They add little entropy on
+  their own (GPC mostly follows the browser, e.g. always on in Brave) but help to separate otherwise identical
+  browsers (same model, same OS image in one company network). Because a user can toggle them, they are a
+  separate `fpParts` entry, so a change only lowers the similarity instead of breaking the match (R3.10).
+  Without consent they are only recorded as the `signals` field of the consent log (R9.10).
 - R3.10 **Linking.** The report groups sessions into a *probable person* when they share `cv_vid`, or share
   `fp` (exact) / ≥ 90 % of `fpParts` **and** the same IP /24 (IPv4) or /48 (IPv6), as long as both sessions
   are within their retention period (R9.2).
