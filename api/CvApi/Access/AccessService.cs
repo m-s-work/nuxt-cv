@@ -7,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CvApi.Access;
 
 /// <summary>What the current visitor may see: a tenant, a profile and the merged redaction policy.</summary>
-public sealed record AccessGrant(Tenant Tenant, string ProfileName, EffectivePolicy Policy, Invite? Invite, TemplateSelection Templates);
+/// <param name="ViaRenderTicket">Opened by the PDF renderer (never tracked).</param>
+public sealed record AccessGrant(Tenant Tenant, string ProfileName, EffectivePolicy Policy, Invite? Invite, TemplateSelection Templates,
+    bool ViaRenderTicket = false);
 
 public enum RedeemResult { Ok, Invalid }
 
@@ -39,7 +41,7 @@ public sealed class AccessService(
     public async Task<AccessGrant?> ResolveAsync(HttpContext context, CancellationToken ct)
     {
         // The PDF renderer calls from inside the container network (host "web"), with a render ticket.
-        if (await ReadRenderTicketAsync(context, ct) is { } rendered) return rendered;
+        if (await ReadRenderTicketAsync(context, ct) is { } rendered) return rendered with { ViaRenderTicket = true };
 
         var hostTenant = tenants.FindByHost(context.Request.Host.Host);
         var now = time.GetUtcNow();

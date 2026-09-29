@@ -95,6 +95,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Cv:RedeemPerMinute", "1000");
         builder.UseSetting("Admin:ApiKey", AdminKey);
         builder.UseSetting("Git:AllowLocalRepos", "true");
+        builder.UseSetting("Tracking:EventsPerMinute", "100000");
     }
 
     protected override void Dispose(bool disposing)
