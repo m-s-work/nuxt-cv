@@ -37,7 +37,20 @@ public static partial class AdminEndpoints
         int? ExpiresInDays,
         int? MaxUses,
         AccessPolicy? Overrides,
-        string? Code = null);
+        string? Code = null,
+        bool ViewOnce = false,
+        int? ViewOnceMinutes = null);
+
+    /// <summary>
+    /// Settings of an invite that can be changed later; replaces all of them (null = none / unlimited / not view-once).
+    /// </summary>
+    public sealed record UpdateInviteRequest(string? Label, DateTimeOffset? ExpiresAt, int? MaxUses, int? ViewOnceMinutes);
+
+    /// <summary>Longest view-once grace window.</summary>
+    public const int MaxViewOnceMinutes = 7 * 24 * 60;
+
+    /// <summary>Default grace window of a view-once invite for the browser that opened it.</summary>
+    public const int DefaultViewOnceMinutes = 30;
 
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
@@ -160,6 +173,7 @@ public static partial class AdminEndpoints
             if (!tenant.Config.Profiles.ContainsKey(body.Profile))
                 return Results.BadRequest(new { error = "unknown_profile", profiles = tenant.Config.Profiles.Keys });
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
+            if (body.ViewOnceMinutes is <= 0 or > MaxViewOnceMinutes) return Results.BadRequest(new { error = "invalid_view_once_minutes" });
             if (body.Overrides is { Revision: { Length: > 0 } pin })
             {
                 var (sha, pinError) = await EnsureRevisionAsync(tenant, pin, git, ct);
@@ -191,6 +205,9 @@ public static partial class AdminEndpoints
                 CreatedAt = now,
                 ExpiresAt = body.ExpiresAt ?? (body.ExpiresInDays is { } days ? now.AddDays(days) : null),
                 MaxUses = body.MaxUses,
+                ViewOnceMinutes = body.ViewOnce || body.ViewOnceMinutes is not null
+                    ? body.ViewOnceMinutes ?? DefaultViewOnceMinutes
+                    : null,
             };
             db.Invites.Add(invite);
             await db.SaveChangesAsync(ct);
@@ -219,6 +236,72 @@ public static partial class AdminEndpoints
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
             if (tenants.Get(tenantId) is { } revokedTenant) await PruneRevisionsAsync(revokedTenant, db, now, ct);
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+        });
+
+        // Change label, expiry, max. redemptions and view once of an invite (its QR invite follows).
+        admin.MapPut("/tenants/{tenantId}/invites/{id:guid}/settings", async (string tenantId, Guid id, UpdateInviteRequest body,
+            TenantStore tenants, AppDbContext db, AccessService access, PdfService pdf, IConfiguration config, TimeProvider time,
+            CancellationToken ct) =>
+        {
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
+            if (invite is null) return Results.NotFound();
+            if (invite.RevokedAt is not null) return Results.Conflict(new { error = "revoked" });
+            if (invite.Source == InviteSources.PdfQr) return Results.BadRequest(new { error = "edit_the_parent_invite" });
+            if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
+            if (body.ViewOnceMinutes is <= 0 or > MaxViewOnceMinutes) return Results.BadRequest(new { error = "invalid_view_once_minutes" });
+
+            var children = await db.Invites.Where(i => i.ParentId == id && i.RevokedAt == null).ToListAsync(ct);
+            var now = time.GetUtcNow();
+            if (body.ViewOnceMinutes is { } minutes)
+            {
+                if (!invite.IsViewOnce)
+                {
+                    // Turned on: earlier sessions end and the next opening is the one. The printed QR code
+                    // must not outlive it either.
+                    invite.Rearm();
+                    foreach (var child in children)
+                    {
+                        child.RevokedAt = now;
+                        pdf.DeleteCached(tenantId, child.Id);
+                    }
+                    pdf.DeleteCached(tenantId, id);
+                }
+                else if (invite.ViewOnceUntil is not null && invite.LastUsedAt is { } openedAt)
+                    invite.ViewOnceUntil = openedAt.AddMinutes(minutes);   // window counts from the opening
+                invite.ViewOnceMinutes = minutes;
+            }
+            else if (invite.IsViewOnce)
+            {
+                // Turned off: the browser that opened it keeps access like with a normal invite.
+                invite.ViewOnceMinutes = null;
+                invite.ViewOnceUntil = null;
+                invite.ViewOnceToken = null;
+                pdf.DeleteCached(tenantId, id);
+            }
+
+            invite.Label = body.Label?.Trim() ?? "";
+            invite.ExpiresAt = body.ExpiresAt;
+            invite.MaxUses = body.MaxUses;
+            foreach (var child in children.Where(c => c.RevokedAt is null))
+            {
+                child.Label = invite.Label;
+                child.ExpiresAt = invite.ExpiresAt;
+            }
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+        });
+
+        // Make a used-up code redeemable again: resets the use count and a used view-once state. The browser
+        // that opened a view-once invite loses access; normal invites keep their existing sessions.
+        admin.MapPost("/tenants/{tenantId}/invites/{id:guid}/rearm", async (string tenantId, Guid id,
+            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, CancellationToken ct) =>
+        {
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
+            if (invite is null) return Results.NotFound();
+            if (invite.RevokedAt is not null) return Results.Conflict(new { error = "revoked" });
+            invite.Rearm();
+            await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
         });
 
@@ -410,6 +493,8 @@ public static partial class AdminEndpoints
         maxUses = i.MaxUses,
         useCount = i.UseCount,
         lastUsedAt = i.LastUsedAt,
+        viewOnceMinutes = i.ViewOnceMinutes,
+        viewOnceUntil = i.ViewOnceUntil,
         parentId = i.ParentId,
         source = i.Source,
     };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOverrides, changeSummary, groupInvites, inviteStatus, parseJsonc, pinStatus, splitList, type AdminInvite } from '~/composables/useAdmin'
+import { buildOverrides, changeSummary, groupInvites, inviteStatus, parseJsonc, pinStatus, splitList, viewOnceItems, viewOnceLabel, type AdminInvite } from '~/composables/useAdmin'
 
 const invite = (patch: Partial<AdminInvite> = {}): AdminInvite => ({
   id: 'a', tenant: 'demo', profile: 'full', label: '', createdAt: '2026-01-01T00:00:00Z', useCount: 0, ...patch
@@ -20,6 +20,27 @@ describe('inviteStatus', () => {
     expect(inviteStatus(invite({ expiresAt: '2026-05-31T00:00:00Z' }), now)).toBe('expired')
     expect(inviteStatus(invite({ maxUses: 2, useCount: 2 }), now)).toBe('exhausted')
     expect(inviteStatus(invite({ maxUses: 2, useCount: 1 }), now)).toBe('active')
+  })
+
+  it('tracks view-once invites: unused, within the grace window, used up', () => {
+    expect(inviteStatus(invite({ viewOnceMinutes: 30 }), now)).toBe('active')
+    expect(inviteStatus(invite({ viewOnceMinutes: 30, useCount: 1, viewOnceUntil: '2026-06-01T00:10:00Z' }), now)).toBe('viewing')
+    expect(inviteStatus(invite({ viewOnceMinutes: 30, useCount: 1, viewOnceUntil: '2026-05-31T23:50:00Z' }), now)).toBe('viewed')
+  })
+})
+
+describe('view once choices', () => {
+  it('labels minutes, hours and days', () => {
+    expect(viewOnceLabel(0)).toBe('Off')
+    expect(viewOnceLabel(10)).toBe('View once, 10 min')
+    expect(viewOnceLabel(240)).toBe('View once, 4 h')
+    expect(viewOnceLabel(1440)).toBe('View once, 1 day')
+    expect(viewOnceLabel(2880)).toBe('View once, 2 days')
+  })
+
+  it('keeps a non-standard current value selectable', () => {
+    expect(viewOnceItems().map(i => i.value)).toEqual([0, 10, 30, 60, 240, 1440])
+    expect(viewOnceItems(45).map(i => i.value)).toEqual([0, 10, 30, 45, 60, 240, 1440])
   })
 })
 

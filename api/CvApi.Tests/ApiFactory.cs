@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CvApi.Tests;
 
@@ -13,6 +15,9 @@ public class ApiFactory : WebApplicationFactory<Program>
 
     /// <summary>Extra configuration, set before the first request.</summary>
     public Dictionary<string, string> Settings { get; } = [];
+
+    /// <summary>Clock of the API; tests move it forward with <see cref="TestClock.Advance"/>.</summary>
+    public TestClock Clock { get; } = new();
 
     public string DataPath { get; } = Path.Combine(Path.GetTempPath(), "cvapi-tests-" + Guid.NewGuid().ToString("N"));
 
@@ -100,6 +105,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Git:AllowLocalRepos", "true");
         builder.UseSetting("Tracking:EventsPerMinute", "100000");
         foreach (var (key, value) in Settings) builder.UseSetting(key, value);
+        builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(Clock));
     }
 
     protected override void Dispose(bool disposing)
@@ -115,4 +121,14 @@ public class ApiFactory : WebApplicationFactory<Program>
         File.WriteAllText(Path.Combine(dir, "tenant.json"), tenantJson);
         File.WriteAllText(Path.Combine(dir, "cv.en.json"), cvJson);
     }
+}
+
+/// <summary>Real time plus an offset that tests can advance.</summary>
+public sealed class TestClock : TimeProvider
+{
+    private TimeSpan _offset;
+
+    public void Advance(TimeSpan by) => _offset += by;
+
+    public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + _offset;
 }

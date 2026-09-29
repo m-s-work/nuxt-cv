@@ -71,8 +71,8 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
   time in the admin API/UI; codes are not secret towards the admin. They MUST NOT be sent to anyone else.
   Invites created before this change only have the hash; their code cannot be shown.
 - R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
-  optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`,
-  and for derived invites `parentId` + `source` (§12, R12.10).
+  optional `maxUses`, optional `viewOnceMinutes` + `viewOnceUntil` (R4.9), optional `overrides` (see §5.4),
+  `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`, and for derived invites `parentId` + `source` (§12, R12.10).
 - R4.4 The invite link format is `https://<host>/?c=<code>`. `<host>` is the tenant's primary host
   if it has one, otherwise the shared host.
 - R4.5 Redemption: the frontend sends the code once (`POST /api/access/redeem`); the API sets an
@@ -82,6 +82,29 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
   further **redemptions** fail; existing sessions stay valid until expiry/revocation.
 - R4.7 The redemption endpoint MUST be rate-limited per client IP.
 - R4.8 Invite codes MUST NOT be logged.
+- R4.9 **View once.** An invite with `viewOnceMinutes` (grace window, 1 min – 7 days; `viewOnce: true` alone
+  = 30 min; the admin UI offers 10 min, 30 min, 1 h, 4 h, 1 day) is burned by its first redemption: the API
+  atomically sets `useCount = 1`, `viewOnceUntil = now + viewOnceMinutes` and a random `viewOnceToken`, so of
+  two simultaneous redemptions only one succeeds.
+  - Only the browser that redeemed it keeps access: its access cookie carries the invite id **and** that token;
+    a view-once invite is only granted for the cookie of its current redemption, and only until `viewOnceUntil`.
+    Afterwards the invite is inactive for everyone, including its PDF.
+  - Redeeming the code again (e.g. opening the link a second time) succeeds only in that browser within the
+    window and does not count; on any other device it fails with `invalid_invite`.
+  - The visitor is not told that the link is view-once or when access ends.
+  - Its PDF gets no QR invite (R12.10): the QR code links to the plain public URL.
+  - Existing databases get the new columns on startup (nullable columns missing from `app.db` are added).
+- R4.10 **Rearm.** `POST …/invites/{id}/rearm` makes a used-up code redeemable again: `useCount = 0` and the
+  view-once state is cleared. For a view-once invite the browser that opened it loses access (its token no
+  longer matches); sessions of normal invites stay valid. Revoked invites cannot be rearmed (`409`).
+- R4.11 **Changing settings later.** `PUT …/invites/{id}/settings` `{ label, expiresAt, maxUses, viewOnceMinutes }`
+  replaces these four settings (`null` = none / unlimited / off); the QR invite follows label and expiry.
+  Revoked invites cannot be changed (`409`), QR invites only via their parent (`400`).
+  - Expiry and the view-once window are checked on every request, not via the cookie lifetime (always 365 days),
+    so extending them also applies to existing sessions.
+  - Changing the window of a used view-once invite counts from its opening (`lastUsedAt + viewOnceMinutes`).
+  - Turning view once **on** rearms the invite (earlier sessions end, the next opening is the one), revokes its
+    QR invite and deletes its cached PDFs. Turning it **off** keeps the browser that opened it, like a normal invite.
 
 ---
 
@@ -191,7 +214,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 
 | Method & path | Auth | Purpose |
 |---|---|---|
-| `POST /api/access/redeem` `{ code }` | – (rate-limited) | Validate invite, set access cookie. `204` or `400 { error: "invalid_invite" }`. |
+| `POST /api/access/redeem` `{ code }` | – (rate-limited) | Validate invite, set access cookie. `204` or `400 { error: "invalid_invite" }`. A used view-once code only succeeds for the browser that redeemed it, within its window (R4.9). |
 | `POST /api/access/logout` | – | Clear access cookie. |
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
@@ -203,8 +226,10 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/admin/favicon?color=&background=` | admin key | Favicon catalogue for the picker: `defaults`, named `colors` and every symbol as SVG in the given colours (§7.1, R13.7). |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`), profile pins, `dataHash`. |
 | `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
-| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
+| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites (`viewOnce`, `viewOnceMinutes`: R4.9). Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
+| `PUT /api/admin/tenants/{tenant}/invites/{id}/settings` `{ label, expiresAt, maxUses, viewOnceMinutes }` | admin key | Change an invite's settings later (R4.11). |
+| `POST /api/admin/tenants/{tenant}/invites/{id}/rearm` | admin key | Make a used-up code redeemable again (R4.10). |
 | `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
 | `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed; takes effect immediately. |
 | `GET /api/admin/tenants/{tenant}/files` | admin key | List the tenant's files (`path`, `size`, `modifiedAt`). |
@@ -311,7 +336,7 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
 - R12.7 **Print mode.** With `?print=1` the frontend skips the splash screen and sets
   `window.__CV_READY__` to `ready` / `no-access` / `error` once the page is complete; the renderer waits for it.
   The QR code in the PDF points to the public URL (tenant host or shared base URL), passed as `?qr=`.
-- R12.10 **QR invite.** For an invite's PDF, the QR code contains a **linked invite** (`?c=<code>`):
+- R12.10 **QR invite.** For an invite's PDF (except view-once invites, R4.9), the QR code contains a **linked invite** (`?c=<code>`):
   - created on the first rendering, reused for all later renderings and locales;
   - same tenant, profile, overrides and expiry as its parent; revoked together with its parent, and only
     usable while the parent is active;
@@ -347,9 +372,10 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   server has no admin key configured it reports that the admin API is disabled.
 - R13.2 The admin key is entered by the owner and kept in `sessionStorage` of that tab only (never in
   cookies or `localStorage`, never in the URL). "Log out" clears it.
-- R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted),
-  usage and linked QR invites; create invites (profile, label, expiry, max. redemptions, per-invite
-  overrides) showing code, link and PDF render outcome; code and link of every invite stay visible and
+- R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted,
+  viewing / viewed for used view-once invites), usage and linked QR invites; create invites (profile, label,
+  expiry, max. redemptions, view once with its duration, per-invite overrides); edit label, expiry,
+  max. redemptions and view once later; rearm used-up codes showing code, link and PDF render outcome; code and link of every invite stay visible and
   copyable in the list; revoke; re-render PDFs; edit `tenant.json`
   and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
   assets; preview any profile, locale and stored CV version either as data (the redacted JSON exactly as
