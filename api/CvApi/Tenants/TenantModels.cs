@@ -20,6 +20,54 @@ public sealed class TenantConfig
 
     /// <summary>Browser tab icon (symbol and colours). Null = default.</summary>
     public FaviconConfig? Favicon { get; set; }
+
+    /// <summary>Controller of the visitor tracking (shown in the consent modal). Without it, nothing is tracked.</summary>
+    public PrivacySettings? Privacy { get; set; }
+
+    /// <summary>Visitor tracking defaults of this tenant (see docs/VISITOR_SESSION_TRACKING.md).</summary>
+    public TrackingSettings? Tracking { get; set; }
+}
+
+public sealed class PrivacySettings
+{
+    /// <summary>Name of the controller, e.g. "Bob Builder".</summary>
+    public string? Controller { get; set; }
+
+    /// <summary>Contact for data protection requests (e-mail or address).</summary>
+    public string? Contact { get; set; }
+}
+
+/// <summary>
+/// Tracking switch. On the tenant it is the default; profiles and invites (overrides) can set <see cref="Enabled"/>
+/// again – most specific wins: invite &gt; profile &gt; tenant. Disabled = no consent modal and no tracking.
+/// </summary>
+public sealed class TrackingSettings
+{
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// How consent is obtained (inherited like <see cref="Enabled"/>): "modal" (default, ask first), "notice" (no modal,
+    /// a non-blocking notice with opt-out – only for visitors outside the EU/EEA/UK/CH) or "prior" (consent was given
+    /// elsewhere, e.g. on another platform; no modal, opt-out stays available).
+    /// </summary>
+    public string? Consent { get; set; }
+
+    /// <summary>Where / when the prior consent was obtained (for "prior"; shown in the admin, kept as proof).</summary>
+    public string? ConsentNote { get; set; }
+
+    /// <summary>Treat DNT / GPC as a decline without showing the modal (default: ask anyway). Tenant level only.</summary>
+    public bool? HonorBrowserSignals { get; set; }
+
+    /// <summary>Sliding retention periods in months, counted from a person's last visit. Tenant level only.</summary>
+    public RetentionSettings? Retention { get; set; }
+}
+
+public sealed class RetentionSettings
+{
+    public int? IdentifiersMonths { get; set; }
+    public int? EventsMonths { get; set; }
+    public int? SummaryMonths { get; set; }
+    public int? HeatMonths { get; set; }
 }
 
 /// <summary>Template names per output. Null = not set at this level.</summary>
@@ -50,6 +98,9 @@ public sealed class AccessPolicy
 
     /// <summary>Template choice for this profile / invite (overrides the tenant default).</summary>
     public TemplateSelection? Templates { get; set; }
+
+    /// <summary>Tracking switch for this profile / invite (only <see cref="TrackingSettings.Enabled"/> is used here).</summary>
+    public TrackingSettings? Tracking { get; set; }
 }
 
 /// <summary>Global redaction flags. Null means "not set" (relevant for invite overrides).</summary>

@@ -125,8 +125,30 @@ export interface CvTemplates {
   pdfVars?: Record<string, unknown> | null
 }
 
+/**
+ * Consent modal info from the API (docs/VISITOR_SESSION_TRACKING.md §9.1). `required: false` = no modal and no
+ * tracking (switched off for this tenant / profile / invite). `state` null = the visitor has not decided yet.
+ */
+export interface CvConsent {
+  required: boolean
+  /** modal: ask first; notice: no modal, a notice with opt-out; prior: consent given elsewhere (§9.2). */
+  mode?: 'modal' | 'notice' | 'prior'
+  /** Implied consent was recorded on this request (notice mode shows its notice once). */
+  impliedNow?: boolean
+  state?: 'accept' | 'decline' | null
+  policyVersion?: string
+  controller?: string
+  contact?: string
+  retention?: { identifiersMonths: number, eventsMonths: number, summaryMonths: number }
+  /** DNT / GPC sent by the browser ("dnt,gpc"). */
+  signals?: string | null
+}
+
 interface CvResponse {
   access: CvAccess
+  cvVersion?: string
+  cvSourceSha?: string
+  consent?: CvConsent
   locale: string
   features?: CvFeatures
   templates?: CvTemplates
@@ -136,6 +158,22 @@ interface CvResponse {
 
 /** Query parameter carrying the invite code, e.g. https://cv.example.org/?c=abc */
 export const INVITE_PARAM = 'c'
+
+/** Owner heatmap view (admin iframe): no consent modal, no tracking, no splash screen. */
+export function isHeatmapView(): boolean {
+  return import.meta.client && new URLSearchParams(window.location.search).has('heatmap')
+}
+
+/** Replaces "/api/assets/<file>" URLs with object URLs of files loaded by `load` (admin heatmap view). */
+export async function inlineAssets<T>(data: T, load: (path: string) => Promise<Blob>): Promise<T> {
+  const json = JSON.stringify(data)
+  const files = [...new Set(json.match(/\/api\/assets\/[A-Za-z0-9._-]+/g) ?? [])]
+  const urls = new Map<string, string>()
+  await Promise.all(files.map(async (file) => {
+    try { urls.set(file, URL.createObjectURL(await load(`assets/${file.slice('/api/assets/'.length)}`))) } catch { /* missing asset */ }
+  }))
+  return JSON.parse(json.replace(/\/api\/assets\/[A-Za-z0-9._-]+/g, m => urls.get(m) ?? m)) as T
+}
 
 /**
  * Formats a period from ISO dates of any precision ("2020", "2020-03", "2020-03-15").
@@ -175,6 +213,10 @@ export function useCv() {
   const features = useState<CvFeatures>('cv-features', () => ({ pdf: false }))
   const templates = useState<CvTemplates>('cv-templates', () => ({}))
   const links = useState<CvLinks>('cv-links', () => ({}))
+  const consent = useState<CvConsent>('cv-consent', () => ({ required: false }))
+  const versions = useState<{ cvVersion?: string, cvSourceSha?: string }>('cv-versions', () => ({}))
+  /** The visitor arrived with an invite link (?c=…) in this tab. */
+  const arrivedViaLink = useState<boolean>('cv-arrived-via-link', () => false)
 
   const apiBase = useRuntimeConfig().public.apiBase as string
 
@@ -196,6 +238,8 @@ export function useCv() {
       features.value = response.features ?? { pdf: false }
       templates.value = response.templates ?? {}
       links.value = response.links ?? {}
+      consent.value = response.consent ?? { required: false }
+      versions.value = { cvVersion: response.cvVersion, cvSourceSha: response.cvSourceSha }
       status.value = 'ready'
     } catch (error: unknown) {
       cv.value = null
@@ -231,14 +275,38 @@ export function useCv() {
   }
 
   /**
+   * Heatmap view for the owner (/?heatmap=1&tenant=…&cv=…, opened by the admin page in an iframe): renders the
+   * stored CV snapshot of that version instead of calling /api/cv (docs/VISITOR_SESSION_TRACKING.md R6.8, R6.12).
+   * Uses the admin key of this browser tab; assets are loaded through the admin API.
+   */
+  async function initHeatmap(params: URLSearchParams) {
+    status.value = 'loading'
+    const admin = useAdmin()
+    const tenant = params.get('tenant') ?? ''
+    try {
+      const snapshot = await admin.cvSnapshot(tenant, params.get('cv') ?? '')
+      const data = await inlineAssets(snapshot.cv as CvData, path => admin.readBlob(tenant, path))
+      cv.value = withPeriods(data, presentLabel(snapshot.locale))
+      access.value = { tenant, profile: 'heatmap', viaInvite: false }
+      consent.value = { required: false }
+      features.value = { pdf: false }
+      status.value = 'ready'
+    } catch {
+      status.value = 'error'
+    }
+  }
+
+  /**
    * Redeems an invite code from the URL (?c=...), removes it from the address bar
    * so it does not end up in bookmarks/history/screenshots, then loads the CV.
    */
   async function init(locale: string) {
     if (import.meta.client) {
       const url = new URL(window.location.href)
+      if (url.searchParams.has('heatmap')) return initHeatmap(url.searchParams)
       const code = url.searchParams.get(INVITE_PARAM)
       if (code) {
+        arrivedViaLink.value = true
         await redeem(code)
         url.searchParams.delete(INVITE_PARAM)
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
@@ -250,12 +318,40 @@ export function useCv() {
   /** Initializes once, afterwards reloads only when the locale changed. */
   async function ensure(locale: string) {
     if (status.value === 'idle') await init(locale)
-    else if (loadedLocale.value !== locale) await load(locale)
+    else if (loadedLocale.value !== locale && !isHeatmapView()) await load(locale)
+  }
+
+  /** Records the visitor's choice in the consent modal (§9.1). */
+  async function decideConsent(choice: 'accept' | 'decline', source: 'modal' | 'footer' = 'modal') {
+    try {
+      await $fetch(`${apiBase}/consent`, {
+        method: 'POST',
+        body: { choice, source, policyVersion: consent.value.policyVersion },
+        credentials: 'include'
+      })
+      consent.value = { ...consent.value, state: choice }
+    } catch {
+      // Text changed meanwhile (409) or network error: the CV stays usable, the modal is shown again on next load.
+      consent.value = { ...consent.value, state: 'decline' }
+    }
+  }
+
+  /** Withdraws an accepted consent (footer "Privacy"): stops tracking and forgets the browser id. */
+  async function withdrawConsent() {
+    try {
+      await $fetch(`${apiBase}/consent`, { method: 'DELETE', credentials: 'include' })
+    } catch { /* ignored: the tracker is stopped either way */ }
+    consent.value = { ...consent.value, state: 'decline' }
   }
 
   return {
     cv,
     access,
+    consent,
+    versions,
+    arrivedViaLink,
+    decideConsent,
+    withdrawConsent,
     status,
     hostKind,
     features,

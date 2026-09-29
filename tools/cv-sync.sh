@@ -20,6 +20,9 @@
 #                      The API fetches pruned revisions from there again when an invite is pinned to them
 #                      (private repos: set Git__Token / CV_GIT_TOKEN on the API).
 #
+# A deployment always corresponds to a commit: uploading fails when <tenant-dir> has uncommitted or untracked
+# changes (the git SHA is recorded with every tracked visitor session, docs/VISITOR_SESSION_TRACKING.md R6.14).
+#
 # Exit code != 0 on any validation or upload error, so CI pipelines fail visibly.
 set -euo pipefail
 
@@ -76,6 +79,13 @@ fi
 echo "tenant '$tenant': ${#files[@]} file(s) valid"
 $check_only && exit 0
 
+# Never deploy a dirty tree: the served CV must be exactly a commit.
+if ! $verify_only && [[ "${CV_REVISION:-}" != "-" ]] && git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 \
+   && [[ -n "$(git -C "$dir" status --porcelain -- . 2>/dev/null)" ]]; then
+  git -C "$dir" status --short -- . >&2
+  fail "$dir has uncommitted or untracked changes; commit them first (the deployed CV must be a commit)"
+fi
+
 : "${CV_API_URL:?CV_API_URL not set}"
 : "${CV_ADMIN_API_KEY:?CV_ADMIN_API_KEY not set}"
 
@@ -118,9 +128,6 @@ revision="${CV_REVISION:-$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)}"
 if [[ -z "$revision" || "$revision" == "-" ]]; then
   echo "note: no git revision (not a git checkout and CV_REVISION unset); CV not registered as revision"
 else
-  if [[ -n "$(git -C "$dir" status --porcelain -- . 2>/dev/null)" ]]; then
-    echo "warning: $dir has uncommitted changes; registering them as $revision anyway" >&2
-  fi
   message="$(git -C "$dir" log -1 --format=%s "$revision" 2>/dev/null || true)"
   committed="$(git -C "$dir" log -1 --format=%cI "$revision" 2>/dev/null || true)"
   repo="${CV_GIT_REPO:-$(git -C "$dir" remote get-url origin 2>/dev/null || true)}"

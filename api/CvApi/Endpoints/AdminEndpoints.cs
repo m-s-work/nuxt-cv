@@ -458,7 +458,7 @@ public static partial class AdminEndpoints
         return string.IsNullOrEmpty(baseUrl) ? $"/?c={code}" : $"{baseUrl}/?c={code}";
     }
 
-    private static async ValueTask<object?> RequireAdminKey(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    internal static async ValueTask<object?> RequireAdminKey(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
         var expected = http.RequestServices.GetRequiredService<IConfiguration>()["Admin:ApiKey"];

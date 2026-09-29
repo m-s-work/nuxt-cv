@@ -35,6 +35,15 @@ builder.Services.AddHttpClient<IPdfRenderer, HttpPdfRenderer>(client =>
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Pdf:TimeoutSeconds", 90));
 });
 builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataPath, "app.db")}"));
+// Visitor tracking: own database file, so it is created/purged independently of app.db.
+builder.Services.AddDbContext<CvApi.Tracking.TrackingDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataPath, "tracking.db")}"));
+builder.Services.AddScoped<CvApi.Tracking.TrackingService>();
+builder.Services.AddScoped<CvApi.Tracking.AnalyticsService>();
+builder.Services.AddSingleton<CvApi.Tracking.ConsentCookies>();
+builder.Services.AddSingleton<CvApi.Tracking.CvSourceVersion>();
+builder.Services.AddSingleton<CvApi.Tracking.GeoLookup>();
+builder.Services.AddHttpClient(CvApi.Tracking.GeoLookup.HttpClientName);
+builder.Services.AddHostedService<CvApi.Tracking.RetentionService>();
 
 // Keys sign the access cookie; they must survive redeploys, otherwise every invitee is logged out.
 builder.Services.AddDataProtection()
@@ -58,6 +67,10 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(PublicEndpoints.RedeemRateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1) }));
+    var eventsPerMinute = builder.Configuration.GetValue("Tracking:EventsPerMinute", 120);
+    o.AddPolicy(TrackingEndpoints.EventsRateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = eventsPerMinute, Window = TimeSpan.FromMinutes(1) }));
 });
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.DefaultIgnoreCondition =
@@ -66,7 +79,10 @@ builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.DefaultIgnore
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
+{
     scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+    scope.ServiceProvider.GetRequiredService<CvApi.Tracking.TrackingDbContext>().Database.EnsureCreated();
+}
 
 app.UseForwardedHeaders();
 
@@ -88,7 +104,9 @@ app.UseRouting();
 app.UseRateLimiter();
 
 app.MapPublicEndpoints();
+app.MapTrackingEndpoints();
 app.MapAdminEndpoints();
+app.MapAnalyticsEndpoints();
 
 app.Run();
 return 0;
