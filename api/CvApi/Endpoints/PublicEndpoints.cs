@@ -111,6 +111,16 @@ public static class PublicEndpoints
             }
         });
 
+        // Favicon of the visitor's tenant (or the tenant of the host); the default icon otherwise.
+        // Only symbol and colours are configurable, so it reveals nothing about the CV.
+        app.MapGet("/favicon.svg", async (HttpContext ctx, AccessService access, TenantStore tenants, CancellationToken ct) =>
+        {
+            var tenant = (await access.ResolveAsync(ctx, ct))?.Tenant ?? tenants.FindByHost(ctx.Request.Host.Host);
+            // Revalidate on every page load: the icon changes after redeeming an invite or editing tenant.json.
+            ctx.Response.Headers.CacheControl = "private, no-cache";
+            return Results.Text(Favicon.Svg(tenant?.Config.Favicon), "image/svg+xml");
+        });
+
         app.MapGet("/assets/{file}", async (string file, HttpContext ctx, AccessService access, TenantStore tenants, CancellationToken ct) =>
         {
             NoStore(ctx);

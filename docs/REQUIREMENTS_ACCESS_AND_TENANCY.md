@@ -134,6 +134,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   "hosts": ["bob-cv.velarix.space"],
   "defaultLocale": "en",
   "publicProfile": null,            // e.g. "public" to enable public access on bob's hosts
+  "favicon": { "symbol": "terminal", "color": "green" },   // optional, see §7.1
   "profiles": {
     "public":    { "flags": { "hideCompanies": true, "hideTimeframeMonths": true, "hidePhoto": true,
                               "hideContactDetails": true, "hideBirthDate": true },
@@ -165,6 +166,17 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   (so `hidePhoto` also blocks direct URL access to the photo).
 - R7.3 No personal images may live in the frontend's `public/` folder.
 
+### 7.1 Favicon
+
+- R7.F1 Each tenant MAY set its browser-tab icon in `tenant.json`:
+  `"favicon": { "symbol": "cv-braces", "color": "blue", "background": "dark" }`.
+  - `symbol`: `code` (`</>`), `braces` (`{}`), `terminal` (`>_`), `cv-braces` (`{cv}`), `cv-tag` (`<cv/>`), `lambda` (`λ`).
+  - `color` / `background`: `green`, `blue`, `violet`, `amber`, `white`, `dark`, `light` or a hex value (`#rgb`, `#rrggbb`).
+  - Every field is optional; missing, unknown or invalid values use the default (`cv-braces`, `blue` on `dark`).
+- R7.F2 `GET /api/favicon.svg` draws the icon of the visitor's tenant (invite cookie or tenant host), the default
+  otherwise. The page links it; `favicon.ico` of the web container is the default for browsers without SVG favicons.
+  The icon holds no CV data, so it is also served on a tenant host without access.
+
 ---
 
 ## 8. API surface
@@ -176,6 +188,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
+| `GET /api/favicon.svg` | cookie / host (optional) | Favicon of the visitor's tenant, else the default (§7.1). `Cache-Control: private, no-cache`. |
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/version` | – | Deployed build: `{ api: { commit, builtAt }, pdf: { commit, builtAt } }`. The web container serves `/version.json` (`{ commit, builtAt }`). |
 | `GET /api/admin/tenants/{tenant}/hash` | admin key | SHA-256 per data file (`tenant.json`, `cv.<locale>.json`, `assets/*`) + `combined`. |
@@ -217,7 +230,7 @@ and `cvHash`: the SHA-256 of the compact JSON of the returned `cv` (for tests an
 ├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
 └── tenants/
     └── bob/
-        ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale
+        ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale, favicon
         ├── cv.en.json           # master CV (English)
         ├── cv.de.json           # master CV (German)
         ├── assets/              # photos, logos, screenshots

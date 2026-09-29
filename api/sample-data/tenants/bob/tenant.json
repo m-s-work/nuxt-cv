@@ -3,6 +3,7 @@
   "name": "Bob Builder",
   "hosts": [],
   "defaultLocale": "en",
+  "favicon": { "symbol": "terminal", "color": "green" },
   "profiles": {
     "anonymous": { "flags": { "hideCompanies": true, "hideContactDetails": true } },
     "full": { "grants": ["contact"] }

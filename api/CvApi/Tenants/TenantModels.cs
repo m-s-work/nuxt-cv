@@ -17,6 +17,9 @@ public sealed class TenantConfig
 
     /// <summary>Whether invites may override the template (default: allowed).</summary>
     public bool AllowInviteTemplateOverride { get; set; } = true;
+
+    /// <summary>Browser tab icon (symbol and colours). Null = default.</summary>
+    public FaviconConfig? Favicon { get; set; }
 }
 
 /// <summary>Template names per output. Null = not set at this level.</summary>
