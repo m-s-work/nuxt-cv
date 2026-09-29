@@ -21,6 +21,12 @@ describe('inviteStatus', () => {
     expect(inviteStatus(invite({ maxUses: 2, useCount: 2 }), now)).toBe('exhausted')
     expect(inviteStatus(invite({ maxUses: 2, useCount: 1 }), now)).toBe('active')
   })
+
+  it('tracks view-once invites: unused, within the grace window, used up', () => {
+    expect(inviteStatus(invite({ viewOnceMinutes: 30 }), now)).toBe('active')
+    expect(inviteStatus(invite({ viewOnceMinutes: 30, useCount: 1, viewOnceUntil: '2026-06-01T00:10:00Z' }), now)).toBe('viewing')
+    expect(inviteStatus(invite({ viewOnceMinutes: 30, useCount: 1, viewOnceUntil: '2026-05-31T23:50:00Z' }), now)).toBe('viewed')
+  })
 })
 
 describe('buildOverrides', () => {

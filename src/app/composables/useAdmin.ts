@@ -105,6 +105,10 @@ export interface AdminInvite {
   maxUses?: number
   useCount: number
   lastUsedAt?: string
+  /** View-once invite: grace window in minutes for the browser that opened it. */
+  viewOnceMinutes?: number
+  /** View-once invite that was opened: that browser's access ends then. */
+  viewOnceUntil?: string
   parentId?: string
   source?: string
   /** Effective CV pin (the invite's own or its profile's); undefined = follows the current CV. */
@@ -272,12 +276,16 @@ export interface AdminFile {
   modifiedAt: string
 }
 
-export type InviteStatus = 'active' | 'revoked' | 'expired' | 'exhausted'
+export type InviteStatus = 'active' | 'revoked' | 'expired' | 'exhausted' | 'viewing' | 'viewed'
 
-/** Mirrors the API's check: revoked > expired > exhausted (maxUses only blocks new redemptions). */
+/**
+ * Mirrors the API's check: revoked > expired > view-once used (viewing within the grace window, viewed after)
+ * > exhausted (maxUses only blocks new redemptions).
+ */
 export function inviteStatus(invite: AdminInvite, now: Date = new Date()): InviteStatus {
   if (invite.revokedAt) return 'revoked'
   if (invite.expiresAt && new Date(invite.expiresAt) <= now) return 'expired'
+  if (invite.viewOnceUntil) return new Date(invite.viewOnceUntil) > now ? 'viewing' : 'viewed'
   if (invite.maxUses != null && invite.useCount >= invite.maxUses) return 'exhausted'
   return 'active'
 }
@@ -450,6 +458,7 @@ export function useAdmin() {
       label?: string
       expiresAt?: string
       maxUses?: number
+      viewOnce?: boolean
       overrides?: AccessPolicy
     }) => request<CreatedInvite>(`${t(tenant)}/invites`, { method: 'POST', body }),
     revokeInvite: (tenant: string, id: string) =>

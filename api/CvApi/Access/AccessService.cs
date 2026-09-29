@@ -67,7 +67,16 @@ public sealed class AccessService(
         var hash = InviteCodes.Hash(code);
         var invite = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
         var now = time.GetUtcNow();
-        if (invite is null || !invite.CanRedeem(now) || !await IsActiveAsync(invite, now, ct)) return RedeemResult.Invalid;
+        if (invite is null) return RedeemResult.Invalid;
+
+        // A used view-once code is gone, except for the browser that redeemed it (e.g. opening the link again
+        // within the grace window). The cookie stays as it is.
+        if (invite.IsViewOnce && invite.UseCount > 0)
+            return await ReadCookieInviteAsync(context, ct) is { } own && own.Id == invite.Id && await IsActiveAsync(invite, now, ct)
+                ? RedeemResult.Ok
+                : RedeemResult.Invalid;
+
+        if (!invite.CanRedeem(now) || !await IsActiveAsync(invite, now, ct)) return RedeemResult.Invalid;
 
         var tenant = tenants.Get(invite.TenantId);
         if (tenant is null || !tenant.Config.Profiles.ContainsKey(invite.Profile)) return RedeemResult.Invalid;
@@ -76,11 +85,28 @@ public sealed class AccessService(
         var hostTenant = tenants.FindByHost(context.Request.Host.Host);
         if (hostTenant is not null && hostTenant.Id != invite.TenantId) return RedeemResult.Invalid;
 
-        invite.UseCount++;
-        invite.LastUsedAt = now;
-        await db.SaveChangesAsync(ct);
+        if (invite.ViewOnceMinutes is { } graceMinutes)
+        {
+            // Burn atomically: of two devices redeeming at the same moment, only one gets in.
+            var until = now.AddMinutes(graceMinutes);
+            var burned = await db.Invites.Where(i => i.Id == invite.Id && i.UseCount == 0).ExecuteUpdateAsync(u => u
+                .SetProperty(i => i.UseCount, 1)
+                .SetProperty(i => i.LastUsedAt, now)
+                .SetProperty(i => i.ViewOnceUntil, until), ct);
+            if (burned == 0) return RedeemResult.Invalid;
+            invite.UseCount = 1;
+            invite.LastUsedAt = now;
+            invite.ViewOnceUntil = until;
+        }
+        else
+        {
+            invite.UseCount++;
+            invite.LastUsedAt = now;
+            await db.SaveChangesAsync(ct);
+        }
 
         var maxAge = invite.ExpiresAt is { } exp ? exp - now : TimeSpan.FromDays(365);
+        if (invite.ViewOnceUntil is { } viewOnceEnd && viewOnceEnd - now < maxAge) maxAge = viewOnceEnd - now;
         context.Response.Cookies.Append(CookieName, _protector.Protect(invite.Id.ToString("N")), new CookieOptions
         {
             HttpOnly = true,

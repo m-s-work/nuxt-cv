@@ -69,6 +69,7 @@ function emptyForm() {
     label: '',
     expiresOn: '',
     maxUses: '' as string | number,
+    viewOnce: false,
     overrides: {
       flags: Object.fromEntries(REDACTION_FLAGS.map(f => [f, 'inherit'])) as Record<string, FlagChoice>,
       hiddenFields: '',
@@ -95,7 +96,8 @@ async function create() {
       label: form.label.trim() || undefined,
       // End of the chosen day in the admin's time zone.
       expiresAt: form.expiresOn ? new Date(`${form.expiresOn}T23:59:59`).toISOString() : undefined,
-      maxUses: form.maxUses === '' ? undefined : Number(form.maxUses),
+      maxUses: form.viewOnce || form.maxUses === '' ? undefined : Number(form.maxUses),
+      viewOnce: form.viewOnce || undefined,
       overrides: withRevision(buildOverrides(form.overrides), form.revision === 'other' ? form.otherRevision.trim() : form.revision)
     })
     if (form.revision !== 'inherit') emit('revisions-changed')
@@ -185,7 +187,7 @@ async function fetchPin(invite: AdminInvite) {
   }
 }
 
-const statusColor = { active: 'success', revoked: 'error', expired: 'warning', exhausted: 'warning' } as const
+const statusColor = { active: 'success', revoked: 'error', expired: 'warning', exhausted: 'warning', viewing: 'info', viewed: 'neutral' } as const
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '–'
@@ -229,8 +231,15 @@ onMounted(load)
           </label>
           <label class="text-sm space-y-1">
             <span class="text-gray-500">Max. redemptions (optional)</span>
-            <UInput v-model="form.maxUses" type="number" min="1" placeholder="unlimited" class="w-full" />
+            <UInput v-model="form.maxUses" type="number" min="1" placeholder="unlimited" class="w-full" :disabled="form.viewOnce" />
           </label>
+          <div class="text-sm space-y-1 sm:col-span-2 lg:col-span-4">
+            <UCheckbox v-model="form.viewOnce" label="View once" />
+            <span class="block text-xs text-gray-500">
+              The code stops working as soon as it is opened. Only the browser that opened it keeps access for 30 minutes
+              (e.g. to reload or download the PDF); on any other device it is already gone. The PDF gets no QR code link.
+            </span>
+          </div>
           <label class="text-sm space-y-1 sm:col-span-2">
             <span class="text-gray-500">CV version</span>
             <USelect v-model="form.revision" :items="revisionItems" class="w-full" aria-label="CV version" />
@@ -310,7 +319,7 @@ onMounted(load)
     <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
       <div class="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-gray-800">
         <h3 class="font-semibold">Invites</h3>
-        <UCheckbox v-model="showInactive" :label="`Show revoked / expired (${inactiveCount})`" class="ml-auto text-sm" />
+        <UCheckbox v-model="showInactive" :label="`Show revoked / expired / used (${inactiveCount})`" class="ml-auto text-sm" />
         <UButton icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" aria-label="Reload invites" :loading="loading" @click="load" />
       </div>
       <p v-if="outdatedCount" class="px-4 py-2 text-sm bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-b border-amber-200 dark:border-amber-900" data-testid="pin-warning">
@@ -398,14 +407,19 @@ onMounted(load)
               <td class="px-4 py-2">
                 <UBadge :color="statusColor[inviteStatus(invite)]" variant="subtle" :label="inviteStatus(invite)" />
               </td>
-              <td class="px-4 py-2 tabular-nums">{{ invite.useCount }}<span v-if="invite.maxUses != null" class="text-gray-500"> / {{ invite.maxUses }}</span></td>
+              <td class="px-4 py-2 tabular-nums">
+                {{ invite.useCount }}<span v-if="invite.maxUses != null" class="text-gray-500"> / {{ invite.maxUses }}</span>
+                <span v-if="invite.viewOnceMinutes != null" class="block text-xs text-gray-500">
+                  view once<template v-if="invite.viewOnceUntil">, until {{ formatDate(invite.viewOnceUntil) }}</template>
+                </span>
+              </td>
               <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.lastUsedAt) }}</td>
               <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.expiresAt) }}</td>
               <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.createdAt) }}</td>
               <td class="px-4 py-2 whitespace-nowrap text-right">
                 <template v-if="!invite.depth && inviteStatus(invite) !== 'revoked'">
                   <UButton
-                    v-if="inviteStatus(invite) === 'active' || inviteStatus(invite) === 'exhausted'"
+                    v-if="['active', 'exhausted', 'viewing'].includes(inviteStatus(invite))"
                     size="xs" icon="i-lucide-file-text" color="neutral" variant="ghost" label="Re-render PDF"
                     :loading="busy === invite.id" @click="renderPdf(invite)"
                   />

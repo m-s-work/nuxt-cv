@@ -165,6 +165,18 @@ public sealed class PdfTests : IDisposable
         QrUrl(call).Split("?c=")[1];
 
     [Fact]
+    public async Task Pdf_of_a_view_once_invite_has_no_reusable_qr_code()
+    {
+        await CreateInvite(new { profile = "full", viewOnce = true });
+
+        Assert.All(_factory.Renderer.Calls, call => Assert.DoesNotContain("?c=", QrUrl(call)));
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var invites = (await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/invites"))!;
+        Assert.Equal(30, Assert.Single(invites)!["viewOnceMinutes"]!.GetValue<int>());
+    }
+
+    [Fact]
     public async Task Qr_code_in_pdf_is_a_linked_invite_with_the_same_view()
     {
         var created = await CreateInvite(new { profile = "full", label = "ACME", overrides = new { flags = new { hideCompanies = true } } });

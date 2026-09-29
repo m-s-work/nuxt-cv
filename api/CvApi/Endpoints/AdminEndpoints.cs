@@ -37,7 +37,12 @@ public static partial class AdminEndpoints
         int? ExpiresInDays,
         int? MaxUses,
         AccessPolicy? Overrides,
-        string? Code = null);
+        string? Code = null,
+        bool ViewOnce = false,
+        int? ViewOnceMinutes = null);
+
+    /// <summary>Default grace window of a view-once invite for the browser that opened it.</summary>
+    public const int DefaultViewOnceMinutes = 30;
 
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
@@ -146,6 +151,7 @@ public static partial class AdminEndpoints
             if (!tenant.Config.Profiles.ContainsKey(body.Profile))
                 return Results.BadRequest(new { error = "unknown_profile", profiles = tenant.Config.Profiles.Keys });
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
+            if (body.ViewOnceMinutes is <= 0 or > 7 * 24 * 60) return Results.BadRequest(new { error = "invalid_view_once_minutes" });
             if (body.Overrides is { Revision: { Length: > 0 } pin })
             {
                 var (sha, pinError) = await EnsureRevisionAsync(tenant, pin, git, ct);
@@ -177,6 +183,9 @@ public static partial class AdminEndpoints
                 CreatedAt = now,
                 ExpiresAt = body.ExpiresAt ?? (body.ExpiresInDays is { } days ? now.AddDays(days) : null),
                 MaxUses = body.MaxUses,
+                ViewOnceMinutes = body.ViewOnce || body.ViewOnceMinutes is not null
+                    ? body.ViewOnceMinutes ?? DefaultViewOnceMinutes
+                    : null,
             };
             db.Invites.Add(invite);
             await db.SaveChangesAsync(ct);
@@ -396,6 +405,8 @@ public static partial class AdminEndpoints
         maxUses = i.MaxUses,
         useCount = i.UseCount,
         lastUsedAt = i.LastUsedAt,
+        viewOnceMinutes = i.ViewOnceMinutes,
+        viewOnceUntil = i.ViewOnceUntil,
         parentId = i.ParentId,
         source = i.Source,
     };

@@ -34,9 +34,22 @@ public sealed class Invite
     /// </summary>
     public string? CodeProtected { get; set; }
 
-    public bool IsActive(DateTimeOffset now) => RevokedAt is null && (ExpiresAt is null || ExpiresAt > now);
+    /// <summary>
+    /// "View once": set to the grace window in minutes. The first redemption burns the code; only the browser
+    /// that redeemed it (access cookie) keeps access until <see cref="ViewOnceUntil"/>. Null = normal invite.
+    /// </summary>
+    public int? ViewOnceMinutes { get; set; }
 
-    public bool CanRedeem(DateTimeOffset now) => IsActive(now) && (MaxUses is null || UseCount < MaxUses);
+    /// <summary>End of the grace window of a redeemed view-once invite; null while it is unused.</summary>
+    public DateTimeOffset? ViewOnceUntil { get; set; }
+
+    public bool IsViewOnce => ViewOnceMinutes is not null;
+
+    public bool IsActive(DateTimeOffset now) => RevokedAt is null && (ExpiresAt is null || ExpiresAt > now)
+        && (ViewOnceUntil is null || ViewOnceUntil > now);
+
+    public bool CanRedeem(DateTimeOffset now) => IsActive(now) && (MaxUses is null || UseCount < MaxUses)
+        && !(IsViewOnce && UseCount > 0);
 }
 
 public static class InviteSources
@@ -65,6 +78,45 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(t => t.GetProperties())
                      .Where(p => p.ClrType == typeof(DateTimeOffset) || p.ClrType == typeof(DateTimeOffset?)))
             property.SetValueConverter(converter);
+    }
+
+    /// <summary>
+    /// EnsureCreated does not touch existing databases: adds nullable columns introduced after a database was
+    /// created (e.g. <see cref="Invite.ViewOnceMinutes"/>), so deployments keep their invites.
+    /// </summary>
+    public void AddMissingColumns()
+    {
+        var connection = Database.GetDbConnection();
+        var opened = connection.State != System.Data.ConnectionState.Open;
+        if (opened) connection.Open();
+        try
+        {
+            foreach (var entity in Model.GetEntityTypes())
+            {
+                var table = entity.GetTableName();
+                if (table is null) continue;
+                var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = $"PRAGMA table_info(\"{table}\")";
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read()) existing.Add(reader.GetString(1));
+                }
+                if (existing.Count == 0) continue;
+                foreach (var property in entity.GetProperties().Where(p => p.IsNullable))
+                {
+                    var column = property.GetColumnName();
+                    if (existing.Contains(column)) continue;
+                    using var alter = connection.CreateCommand();
+                    alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {property.GetColumnType()} NULL";
+                    alter.ExecuteNonQuery();
+                }
+            }
+        }
+        finally
+        {
+            if (opened) connection.Close();
+        }
     }
 }
 

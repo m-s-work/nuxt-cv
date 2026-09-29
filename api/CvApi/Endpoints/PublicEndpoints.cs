@@ -77,6 +77,8 @@ public static class PublicEndpoints
                     viaInvite = grant.Invite is not null,
                     label = grant.Invite?.Label,
                     expiresAt = grant.Invite?.ExpiresAt,
+                    // View-once invite: this browser's access ends then (the code itself is already used up).
+                    viewOnceUntil = grant.Invite?.ViewOnceUntil,
                 },
                 locale = resolvedLocale,
                 features = new { pdf = pdf.Enabled },

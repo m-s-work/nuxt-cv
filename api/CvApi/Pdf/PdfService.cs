@@ -140,9 +140,10 @@ public sealed class PdfService(
         // Nuxt i18n: default locale "en" has no prefix (prefix_except_default).
         var path = locale == (configuration["Pdf:DefaultUiLocale"] ?? "en") ? "/" : $"/{locale}";
         // The QR code in the PDF must point to the public site, not to the internal render URL.
-        // For invites it carries a linked QR invite code, so scanning the printed PDF opens the same view.
+        // For invites it carries a linked QR invite code, so scanning the printed PDF opens the same view;
+        // not for view-once invites, whose view must not outlive its one visit.
         var publicUrl = PublicUrl(grant.Tenant, path);
-        if (publicUrl is not null && grant.Invite is { } invite)
+        if (publicUrl is not null && grant.Invite is { IsViewOnce: false } invite)
             publicUrl += "?c=" + await access.GetOrCreateQrCodeAsync(invite, ct);
         return new Uri($"{appBase}{path}?print=1" + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}"));
     }
