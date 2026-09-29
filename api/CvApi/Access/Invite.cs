@@ -29,8 +29,8 @@ public sealed class Invite
     public string? Source { get; set; }
 
     /// <summary>
-    /// Plain code, encrypted with data protection. Only for derived invites whose code must be
-    /// re-embedded later (QR code on re-rendered PDFs); normal invites store the hash only.
+    /// Plain code, encrypted with data protection, so the admin can show it again and re-rendered
+    /// PDFs can embed QR codes. Null for invites created before codes were stored. Lookup uses <see cref="CodeHash"/>.
     /// </summary>
     public string? CodeProtected { get; set; }
 
@@ -72,6 +72,13 @@ public static class InviteCodes
 {
     /// <summary>128 bit random, base64url (22 chars).</summary>
     public static string Generate() => Base64Url(RandomNumberGenerator.GetBytes(16));
+
+    /// <summary>
+    /// Admin-chosen codes (e.g. "demo"): URL-safe, 4–64 characters. Short codes are guessable,
+    /// so they are meant for demo or public content only.
+    /// </summary>
+    public static bool IsValidCustom(string code) =>
+        code.Length is >= 4 and <= 64 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
 
     public static string Hash(string code) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim())));

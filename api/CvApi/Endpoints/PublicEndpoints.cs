@@ -3,6 +3,7 @@ using CvApi.Access;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
+using CvApi.Versioning;
 using Microsoft.AspNetCore.StaticFiles;
 
 namespace CvApi.Endpoints;
@@ -18,6 +19,27 @@ public static class PublicEndpoints
     {
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+        // Deployed software version: Git commit + build time of the API and the PDF renderer
+        // (the web container serves /version.json). Used to check that a deployment is current.
+        app.MapGet("/version", async (HttpContext ctx, PdfService pdf, IServiceProvider services) =>
+        {
+            NoStore(ctx);
+            object? renderer = null;
+            if (pdf.Enabled)
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try
+                {
+                    renderer = await services.GetRequiredService<IPdfRenderer>().VersionAsync(timeout.Token);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+                {
+                    renderer = new { error = "unreachable" };
+                }
+            }
+            return Results.Ok(new { api = BuildInfo.Current, pdf = renderer });
+        });
+
         app.MapPost("/access/redeem", async (RedeemRequest body, HttpContext ctx, AccessService access, CancellationToken ct) =>
         {
             NoStore(ctx);
@@ -32,16 +54,18 @@ public static class PublicEndpoints
             return Results.NoContent();
         });
 
-        app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+        app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf,
+            IConfiguration config, CancellationToken ct) =>
         {
             NoStore(ctx);
             var grant = await access.ResolveAsync(ctx, ct);
             if (grant is null) return NoAccess(ctx, tenants);
 
-            var loaded = tenants.LoadCv(grant.Tenant, locale);
+            var loaded = tenants.LoadCv(grant.Tenant, locale, grant.Policy.Revision);
             if (loaded is null) return NoAccess(ctx, tenants);
 
             var (master, resolvedLocale) = loaded.Value;
+            var redacted = CvRedactor.Redact(master, grant.Policy);
             return Results.Ok(new
             {
                 access = new
@@ -54,7 +78,12 @@ public static class PublicEndpoints
                 },
                 locale = resolvedLocale,
                 features = new { pdf = pdf.Enabled },
-                cv = CvRedactor.Redact(master, grant.Policy),
+                templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html, pdfVars = grant.Templates.PdfVars },
+                // Platform site for the "Created with …" credit (shared base URL, if configured).
+                links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
+                // SHA-256 of exactly this redacted CV (the "cv" value below) – for tests and deployment checks.
+                cvHash = Sha256.OfText(redacted.ToJsonString()),
+                cv = redacted,
             });
         });
 
@@ -73,7 +102,7 @@ public static class PublicEndpoints
                 var result = await pdf.GetOrRenderAsync(grant, locale, ct);
                 if (result is null) return Results.NotFound();
                 ctx.Response.Headers["X-Pdf-Cache"] = result.FromCache ? "hit" : "miss";
-                return Results.File(result.Content, "application/pdf", $"CV-{locale ?? grant.Tenant.Config.DefaultLocale}.pdf");
+                return Results.File(result.Content, "application/pdf", result.FileName);
             }
             catch (Exception ex) when (ex is PdfRenderException or HttpRequestException or TaskCanceledException)
             {
@@ -88,7 +117,7 @@ public static class PublicEndpoints
             var grant = await access.ResolveAsync(ctx, ct);
             if (grant is null) return Results.NotFound();
 
-            var path = tenants.AssetPath(grant.Tenant, file);
+            var path = tenants.AssetPath(grant.Tenant, file, grant.Policy.Revision);
             if (path is null || !IsReferenced(grant, tenants, file)) return Results.NotFound();
 
             var contentType = new FileExtensionContentTypeProvider().TryGetContentType(file, out var type)
@@ -102,11 +131,9 @@ public static class PublicEndpoints
     private static bool IsReferenced(AccessGrant grant, TenantStore tenants, string file)
     {
         var url = AssetPrefix + file;
-        var locales = Directory.EnumerateFiles(grant.Tenant.Directory, "cv.*.json")
-            .Select(f => Path.GetFileName(f)["cv.".Length..^".json".Length]);
-        foreach (var locale in locales)
+        foreach (var locale in TenantStore.Locales(grant.Tenant, grant.Policy.Revision))
         {
-            if (tenants.LoadCv(grant.Tenant, locale) is not { } loaded) continue;
+            if (tenants.LoadCv(grant.Tenant, locale, grant.Policy.Revision) is not { } loaded) continue;
             if (CvRedactor.AllStrings(CvRedactor.Redact(loaded.Cv, grant.Policy)).Contains(url)) return true;
         }
         return false;

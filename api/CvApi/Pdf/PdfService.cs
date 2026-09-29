@@ -12,6 +12,9 @@ namespace CvApi.Pdf;
 public interface IPdfRenderer
 {
     Task<byte[]> RenderAsync(Uri url, IReadOnlyDictionary<string, string> cookies, CancellationToken ct);
+
+    /// <summary>Build identity of the renderer (GET /version), e.g. { commit, builtAt }.</summary>
+    Task<System.Text.Json.Nodes.JsonObject?> VersionAsync(CancellationToken ct);
 }
 
 public sealed class PdfRenderException(string message) : Exception(message);
@@ -19,6 +22,9 @@ public sealed class PdfRenderException(string message) : Exception(message);
 /// <summary>Calls the renderer service (pdf/server.mjs): POST /render { url, cookies } → application/pdf.</summary>
 public sealed class HttpPdfRenderer(HttpClient http) : IPdfRenderer
 {
+    public async Task<System.Text.Json.Nodes.JsonObject?> VersionAsync(CancellationToken ct) =>
+        await http.GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("version", ct);
+
     public async Task<byte[]> RenderAsync(Uri url, IReadOnlyDictionary<string, string> cookies, CancellationToken ct)
     {
         using var response = await http.PostAsJsonAsync("render", new
@@ -32,7 +38,7 @@ public sealed class HttpPdfRenderer(HttpClient http) : IPdfRenderer
     }
 }
 
-public sealed record PdfResult(byte[] Content, bool FromCache);
+public sealed record PdfResult(byte[] Content, bool FromCache, string FileName);
 
 public sealed record PdfRenderOutcome(string Locale, bool Ok, bool FromCache, long? Bytes, string? Error);
 
@@ -58,13 +64,16 @@ public sealed class PdfService(
     /// <summary>Returns the cached PDF if it matches the current CV, otherwise renders (and caches) a new one.</summary>
     public async Task<PdfResult?> GetOrRenderAsync(AccessGrant grant, string? requestedLocale, CancellationToken ct)
     {
-        if (tenants.LoadCv(grant.Tenant, requestedLocale) is not { } loaded) return null;
+        if (tenants.LoadCv(grant.Tenant, requestedLocale, grant.Policy.Revision) is not { } loaded) return null;
         var (master, locale) = loaded;
 
         // The render URL carries the QR target (public host + QR invite code), so a changed host or
         // base URL makes the cached PDF stale as well.
         var renderUrl = await RenderUrlAsync(grant, locale, ct);
-        var hash = ContentHash(CvRedactor.Redact(master, grant.Policy).ToJsonString(), locale, renderUrl);
+        var redacted = CvRedactor.Redact(master, grant.Policy);
+        var fileName = PdfFileName.For(redacted["profile"]?["name"]?.GetValue<string>(), locale);
+        var hash = ContentHash(redacted.ToJsonString(), locale, renderUrl,
+            grant.Templates.Pdf + System.Text.Json.JsonSerializer.Serialize(grant.Templates.PdfVars));
         var file = CacheFile(grant, locale);
         var hashFile = file + ".sha256";
 
@@ -73,13 +82,13 @@ public sealed class PdfService(
         try
         {
             if (File.Exists(file) && File.Exists(hashFile) && await File.ReadAllTextAsync(hashFile, ct) == hash)
-                return new PdfResult(await File.ReadAllBytesAsync(file, ct), FromCache: true);
+                return new PdfResult(await File.ReadAllBytesAsync(file, ct), FromCache: true, fileName);
 
             var pdf = await RenderAsync(grant, renderUrl, ct);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             await File.WriteAllBytesAsync(file, pdf, ct);
             await File.WriteAllTextAsync(hashFile, hash, ct);
-            return new PdfResult(pdf, FromCache: false);
+            return new PdfResult(pdf, FromCache: false, fileName);
         }
         finally
         {
@@ -87,11 +96,18 @@ public sealed class PdfService(
         }
     }
 
+    /// <summary>Renders without touching the cache (admin preview, e.g. to compare templates).</summary>
+    public async Task<byte[]?> RenderPreviewAsync(AccessGrant grant, string? requestedLocale, CancellationToken ct)
+    {
+        if (tenants.LoadCv(grant.Tenant, requestedLocale, grant.Policy.Revision) is not { } loaded) return null;
+        return await RenderAsync(grant, await RenderUrlAsync(grant, loaded.Locale, ct), ct);
+    }
+
     /// <summary>Renders all locales of a grant (used on invite creation so failures show up immediately).</summary>
     public async Task<IReadOnlyList<PdfRenderOutcome>> RenderAllLocalesAsync(AccessGrant grant, CancellationToken ct)
     {
         var outcomes = new List<PdfRenderOutcome>();
-        foreach (var locale in Locales(grant.Tenant))
+        foreach (var locale in TenantStore.Locales(grant.Tenant, grant.Policy.Revision))
         {
             try
             {
@@ -117,11 +133,6 @@ public sealed class PdfService(
         foreach (var file in Directory.EnumerateFiles(dir, $"invite-{inviteId:N}.*"))
             File.Delete(file);
     }
-
-    public static IEnumerable<string> Locales(Tenant tenant) =>
-        Directory.EnumerateFiles(tenant.Directory, "cv.*.json")
-            .Select(f => Path.GetFileName(f)["cv.".Length..^".json".Length])
-            .Order(StringComparer.Ordinal);
 
     private async Task<Uri> RenderUrlAsync(AccessGrant grant, string locale, CancellationToken ct)
     {
@@ -163,6 +174,6 @@ public sealed class PdfService(
     /// <summary>
     /// Layout version (bump Pdf:LayoutVersion after UI changes) + locale + render URL (QR target) + redacted CV.
     /// </summary>
-    private string ContentHash(string redactedCv, string locale, Uri renderUrl) => Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{renderUrl}\n{redactedCv}")));
+    private string ContentHash(string redactedCv, string locale, Uri renderUrl, string? template) => Convert.ToHexStringLower(SHA256.HashData(
+        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{template}\n{renderUrl}\n{redactedCv}")));
 }

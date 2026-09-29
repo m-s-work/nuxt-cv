@@ -7,6 +7,10 @@ services:
       context: ./src
       args:
         NUXT_APP_BASE_URL: /
+        # Showcase "Try the demo" link (/?c=<code>); leave empty to hide it.
+        NUXT_PUBLIC_DEMO_INVITE_CODE: ${CV_DEMO_INVITE_CODE:-}
+        # Git commit of the build (Coolify: enable "Include Source Commit in Build") -> /version.json
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       API_UPSTREAM: http://api:8080
     expose:
@@ -18,6 +22,8 @@ services:
   api:
     build:
       context: ./api
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       # Required for the admin API (invites, uploads). Leave empty to disable admin endpoints.
       Admin__ApiKey: ${CV_ADMIN_API_KEY:-}
@@ -31,6 +37,8 @@ services:
       Pdf__AppBaseUrl: http://web
       # Bump after layout changes so cached PDFs are re-rendered.
       Pdf__LayoutVersion: ${CV_PDF_LAYOUT_VERSION:-1}
+      # Read access to a private CV repository (fetches pinned CV versions again). Empty for public repos.
+      Git__Token: ${CV_GIT_TOKEN:-}
     volumes:
       - cv-data:/data
     expose:
@@ -41,6 +49,8 @@ services:
   pdf:
     build:
       context: ./pdf
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       MAX_CONCURRENT: "2"
     expose:

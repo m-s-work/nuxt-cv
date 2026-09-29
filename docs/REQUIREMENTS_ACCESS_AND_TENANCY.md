@@ -63,7 +63,13 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 ## 4. Invites
 
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
-- R4.2 Codes MUST be stored only as a SHA-256 hash; the plain code is shown once, at creation.
+  Exception: the admin MAY choose a code (`code`, 4–64 characters `A-Z a-z 0-9 - _`), e.g. `demo`.
+  Such codes are guessable and MUST only be used for demo or otherwise public content. A code can be in use
+  by one active invite at a time; revoking the invite releases the code.
+- R4.2 Codes are looked up by their SHA-256 hash. The plain code is additionally stored encrypted
+  (ASP.NET data protection, keys in `/data/keys`) so the owner can view and copy code and link again at any
+  time in the admin API/UI; codes are not secret towards the admin. They MUST NOT be sent to anyone else.
+  Invites created before this change only have the hash; their code cannot be shown.
 - R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
   optional `maxUses`, optional `overrides` (see §5.4), `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`,
   and for derived invites `parentId` + `source` (§12, R12.10).
@@ -96,6 +102,11 @@ removed data MUST NOT be present in the response at all.
 | `hideContactDetails` | E-mail and phone are removed. |
 | `hideBirthDate` | Birth date is removed. |
 | `hideMedia` | All images, screenshots and logos are removed. |
+
+**Public profile defaults to hide.** For the profile named as a tenant's `publicProfile`, every flag it
+does not set (and an invite override does not set) counts as `true`: public visitors only see what the
+owner explicitly allowed with `"<flag>": false`. For all other profiles unset flags count as `false`.
+This applies wherever the profile is used (public view, its PDF, invites of that profile, admin preview).
 
 When any timeframe flag is active, hand-written `period` texts are removed (they could leak
 the hidden precision); the frontend formats periods from the (reduced) dates.
@@ -166,12 +177,22 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/health` | – | Liveness for Coolify. |
-| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles. |
-| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Create returns code + link once. The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
+| `GET /api/version` | – | Deployed build: `{ api: { commit, builtAt }, pdf: { commit, builtAt } }`. The web container serves `/version.json` (`{ commit, builtAt }`). |
+| `GET /api/admin/tenants/{tenant}/hash` | admin key | SHA-256 per data file (`tenant.json`, `cv.<locale>.json`, `assets/*`) + `combined`. |
+| `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`), profile pins, `dataHash`. |
+| `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
+| `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
 | `DELETE /api/admin/tenants/{tenant}/invites/{id}` | admin key | Revoke invite (also deletes its cached PDFs). |
 | `POST /api/admin/tenants/{tenant}/invites/{id}/pdf` | admin key | Re-render the invite's PDFs, returns per-locale outcome. |
-| `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed. |
-| `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en` | admin key | Show redacted CV for a profile. |
+| `PUT /api/admin/tenants/{tenant}/files/{path}` | admin key | Upload `tenant.json`, `cv.<locale>.json` (validated JSON) or `assets/<file>`. Creates the tenant if needed; takes effect immediately. |
+| `GET /api/admin/tenants/{tenant}/files` | admin key | List the tenant's files (`path`, `size`, `modifiedAt`). |
+| `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
+| `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
+| `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en[&revision=<sha>\|current]` | admin key | Show redacted CV for a profile (optionally of a registered revision, §14). |
+| `GET /api/admin/tenants/{tenant}/pdf-preview?profile=x&template=y&locale=en[&vars=…][&revision=<sha\|tag>\|current]` | admin key | Render a PDF of a profile in any template and CV version (not cached). |
+| `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List stored CV revisions (`current`, `modified`, `source`, per revision `outdated`, `changes` (files changed since, same SHA-256 as `…/hash`), `refs`) / register the current CV files as revision `{ sha, message?, committedAt?, repo?, path? }` (§14). |
+| `POST /api/admin/tenants/{tenant}/revisions/fetch` `{ ref }` | admin key | Fetch a revision (SHA, tag or branch) from the tenant's git repo again (§14). |
+| `PUT /api/admin/tenants/{tenant}/invites/{id}/revision` `{ revision }` | admin key | Pin an invite (and its QR invite) to a revision; `""` = current CV, `null` = follow the profile (§14). |
 
 - Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
   admin endpoints are disabled (`404`).
@@ -182,7 +203,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 { "tenant": "bob", "profile": "recruiter", "viaInvite": true, "label": "ACME recruiting", "expiresAt": "2026-12-31T00:00:00Z" }
 ```
 
-`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available.
+`/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available,
+and `cvHash`: the SHA-256 of the compact JSON of the returned `cv` (for tests and deployment checks).
 
 ---
 
@@ -198,7 +220,10 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
         ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale
         ├── cv.en.json           # master CV (English)
         ├── cv.de.json           # master CV (German)
-        └── assets/              # photos, logos, screenshots
+        ├── assets/              # photos, logos, screenshots
+        └── revisions/           # CV snapshots per git commit (§14)
+            ├── index.json       # current revision, git source, refs + list (sha, message, committedAt, SHA-256 per file)
+            └── <sha>/           # cv.<locale>.json + assets/ (only revisions still in use)
 ```
 
 Tenant files are re-read automatically (short cache), so CV edits need no redeploy.
@@ -208,7 +233,6 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 10. Non-goals (for now)
 
-- No web admin UI; tenants, files and invites are managed via the admin API (curl / scripts).
 - No user accounts or passwords for visitors.
 - No per-visitor analytics beyond `useCount` / `lastUsedAt` (visitor & session tracking is planned in
   [`VISITOR_SESSION_TRACKING.md`](VISITOR_SESSION_TRACKING.md); owner-only, never shown to invitees, see R11.4).
@@ -263,11 +287,18 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
     usable while the parent is active;
   - marked `source: "pdf-qr"` with `parentId`, so the owner sees in the admin API how often the printed
     PDF was scanned (`useCount`, `lastUsedAt`). This marker is owner-only and never sent to invitees;
-  - its plain code is stored encrypted (data protection) so re-rendered PDFs can embed it again;
-    regular invites keep storing only the hash;
+  - its plain code is stored encrypted (data protection, like every invite's code, R4.2) so re-rendered
+    PDFs can embed it again;
   - the PDF of a QR invite embeds its own code (no QR-of-QR chains).
   Public-profile PDFs (no invite) link to the public URL without a code.
 - R12.8 Revoking an invite deletes its cached PDFs.
+- R12.12 **Links & file name.** Every PDF template contains a clickable link to the online version (same
+  target as the QR code, incl. the QR invite code) and a "Created with <platform>" credit linking to the shared
+  site (`CV_SHARED_BASE_URL`, returned as `links.platform` by `/api/cv`). Downloads are named
+  `cv-<name>-<locale>.pdf` (umlauts transliterated, `cv-<locale>.pdf` if the name is hidden).
+- R12.11 **Templates.** Print/PDF output uses a selectable template (`editorial` default, `classic`), chosen per
+  tenant, profile or invite (invite overrides allowed unless `allowInviteTemplateOverride: false`).
+  Details and how to add templates: [TEMPLATES.md](TEMPLATES.md).
 - R12.9 **Typeset print layout.** Print and PDF use a dedicated layout (`src/app/components/CvPrint.vue`),
   not the screen layout: A4 with 16/15/18/15 mm margins (`@page`), type scale in pt, bundled fonts
   (Source Serif 4 for name/intro, Inter for text – no network access needed), masthead with photo and
@@ -276,4 +307,69 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   The renderer prints at 100 % scale and adds a running footer (`<name> · Curriculum Vitae`, page x / y)
   from `window.__CV_PDF_FOOTER__`. Browser printing (Ctrl+P) uses the same layout without the footer.
   After layout changes bump `CV_PDF_LAYOUT_VERSION` so cached PDFs are re-rendered.
+
+---
+
+## 13. Admin UI
+
+- R13.1 The SPA contains an owner-only admin page at `/admin`. It is a client of the admin API (§8) and
+  has no privileges of its own: without a valid `X-Admin-Key` it shows only a sign-in form, and if the
+  server has no admin key configured it reports that the admin API is disabled.
+- R13.2 The admin key is entered by the owner and kept in `sessionStorage` of that tab only (never in
+  cookies or `localStorage`, never in the URL). "Log out" clears it.
+- R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted),
+  usage and linked QR invites; create invites (profile, label, expiry, max. redemptions, per-invite
+  overrides) showing code, link and PDF render outcome; code and link of every invite stay visible and
+  copyable in the list; revoke; re-render PDFs; edit `tenant.json`
+  and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
+  assets; preview any profile, locale and stored CV version either as data (the redacted JSON exactly as
+  delivered) or as PDF in any template and colour set (`…/pdf-preview`, needs the renderer); pin invites to
+  CV versions and see outdated pins (§14).
+- R13.5 Template builder ("Design" tab): choose the PDF template, colour set and template variables for the
+  tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
+  profile and locale. Saving edits only `templates` of that scope in `tenant.json` (comments kept) and
+  stores only the preset plus values that differ from it. See `docs/TEMPLATES.md`.
+- R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
+  and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
+  admin page's own CSS chunk, so the public pages are unaffected.
+
+---
+
+## 14. CV versions: pinning to a git commit
+
+The CV files usually live in a Git repository and are deployed with `tools/cv-sync.sh` (see `docs/FEATURES.md`).
+A CV *variant* (an invite, or a profile) can be pinned to the CV as it was at a commit, e.g. the version sent
+with an application.
+
+- R14.1 **Registering.** After uploading, `cv-sync.sh` registers the deployed CV under its git commit
+  (`POST …/revisions`, SHA from `git rev-parse HEAD` of the tenant folder or `CV_REVISION`, plus the HTTPS URL of
+  the repo and the tenant folder in it). The API copies the
+  tenant's current `cv.<locale>.json` files and `assets/` into `revisions/<sha>/` and marks it as current. Registering the
+  same SHA again replaces its snapshot.
+- R14.2 **Pinning.** `revision` (full SHA, unique prefix ≥ 7, or a tag/branch name) can be set on a profile in `tenant.json` or as an
+  invite override (on creation or later via `PUT …/invites/{id}/revision`). The invite's pin replaces the
+  profile's; `""` on an invite means "current CV" even if its profile is pinned. Invite pins are stored as the
+  full SHA; a revision that is not stored is fetched from git first (R14.6), `400 unknown_revision` if that
+  fails. QR invites follow their parent.
+- R14.3 **Serving.** A pinned grant gets the master CV and the assets of the snapshot (all endpoints: CV,
+  assets, PDF, admin preview); redaction (profile, flags, overrides) is applied as usual with the **current**
+  `tenant.json`. If a pinned snapshot does not exist, the current CV and assets are served and the admin UI
+  reports the pin as unknown.
+- R14.4 **Outdated warning.** A pin is *outdated* when the snapshot's CV files or assets differ from the current
+  ones. Each snapshot stores the SHA-256 of every file (`cv.<locale>.json`, `assets/*`), the same values as
+  `GET …/hash` / `cv-sync.sh --verify`; comparing them file by file also tells which files changed (so commits that do not change the tenant's CV do not count). The admin UI shows the current
+  revision, flags manual edits made after it ("changed since"), marks outdated or unknown pins on invites and
+  profiles and lists the changed files, counts outdated active invites, and offers "Pin to current" per invite. Invitees are never told.
+- R14.5 **Retention.** Only snapshots in use are kept: the current revision, revisions pinned by a profile in
+  `tenant.json`, and revisions pinned by an active (not revoked, not expired) invite. Unused snapshots are
+  deleted after registering a revision, revoking or re-pinning an invite, and uploading `tenant.json`.
+  A deleted revision is fetched from git again when it is needed (R14.6).
+- R14.6 **Fetching from git.** A revision that is not stored (never registered, or pruned) is fetched from the
+  tenant's git repo again: when an invite is created or re-pinned with it, when an uploaded `tenant.json`
+  pins a profile to it, and via "Fetch from git" in the admin UI (`POST …/revisions/fetch`). The API fetches
+  only that commit (`git fetch --depth=1 <repo> <ref>` into a cache under `/data/git/<tenant>`), extracts the
+  tenant folder (`cv.<locale>.json`, `assets/`) and stores it as a non-current snapshot; tags/branches are
+  remembered with the commit they resolved to. Only HTTPS repos are used; private repos need
+  `Git__Token` (read-only token, sent as HTTP basic auth, never on the command line). Visitor requests never
+  trigger a fetch: an unknown pin serves the current CV until the revision is fetched.
 

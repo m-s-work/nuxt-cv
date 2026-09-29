@@ -24,6 +24,33 @@ public sealed class RedactorTests
         CvRedactor.Redact(Master(), EffectivePolicy.From(profile, overrides));
 
     [Fact]
+    public void Invite_revision_replaces_profile_pin_and_empty_unpins()
+    {
+        var profile = new AccessPolicy { Revision = "ABCDEF1" };
+        Assert.Equal("ABCDEF1", EffectivePolicy.From(profile).Revision);    // tags are case-sensitive
+        Assert.Equal("1234567", EffectivePolicy.From(profile, new AccessPolicy { Revision = "1234567" }).Revision);
+        Assert.Null(EffectivePolicy.From(profile, new AccessPolicy { Revision = "" }).Revision);
+        Assert.Null(EffectivePolicy.From(new AccessPolicy()).Revision);
+    }
+
+    [Fact]
+    public void Hide_by_default_hides_unset_flags_but_keeps_explicit_ones()
+    {
+        var policy = EffectivePolicy.From(
+            new AccessPolicy { Flags = new RedactionFlags { HidePhoto = false } },
+            new AccessPolicy { Flags = new RedactionFlags { HideMedia = false } },
+            hideByDefault: true);
+
+        Assert.False(policy.Flags.HidePhoto);
+        Assert.False(policy.Flags.HideMedia);
+        Assert.True(policy.Flags.HideCompanies);
+        Assert.True(policy.Flags.HideTimeframeMonths);
+        Assert.True(policy.Flags.HideContactDetails);
+        Assert.True(policy.Flags.HideBirthDate);
+        Assert.False(EffectivePolicy.From(new AccessPolicy()).Flags.HideCompanies);
+    }
+
+    [Fact]
     public void Requires_and_field_requires_are_enforced_and_stripped()
     {
         var cv = Redact(new AccessPolicy());

@@ -6,6 +6,7 @@ using CvApi.Access;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
+using CvApi.Versioning;
 using Microsoft.EntityFrameworkCore;
 
 namespace CvApi.Endpoints;
@@ -21,13 +22,22 @@ public static partial class AdminEndpoints
     [GeneratedRegex(@"^(tenant\.json|cv\.[a-z]{2}(-[A-Z]{2})?\.json|assets/[A-Za-z0-9][A-Za-z0-9._-]{0,127})$")]
     private static partial Regex AllowedFileRegex();
 
+    /// <param name="Repo">Git remote of the CV repo and <paramref name="Path"/> the tenant folder in it, so pruned revisions can be fetched again.</param>
+    public sealed record RegisterRevisionRequest(string Sha, string? Message, DateTimeOffset? CommittedAt, string? Repo, string? Path);
+
+    public sealed record FetchRevisionRequest(string Ref);
+
+    /// <summary>Revision: SHA/prefix = pin, "" = current CV even if the profile is pinned, null = follow the profile.</summary>
+    public sealed record PinRequest(string? Revision);
+
     public sealed record CreateInviteRequest(
         string Profile,
         string? Label,
         DateTimeOffset? ExpiresAt,
         int? ExpiresInDays,
         int? MaxUses,
-        AccessPolicy? Overrides);
+        AccessPolicy? Overrides,
+        string? Code = null);
 
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
@@ -41,32 +51,127 @@ public static partial class AdminEndpoints
             defaultLocale = t.Config.DefaultLocale,
             publicProfile = t.Config.PublicProfile,
             profiles = t.Config.Profiles.Keys,
+            locales = TenantStore.Locales(t),
+            // Profiles pinned to a CV revision in tenant.json.
+            pins = t.Config.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.Value.Revision))
+                .ToDictionary(p => p.Key, p => p.Value.Revision!.Trim()),
+            dataHash = TenantHashes.Compute(t).Combined,
         }));
 
-        admin.MapGet("/tenants/{tenantId}/invites", async (string tenantId, TenantStore tenants, AppDbContext db, CancellationToken ct) =>
+        // SHA-256 of every data file of a tenant (compare with `sha256sum` in the CV repository).
+        admin.MapGet("/tenants/{tenantId}/hash", (string tenantId, TenantStore tenants) =>
         {
-            if (tenants.Get(tenantId) is null) return Results.NotFound();
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var hashes = TenantHashes.Compute(tenant);
+            return Results.Ok(new { tenant = tenant.Id, combined = hashes.Combined, files = hashes.Files });
+        });
+
+        // CV revisions (git commits registered by tools/cv-sync.sh). "outdated" = the current CV differs from it.
+        admin.MapGet("/tenants/{tenantId}/revisions", (string tenantId, TenantStore tenants) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var index = RevisionStore.Read(tenant);
+            var live = TenantHashes.DataFiles(tenant.Directory);
+            var current = index.Revisions.FirstOrDefault(r => r.Sha == index.Current);
+            return Results.Ok(new
+            {
+                current = index.Current,
+                source = index.Source,
+                // The live files were changed after the current revision was registered (e.g. edited in the admin UI).
+                modified = current is not null && TenantHashes.Diff(current.Files, live).Count > 0,
+                revisions = index.Revisions.Select(r =>
+                {
+                    // What changed in the current CV since this revision (empty = up to date).
+                    var changes = TenantHashes.Diff(r.Files, live);
+                    return new
+                    {
+                        sha = r.Sha,
+                        message = r.Message,
+                        committedAt = r.CommittedAt,
+                        registeredAt = r.RegisteredAt,
+                        outdated = changes.Count > 0,
+                        changes = changes.Select(c => new { path = c.Path, change = c.Change }),
+                        refs = index.Refs?.Where(x => x.Value == r.Sha).Select(x => x.Key).ToList() ?? [],
+                    };
+                }),
+            });
+        });
+
+        admin.MapPost("/tenants/{tenantId}/revisions", async (string tenantId, RegisterRevisionRequest body, TenantStore tenants,
+            AppDbContext db, TimeProvider time, GitRevisionFetcher git, CancellationToken ct) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var sha = body.Sha?.Trim().ToLowerInvariant() ?? "";
+            if (!RevisionStore.ShaRegex().IsMatch(sha)) return Results.BadRequest(new { error = "invalid_sha" });
+            if (TenantStore.Locales(tenant).Count == 0) return Results.BadRequest(new { error = "no_cv" });
+            RevisionSource? source = null;
+            if (!string.IsNullOrWhiteSpace(body.Repo))
+            {
+                source = new RevisionSource(StripCredentials(body.Repo.Trim()), body.Path?.Trim().Trim('/') ?? "");
+                if (!git.IsValidSource(source)) return Results.BadRequest(new { error = "invalid_source" });
+            }
+            var revision = RevisionStore.Register(tenant, sha, body.Message, body.CommittedAt, time.GetUtcNow(), source);
+            await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
+            return Results.Ok(new { sha = revision.Sha, message = revision.Message, committedAt = revision.CommittedAt, registeredAt = revision.RegisteredAt });
+        });
+
+        // Fetch a revision (SHA, tag or branch) from the tenant's git repo again, e.g. after it was pruned.
+        admin.MapPost("/tenants/{tenantId}/revisions/fetch", async (string tenantId, FetchRevisionRequest body, TenantStore tenants,
+            GitRevisionFetcher git, CancellationToken ct) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            if (RevisionStore.Resolve(tenant, body.Ref ?? "") is { } known) return Results.Ok(new { sha = known });
+            var result = await git.FetchAsync(tenant, body.Ref ?? "", ct);
+            return result.Sha is { } sha ? Results.Ok(new { sha }) : Results.BadRequest(new { error = result.Error });
+        });
+
+        // Profile definitions of a tenant (for the admin UI's invite form and preview).
+        admin.MapGet("/tenants/{tenantId}/profiles", (string tenantId, TenantStore tenants) =>
+            tenants.Get(tenantId) is { } tenant ? Results.Ok(tenant.Config.Profiles) : Results.NotFound());
+
+        admin.MapGet("/tenants/{tenantId}/invites", async (string tenantId, TenantStore tenants, AppDbContext db,
+            AccessService access, IConfiguration config, CancellationToken ct) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var invites = await db.Invites.Where(i => i.TenantId == tenantId).ToListAsync(ct);
-            return Results.Ok(invites.OrderByDescending(i => i.CreatedAt).Select(ToDto));
+            return Results.Ok(invites.OrderByDescending(i => i.CreatedAt).Select(i => ToDto(i, access.RevealCode(i), tenant, config)));
         });
 
         admin.MapPost("/tenants/{tenantId}/invites", async (string tenantId, CreateInviteRequest body,
             TenantStore tenants, AppDbContext db, IConfiguration config, TimeProvider time,
-            AccessService access, PdfService pdf, CancellationToken ct) =>
+            AccessService access, PdfService pdf, GitRevisionFetcher git, CancellationToken ct) =>
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
             if (!tenant.Config.Profiles.ContainsKey(body.Profile))
                 return Results.BadRequest(new { error = "unknown_profile", profiles = tenant.Config.Profiles.Keys });
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
+            if (body.Overrides is { Revision: { Length: > 0 } pin })
+            {
+                var (sha, pinError) = await EnsureRevisionAsync(tenant, pin, git, ct);
+                if (sha is null) return Results.BadRequest(new { error = "unknown_revision", detail = pinError });
+                body.Overrides.Revision = sha;
+            }
 
             var now = time.GetUtcNow();
-            var code = InviteCodes.Generate();
+            var code = body.Code?.Trim() is { Length: > 0 } custom ? custom : InviteCodes.Generate();
+            if (body.Code is not null)
+            {
+                if (!InviteCodes.IsValidCustom(code))
+                    return Results.BadRequest(new { error = "invalid_code", rule = "4-64 characters: A-Z a-z 0-9 - _" });
+                var hash = InviteCodes.Hash(code);
+                var existing = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
+                if (existing is not null && existing.RevokedAt is null)
+                    return Results.Conflict(new { error = "code_taken" });
+                // A revoked invite releases its code (e.g. re-create "demo" with other settings).
+                if (existing is not null) existing.CodeHash = $"released:{existing.Id:N}";
+            }
             var invite = new Invite
             {
                 TenantId = tenant.Id,
                 Profile = body.Profile,
                 CodeHash = InviteCodes.Hash(code),
+                CodeProtected = access.ProtectCode(code),
                 Label = body.Label ?? "",
                 OverridesJson = body.Overrides is null ? null : JsonSerializer.Serialize(body.Overrides, TenantStore.FileJsonOptions),
                 CreatedAt = now,
@@ -81,12 +186,11 @@ public static partial class AdminEndpoints
             if (pdf.Enabled && access.GrantFor(invite) is { } grant)
                 pdfOutcomes = await pdf.RenderAllLocalesAsync(grant, ct);
 
-            // The plain code is only ever returned here.
-            return Results.Ok(new { invite = ToDto(invite), code, link = BuildLink(tenant, config, code), pdf = pdfOutcomes });
+            return Results.Ok(new { invite = ToDto(invite, code, tenant, config), code, link = BuildLink(tenant, config, code), pdf = pdfOutcomes });
         });
 
         admin.MapDelete("/tenants/{tenantId}/invites/{id:guid}", async (string tenantId, Guid id, AppDbContext db,
-            TimeProvider time, PdfService pdf, CancellationToken ct) =>
+            TimeProvider time, PdfService pdf, AccessService access, TenantStore tenants, IConfiguration config, CancellationToken ct) =>
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
             if (invite is null) return Results.NotFound();
@@ -100,7 +204,36 @@ public static partial class AdminEndpoints
             }
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
-            return Results.Ok(ToDto(invite));
+            if (tenants.Get(tenantId) is { } revokedTenant) await PruneRevisionsAsync(revokedTenant, db, now, ct);
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+        });
+
+        // Pin an invite (and its QR invite) to a CV revision, e.g. to update an outdated pin.
+        admin.MapPut("/tenants/{tenantId}/invites/{id:guid}/revision", async (string tenantId, Guid id, PinRequest body,
+            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, TimeProvider time,
+            GitRevisionFetcher git, CancellationToken ct) =>
+        {
+            if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
+            if (invite is null) return Results.NotFound();
+
+            var revision = body.Revision?.Trim();
+            if (revision is { Length: > 0 })
+            {
+                var (sha, pinError) = await EnsureRevisionAsync(tenant, revision, git, ct);
+                if (sha is null) return Results.BadRequest(new { error = "unknown_revision", detail = pinError });
+                revision = sha;
+            }
+
+            foreach (var target in await db.Invites.Where(i => i.Id == id || i.ParentId == id).ToListAsync(ct))
+            {
+                var overrides = AccessService.ParseOverrides(target.OverridesJson) ?? new AccessPolicy();
+                overrides.Revision = revision;
+                target.OverridesJson = JsonSerializer.Serialize(overrides, TenantStore.FileJsonOptions);
+            }
+            await db.SaveChangesAsync(ct);
+            await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenant, config));
         });
 
         // (Re-)render the PDFs of an invite, e.g. after fixing a rendering problem or changing the CV.
@@ -117,7 +250,7 @@ public static partial class AdminEndpoints
         // File management, so tenants can be maintained without shell access to the volume.
         // tenant.json and cv.<locale>.json must be valid JSON; assets are stored as-is.
         admin.MapPut("/tenants/{tenantId}/files/{**path}", async (string tenantId, string path, HttpRequest request,
-            TenantStore tenants, IConfiguration config, CancellationToken ct) =>
+            TenantStore tenants, IConfiguration config, AppDbContext db, TimeProvider time, GitRevisionFetcher git, CancellationToken ct) =>
         {
             if (!TenantIdRegex().IsMatch(tenantId)) return Results.BadRequest(new { error = "invalid_tenant_id" });
             if (!AllowedFileRegex().IsMatch(path)) return Results.BadRequest(new { error = "invalid_path" });
@@ -144,27 +277,115 @@ public static partial class AdminEndpoints
                 }
             }
 
-            var dir = Path.Combine(Path.GetFullPath(config["Cv:DataPath"] ?? "/data"), "tenants", tenantId);
+            var dir = TenantDir(config, tenantId);
             var target = Path.Combine(dir, path);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             await File.WriteAllBytesAsync(target, buffer.ToArray(), ct);
+            tenants.Invalidate();
+            // Profile pins may have changed.
+            if (path == "tenant.json" && tenants.Get(tenantId) is { } changed)
+            {
+                // Profiles pinned to a revision that is not stored (anymore): fetch it from git. Failures show up
+                // as "unknown" pins in the admin UI and can be retried there.
+                foreach (var pin in changed.Config.Profiles.Values.Select(p => p.Revision).OfType<string>().Where(p => p.Trim().Length > 0).Distinct())
+                    await EnsureRevisionAsync(changed, pin, git, ct);
+                await PruneRevisionsAsync(changed, db, time.GetUtcNow(), ct);
+            }
             return Results.NoContent();
         });
 
-        admin.MapGet("/tenants/{tenantId}/preview", (string tenantId, string profile, string? locale, TenantStore tenants) =>
+        admin.MapGet("/tenants/{tenantId}/files", (string tenantId, IConfiguration config) =>
+        {
+            if (!TenantIdRegex().IsMatch(tenantId)) return Results.BadRequest(new { error = "invalid_tenant_id" });
+            var dir = TenantDir(config, tenantId);
+            if (!Directory.Exists(dir)) return Results.NotFound();
+            var files = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(dir, f).Replace(Path.DirectorySeparatorChar, '/'))
+                .Where(p => AllowedFileRegex().IsMatch(p))
+                .Order(StringComparer.Ordinal)
+                .Select(p =>
+                {
+                    var info = new FileInfo(Path.Combine(dir, p));
+                    return new { path = p, size = info.Length, modifiedAt = new DateTimeOffset(info.LastWriteTimeUtc) };
+                });
+            return Results.Ok(files);
+        });
+
+        admin.MapGet("/tenants/{tenantId}/files/{**path}", (string tenantId, string path, IConfiguration config) =>
+        {
+            if (!TenantIdRegex().IsMatch(tenantId) || !AllowedFileRegex().IsMatch(path)) return Results.BadRequest(new { error = "invalid_path" });
+            var file = Path.Combine(TenantDir(config, tenantId), path);
+            if (!File.Exists(file)) return Results.NotFound();
+            if (!ContentTypes.TryGetContentType(file, out var contentType)) contentType = "application/octet-stream";
+            return Results.File(file, contentType);
+        });
+
+        // tenant.json cannot be deleted here (it defines the tenant); CV files and assets can.
+        admin.MapDelete("/tenants/{tenantId}/files/{**path}", (string tenantId, string path, IConfiguration config, TenantStore tenants) =>
+        {
+            if (!TenantIdRegex().IsMatch(tenantId) || !AllowedFileRegex().IsMatch(path) || path == "tenant.json")
+                return Results.BadRequest(new { error = "invalid_path" });
+            var file = Path.Combine(TenantDir(config, tenantId), path);
+            if (!File.Exists(file)) return Results.NotFound();
+            File.Delete(file);
+            tenants.Invalidate();
+            return Results.NoContent();
+        });
+
+        // PDF preview of a profile in any template (not cached), e.g. to choose a template.
+        // revision: as for /preview – a SHA/tag, "current" or omitted (the profile's own view).
+        admin.MapGet("/tenants/{tenantId}/pdf-preview", async (string tenantId, string profile, string? template, string? locale,
+            string? vars, string? revision, TenantStore tenants, PdfService pdf, CancellationToken ct) =>
+        {
+            if (!pdf.Enabled) return Results.NotFound(new { error = "pdf_disabled" });
+            var tenant = tenants.Get(tenantId);
+            if (tenant is null) return Results.NotFound();
+            if (template is not null && TemplateResolver.Valid(template) is null)
+                return Results.BadRequest(new { error = "invalid_template" });
+            // vars: JSON object of template variables, e.g. {"preset":"graphite","chapterColors":true}
+            Dictionary<string, JsonElement>? pdfVars = null;
+            if (!string.IsNullOrEmpty(vars))
+            {
+                try { pdfVars = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(vars); }
+                catch (JsonException) { return Results.BadRequest(new { error = "invalid_vars" }); }
+            }
+            if (AccessService.GrantForProfile(tenant, profile, template, pdfVars, revision == "current" ? "" : revision) is not { } grant)
+                return Results.BadRequest(new { error = "unknown_profile" });
+
+            var content = await pdf.RenderPreviewAsync(grant, locale, ct);
+            return content is null
+                ? Results.NotFound()
+                : Results.File(content, "application/pdf", $"preview-{profile}-{grant.Templates.Pdf ?? "default"}.pdf");
+        });
+
+        admin.MapGet("/tenants/{tenantId}/preview", (string tenantId, string profile, string? locale, string? revision, TenantStore tenants) =>
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
-            if (!tenant.Config.Profiles.TryGetValue(profile, out var policy))
+            if (!tenant.Config.Profiles.ContainsKey(profile))
                 return Results.BadRequest(new { error = "unknown_profile" });
-            if (tenants.LoadCv(tenant, locale) is not { } loaded) return Results.NotFound();
-            return Results.Ok(new { locale = loaded.Locale, cv = CvRedactor.Redact(loaded.Cv, EffectivePolicy.From(policy)) });
+            // revision: a SHA/tag, "current" (ignore the profile's pin) or omitted (the profile's own view).
+            var effective = AccessService.GrantForProfile(tenant, profile, revision: revision == "current" ? "" : revision)!.Policy;
+            if (tenants.LoadCv(tenant, locale, effective.Revision) is not { } loaded) return Results.NotFound();
+            return Results.Ok(new { locale = loaded.Locale, revision = effective.Revision, cv = CvRedactor.Redact(loaded.Cv, effective) });
         });
     }
 
-    private static object ToDto(Invite i) => new
+    private static readonly Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider ContentTypes = new();
+
+    private static string TenantDir(IConfiguration config, string tenantId) =>
+        Path.Combine(Path.GetFullPath(config["Cv:DataPath"] ?? "/data"), "tenants", tenantId);
+
+    // Codes are not secret towards the admin: they are shown with their link on every listing.
+    private static object ToDto(Invite i, string? code, Tenant? tenant, IConfiguration config) => new
     {
         id = i.Id,
+        code,
+        link = code is not null && tenant is not null ? BuildLink(tenant, config, code) : null,
+        // Effective CV pin: the invite's own (override) or its profile's; null = follows the current CV.
+        revision = PinOf(i, tenant) is { Length: > 0 } pin ? pin : null,
+        pinnedBy = AccessService.ParseOverrides(i.OverridesJson)?.Revision is not null ? "invite"
+            : PinOf(i, tenant) is not null ? "profile" : null,
         tenant = i.TenantId,
         profile = i.Profile,
         label = i.Label,
@@ -178,6 +399,42 @@ public static partial class AdminEndpoints
         parentId = i.ParentId,
         source = i.Source,
     };
+
+    /// <summary>
+    /// Keeps only CV snapshots still in use: the current revision, pins of profiles and of active invites
+    /// (QR invites follow their parent). Called after anything that can release a pin.
+    /// </summary>
+    private static async Task PruneRevisionsAsync(Tenant tenant, AppDbContext db, DateTimeOffset now, CancellationToken ct)
+    {
+        var pins = tenant.Config.Profiles.Values.Select(p => p.Revision).OfType<string>().ToList();
+        var invites = await db.Invites.Where(i => i.TenantId == tenant.Id && i.ParentId == null && i.RevokedAt == null).ToListAsync(ct);
+        pins.AddRange(invites.Where(i => i.IsActive(now))
+            .Select(i => AccessService.ParseOverrides(i.OverridesJson)?.Revision).OfType<string>());
+        RevisionStore.Prune(tenant, pins);
+    }
+
+    /// <summary>Full SHA of a pin: from the stored revisions, otherwise fetched from the tenant's git repo.</summary>
+    private static async Task<(string? Sha, string? Error)> EnsureRevisionAsync(Tenant tenant, string pin, GitRevisionFetcher git, CancellationToken ct)
+    {
+        if (RevisionStore.Resolve(tenant, pin) is { } known) return (known, null);
+        var result = await git.FetchAsync(tenant, pin, ct);
+        return (result.Sha, result.Error);
+    }
+
+    /// <summary>Removes user:password from an https URL, so no credentials end up in index.json.</summary>
+    private static string StripCredentials(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.UserInfo.Length > 0
+            ? new UriBuilder(uri) { UserName = "", Password = "" }.Uri.ToString()
+            : url;
+
+    private static string? PinOf(Invite i, Tenant? tenant)
+    {
+        var own = AccessService.ParseOverrides(i.OverridesJson)?.Revision;
+        if (own is not null) return own.Trim();
+        return tenant is not null && tenant.Config.Profiles.TryGetValue(i.Profile, out var p) && !string.IsNullOrWhiteSpace(p.Revision)
+            ? p.Revision.Trim()
+            : null;
+    }
 
     private static string BuildLink(Tenant tenant, IConfiguration config, string code)
     {

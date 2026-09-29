@@ -2,10 +2,12 @@
 //
 // POST /render  { url, cookies: [{ name, value }], timeoutMs? }  ->  application/pdf
 // GET  /health
+// GET  /version  { commit, builtAt } of this image
 //
 // The page signals readiness via window.__CV_READY__ ("ready" | "no-access" | "error"),
 // set by the frontend when opened with ?print=1.
 import http from 'node:http'
+import fs from 'node:fs'
 import { chromium } from 'playwright-core'
 
 const PORT = Number(process.env.PORT || 3000)
@@ -117,6 +119,14 @@ function readJson(req) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    if (req.method === 'GET' && req.url === '/version') {
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        // Baked into the image at build time (the runtime env may be overridden by Coolify).
+        commit: (() => { try { const c = fs.readFileSync(new URL('./SOURCE_COMMIT', import.meta.url), 'utf8').trim(); if (c && c !== 'unknown') return c } catch {} return process.env.SOURCE_COMMIT || 'unknown' })(),
+        builtAt: (() => { try { return fs.readFileSync(new URL('./BUILD_TIME', import.meta.url), 'utf8').trim() } catch { return null } })()
+      }))
+      return
+    }
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok')
       return

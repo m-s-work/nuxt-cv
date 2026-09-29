@@ -13,7 +13,10 @@ export default defineNuxtConfig({
     '~/assets/css/main.css',
     // Bundled fonts for the print/PDF layout (no network needed in the PDF renderer)
     '@fontsource-variable/inter',
-    '@fontsource-variable/source-serif-4'
+    '@fontsource-variable/source-serif-4',
+    '@fontsource/lato/300.css',
+    '@fontsource/lato/400.css',
+    '@fontsource/lato/700.css'
   ],
 
   // Static SPA; served by nginx in the web container (see Dockerfile)
@@ -27,7 +30,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       // Base path of the C# API. Same origin in production (nginx proxies /api to the API container).
-      apiBase: '/api'
+      apiBase: '/api',
+      // Invite code of a public demo CV (e.g. "demo"); the showcase links to it when set. Build time.
+      demoInviteCode: process.env.NUXT_PUBLIC_DEMO_INVITE_CODE || ''
     }
   },
 
@@ -36,6 +41,17 @@ export default defineNuxtConfig({
   nitro: {
     devProxy: {
       '/api': { target: process.env.CV_API_URL || 'http://localhost:5080/api', changeOrigin: false }
+    }
+  },
+
+  // Icons are bundled into the client (the static SPA has no icon server endpoint, and the
+  // admin page should not call a third-party CDN). Scan finds icons used in app/; the list adds
+  // icons Nuxt UI uses internally.
+  icon: {
+    provider: 'none',
+    clientBundle: {
+      scan: true,
+      icons: ['lucide:chevron-down', 'lucide:chevron-up', 'lucide:check', 'lucide:loader-circle', 'lucide:x', 'lucide:minus']
     }
   },
 
