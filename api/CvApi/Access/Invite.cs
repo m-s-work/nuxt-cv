@@ -43,7 +43,18 @@ public sealed class Invite
     /// <summary>End of the grace window of a redeemed view-once invite; null while it is unused.</summary>
     public DateTimeOffset? ViewOnceUntil { get; set; }
 
+    /// <summary>Random token of the current view-once redemption, also in that browser's access cookie.</summary>
+    public string? ViewOnceToken { get; set; }
+
     public bool IsViewOnce => ViewOnceMinutes is not null;
+
+    /// <summary>Makes the code redeemable again: resets the use count and a used view-once state (§4, R4.10).</summary>
+    public void Rearm()
+    {
+        UseCount = 0;
+        ViewOnceUntil = null;
+        ViewOnceToken = null;
+    }
 
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && (ExpiresAt is null || ExpiresAt > now)
         && (ViewOnceUntil is null || ViewOnceUntil > now);
@@ -72,6 +83,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         invite.Property(i => i.TenantId).HasMaxLength(64);
         invite.Property(i => i.Profile).HasMaxLength(64);
         invite.Property(i => i.CodeHash).HasMaxLength(64);
+        invite.Property(i => i.ViewOnceToken).HasMaxLength(32);
 
         // SQLite cannot order/compare DateTimeOffset natively; store as UTC ticks.
         var converter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.DateTimeOffsetToBinaryConverter();

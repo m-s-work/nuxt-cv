@@ -290,6 +290,22 @@ export function inviteStatus(invite: AdminInvite, now: Date = new Date()): Invit
   return 'active'
 }
 
+/** Choices for "view once": grace window in minutes for the browser that opened the link; 0 = off. */
+export const VIEW_ONCE_CHOICES = [0, 10, 30, 60, 240, 1440]
+
+export function viewOnceLabel(minutes: number): string {
+  if (!minutes) return 'Off'
+  if (minutes % 1440 === 0) return `View once, ${minutes / 1440} day${minutes === 1440 ? '' : 's'}`
+  if (minutes % 60 === 0) return `View once, ${minutes / 60} h`
+  return `View once, ${minutes} min`
+}
+
+/** Select items for "view once", keeping a non-standard current value (set via the API) selectable. */
+export function viewOnceItems(current = 0) {
+  const values = VIEW_ONCE_CHOICES.includes(current) ? VIEW_ONCE_CHOICES : [...VIEW_ONCE_CHOICES, current].sort((a, b) => a - b)
+  return values.map(value => ({ label: viewOnceLabel(value), value }))
+}
+
 /** Splits a comma/newline separated list, trimming and dropping empty entries. */
 export function splitList(text: string): string[] {
   return text.split(/[,\n]/).map(s => s.trim()).filter(Boolean)
@@ -458,9 +474,19 @@ export function useAdmin() {
       label?: string
       expiresAt?: string
       maxUses?: number
-      viewOnce?: boolean
+      viewOnceMinutes?: number
       overrides?: AccessPolicy
     }) => request<CreatedInvite>(`${t(tenant)}/invites`, { method: 'POST', body }),
+    /** Replaces label, expiry, max. redemptions and view once (null = none / unlimited / off). */
+    updateInvite: (tenant: string, id: string, body: {
+      label: string
+      expiresAt: string | null
+      maxUses: number | null
+      viewOnceMinutes: number | null
+    }) => request<AdminInvite>(`${t(tenant)}/invites/${id}/settings`, { method: 'PUT', body }),
+    /** Makes a used-up code redeemable again (use count and view-once state reset). */
+    rearmInvite: (tenant: string, id: string) =>
+      request<AdminInvite>(`${t(tenant)}/invites/${id}/rearm`, { method: 'POST' }),
     revokeInvite: (tenant: string, id: string) =>
       request<AdminInvite>(`${t(tenant)}/invites/${id}`, { method: 'DELETE' }),
     renderPdf: (tenant: string, id: string) =>

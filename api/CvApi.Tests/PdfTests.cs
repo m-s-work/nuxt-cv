@@ -177,6 +177,20 @@ public sealed class PdfTests : IDisposable
     }
 
     [Fact]
+    public async Task Turning_view_once_on_later_revokes_the_qr_invite()
+    {
+        var created = await CreateInvite(new { profile = "full" });
+        var qrCode = QrCode(_factory.Renderer.Calls[0]);
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+
+        var response = await admin.PutAsJsonAsync($"/api/admin/tenants/alice/invites/{created["invite"]!["id"]}/settings", new { viewOnceMinutes = 30 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await _factory.ClientFor(ApiFactory.SharedHost).PostAsJsonAsync("/api/access/redeem", new { code = qrCode })).StatusCode);
+    }
+
+    [Fact]
     public async Task Qr_code_in_pdf_is_a_linked_invite_with_the_same_view()
     {
         var created = await CreateInvite(new { profile = "full", label = "ACME", overrides = new { flags = new { hideCompanies = true } } });

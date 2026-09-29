@@ -101,8 +101,6 @@ export interface CvAccess {
   viaInvite: boolean
   label?: string
   expiresAt?: string
-  /** View-once invite: the code is used up; this browser's access ends at this time. */
-  viewOnceUntil?: string
 }
 
 export type CvStatus = 'idle' | 'loading' | 'ready' | 'no-access' | 'error'

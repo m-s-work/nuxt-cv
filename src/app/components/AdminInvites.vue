@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  REDACTION_FLAGS, buildOverrides, changeSummary, errorMessage, findRevision, formatBytes, groupInvites, inviteStatus, pinStatus, shortSha,
+  REDACTION_FLAGS, buildOverrides, changeSummary, errorMessage, findRevision, formatBytes, groupInvites, inviteStatus, pinStatus, shortSha, viewOnceItems, viewOnceLabel,
   type AdminInvite, type AdminTenant, type CreatedInvite, type CvRevisions, type FlagChoice, type OverridesForm, type PdfOutcome
 } from '~/composables/useAdmin'
 
@@ -69,7 +69,7 @@ function emptyForm() {
     label: '',
     expiresOn: '',
     maxUses: '' as string | number,
-    viewOnce: false,
+    viewOnceMinutes: 0,
     overrides: {
       flags: Object.fromEntries(REDACTION_FLAGS.map(f => [f, 'inherit'])) as Record<string, FlagChoice>,
       hiddenFields: '',
@@ -96,8 +96,8 @@ async function create() {
       label: form.label.trim() || undefined,
       // End of the chosen day in the admin's time zone.
       expiresAt: form.expiresOn ? new Date(`${form.expiresOn}T23:59:59`).toISOString() : undefined,
-      maxUses: form.viewOnce || form.maxUses === '' ? undefined : Number(form.maxUses),
-      viewOnce: form.viewOnce || undefined,
+      maxUses: form.viewOnceMinutes || form.maxUses === '' ? undefined : Number(form.maxUses),
+      viewOnceMinutes: form.viewOnceMinutes || undefined,
       overrides: withRevision(buildOverrides(form.overrides), form.revision === 'other' ? form.otherRevision.trim() : form.revision)
     })
     if (form.revision !== 'inherit') emit('revisions-changed')
@@ -139,6 +139,70 @@ async function revoke(invite: AdminInvite) {
     await load()
   } catch (e) {
     error.value = errorMessage(e)
+  } finally {
+    busy.value = null
+  }
+}
+
+async function rearm(invite: AdminInvite) {
+  const name = invite.label || invite.id
+  const note = invite.viewOnceMinutes != null ? ' The browser that opened it loses access.' : ''
+  if (!confirm(`Rearm invite "${name}"? Its code can be redeemed again.${note}`)) return
+  busy.value = invite.id
+  try {
+    await admin.rearmInvite(props.tenant.id, invite.id)
+    await load()
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = null
+  }
+}
+
+// --- Edit settings --------------------------------------------------------------------------
+
+const editing = ref<string | null>(null)
+const editError = ref('')
+const edit = reactive({ label: '', expiresOn: '', maxUses: '' as string | number, viewOnceMinutes: 0 })
+
+/** yyyy-mm-dd of a timestamp in the admin's time zone, for the date input. */
+function dateInput(value?: string) {
+  if (!value) return ''
+  const d = new Date(value)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function startEdit(invite: AdminInvite) {
+  editing.value = invite.id
+  editError.value = ''
+  Object.assign(edit, {
+    label: invite.label,
+    expiresOn: dateInput(invite.expiresAt),
+    maxUses: invite.maxUses ?? '',
+    viewOnceMinutes: invite.viewOnceMinutes ?? 0
+  })
+}
+
+async function saveEdit(invite: AdminInvite) {
+  if (edit.viewOnceMinutes && invite.viewOnceMinutes == null && invite.useCount > 0
+    && !confirm('Turning on "view once" ends all current sessions of this invite; the next opening is the one. Continue?')) return
+  busy.value = invite.id
+  editError.value = ''
+  try {
+    // Keep the exact expiry time if the day was not changed.
+    const expiresAt = !edit.expiresOn ? null
+      : edit.expiresOn === dateInput(invite.expiresAt) ? invite.expiresAt!
+        : new Date(`${edit.expiresOn}T23:59:59`).toISOString()
+    await admin.updateInvite(props.tenant.id, invite.id, {
+      label: edit.label.trim(),
+      expiresAt,
+      maxUses: edit.viewOnceMinutes || edit.maxUses === '' ? null : Number(edit.maxUses),
+      viewOnceMinutes: edit.viewOnceMinutes || null
+    })
+    editing.value = null
+    await load()
+  } catch (e) {
+    editError.value = errorMessage(e)
   } finally {
     busy.value = null
   }
@@ -231,15 +295,16 @@ onMounted(load)
           </label>
           <label class="text-sm space-y-1">
             <span class="text-gray-500">Max. redemptions (optional)</span>
-            <UInput v-model="form.maxUses" type="number" min="1" placeholder="unlimited" class="w-full" :disabled="form.viewOnce" />
+            <UInput v-model="form.maxUses" type="number" min="1" placeholder="unlimited" class="w-full" :disabled="!!form.viewOnceMinutes" />
           </label>
-          <div class="text-sm space-y-1 sm:col-span-2 lg:col-span-4">
-            <UCheckbox v-model="form.viewOnce" label="View once" />
+          <label class="text-sm space-y-1 sm:col-span-2">
+            <span class="text-gray-500">View once</span>
+            <USelect v-model="form.viewOnceMinutes" :items="viewOnceItems()" class="w-full" aria-label="View once" />
             <span class="block text-xs text-gray-500">
-              The code stops working as soon as it is opened. Only the browser that opened it keeps access for 30 minutes
-              (e.g. to reload or download the PDF); on any other device it is already gone. The PDF gets no QR code link.
+              The code stops working as soon as it is opened. Only the browser that opened it keeps access for the chosen
+              time (e.g. to reload or download the PDF); on any other device it is already gone. The PDF gets no QR code link.
             </span>
-          </div>
+          </label>
           <label class="text-sm space-y-1 sm:col-span-2">
             <span class="text-gray-500">CV version</span>
             <USelect v-model="form.revision" :items="revisionItems" class="w-full" aria-label="CV version" />
@@ -343,90 +408,135 @@ onMounted(load)
             </tr>
           </thead>
           <tbody>
-            <tr v-for="invite in rows" :key="invite.id" class="border-t border-gray-100 dark:border-gray-800 align-top" :data-testid="`invite-${invite.id}`">
-              <td class="px-4 py-2" :class="{ 'pl-10': invite.depth }">
-                <template v-if="invite.source === 'pdf-qr'">
-                  <UIcon name="i-lucide-qr-code" class="align-middle mr-1" />
-                  <span class="text-gray-500">QR code in PDF</span>
-                </template>
-                <template v-else>{{ invite.label || '–' }}</template>
-                <div v-if="invite.link" class="mt-1 flex items-center gap-1">
-                  <code class="text-xs text-gray-500 select-all" data-testid="invite-code">{{ invite.code }}</code>
-                  <UButton
-                    size="xs" color="neutral" variant="ghost"
-                    :icon="copied === `link-${invite.id}` ? 'i-lucide-check' : 'i-lucide-link'"
-                    :aria-label="`Copy link for ${invite.label || invite.id}`" title="Copy link"
-                    @click="copy(invite.link, `link-${invite.id}`)"
-                  />
-                  <UButton
-                    size="xs" color="neutral" variant="ghost"
-                    :icon="copied === `code-${invite.id}` ? 'i-lucide-check' : 'i-lucide-copy'"
-                    :aria-label="`Copy code for ${invite.label || invite.id}`" title="Copy code"
-                    @click="copy(invite.code!, `code-${invite.id}`)"
-                  />
-                </div>
-                <div v-else-if="invite.source !== 'pdf-qr'" class="text-xs text-gray-400 mt-1">code not stored (created before codes were kept)</div>
-                <div v-if="overridesSummary(invite)" class="text-xs text-gray-500 mt-0.5">{{ overridesSummary(invite) }}</div>
-                <div v-if="invite.revision && !invite.depth" class="mt-1 flex items-center gap-1 flex-wrap" :data-testid="`pin-${invite.id}`">
-                  <UBadge
-                    size="sm" variant="subtle" icon="i-lucide-pin" :color="pinColor[pinOf(invite)!]"
-                    :label="`${shortSha(invite.revision)}${invite.pinnedBy === 'profile' ? ' (profile)' : ''}${pinOf(invite) === 'outdated' ? ' · outdated' : pinOf(invite) === 'missing' ? ' · not stored, shows current CV' : ''}`"
-                  />
-                  <UButton
-                    v-if="pinOf(invite) === 'missing' && revisions?.source"
-                    size="xs" color="neutral" variant="ghost" icon="i-lucide-git-branch" label="Fetch from git"
-                    :loading="busy === invite.id" @click="fetchPin(invite)"
-                  />
-                  <UButton
-                    v-if="pinOf(invite) !== 'current' && revisions?.current && inviteStatus(invite) !== 'revoked'"
-                    size="xs" color="warning" variant="ghost" icon="i-lucide-refresh-ccw"
-                    :label="`Pin to current (${shortSha(revisions.current)})`" :loading="busy === invite.id"
-                    @click="repin(invite, revisions.current)"
-                  />
-                  <UButton
-                    v-if="invite.pinnedBy === 'invite' && inviteStatus(invite) !== 'revoked'"
-                    size="xs" color="neutral" variant="ghost" label="Unpin" :disabled="busy === invite.id"
-                    @click="repin(invite, null)"
-                  />
-                </div>
-                <div v-if="invite.revision && !invite.depth && pinOf(invite) === 'outdated'" class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                  Changed since: {{ changeSummary(findRevision(invite.revision, revisions)) }}
-                </div>
-                <div v-if="pdfResults[invite.id]" class="mt-1 flex gap-1 flex-wrap">
-                  <span v-if="typeof pdfResults[invite.id] === 'string'" class="text-xs text-red-600">{{ pdfResults[invite.id] }}</span>
-                  <template v-else>
-                    <UBadge
-                      v-for="p in (pdfResults[invite.id] as PdfOutcome[])" :key="p.locale" size="sm"
-                      :color="p.ok ? 'success' : 'error'" variant="subtle"
-                      :label="p.ok ? `${p.locale} ✓` : `${p.locale} ✗ ${p.error ?? ''}`"
-                    />
+            <template v-for="invite in rows" :key="invite.id">
+              <tr class="border-t border-gray-100 dark:border-gray-800 align-top" :data-testid="`invite-${invite.id}`">
+                <td class="px-4 py-2" :class="{ 'pl-10': invite.depth }">
+                  <template v-if="invite.source === 'pdf-qr'">
+                    <UIcon name="i-lucide-qr-code" class="align-middle mr-1" />
+                    <span class="text-gray-500">QR code in PDF</span>
                   </template>
-                </div>
-              </td>
-              <td class="px-4 py-2">{{ invite.profile }}</td>
-              <td class="px-4 py-2">
-                <UBadge :color="statusColor[inviteStatus(invite)]" variant="subtle" :label="inviteStatus(invite)" />
-              </td>
-              <td class="px-4 py-2 tabular-nums">
-                {{ invite.useCount }}<span v-if="invite.maxUses != null" class="text-gray-500"> / {{ invite.maxUses }}</span>
-                <span v-if="invite.viewOnceMinutes != null" class="block text-xs text-gray-500">
-                  view once<template v-if="invite.viewOnceUntil">, until {{ formatDate(invite.viewOnceUntil) }}</template>
-                </span>
-              </td>
-              <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.lastUsedAt) }}</td>
-              <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.expiresAt) }}</td>
-              <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.createdAt) }}</td>
-              <td class="px-4 py-2 whitespace-nowrap text-right">
-                <template v-if="!invite.depth && inviteStatus(invite) !== 'revoked'">
-                  <UButton
-                    v-if="['active', 'exhausted', 'viewing'].includes(inviteStatus(invite))"
-                    size="xs" icon="i-lucide-file-text" color="neutral" variant="ghost" label="Re-render PDF"
-                    :loading="busy === invite.id" @click="renderPdf(invite)"
-                  />
-                  <UButton size="xs" icon="i-lucide-ban" color="error" variant="ghost" label="Revoke" :disabled="busy === invite.id" @click="revoke(invite)" />
-                </template>
-              </td>
-            </tr>
+                  <template v-else>{{ invite.label || '–' }}</template>
+                  <div v-if="invite.link" class="mt-1 flex items-center gap-1">
+                    <code class="text-xs text-gray-500 select-all" data-testid="invite-code">{{ invite.code }}</code>
+                    <UButton
+                      size="xs" color="neutral" variant="ghost"
+                      :icon="copied === `link-${invite.id}` ? 'i-lucide-check' : 'i-lucide-link'"
+                      :aria-label="`Copy link for ${invite.label || invite.id}`" title="Copy link"
+                      @click="copy(invite.link, `link-${invite.id}`)"
+                    />
+                    <UButton
+                      size="xs" color="neutral" variant="ghost"
+                      :icon="copied === `code-${invite.id}` ? 'i-lucide-check' : 'i-lucide-copy'"
+                      :aria-label="`Copy code for ${invite.label || invite.id}`" title="Copy code"
+                      @click="copy(invite.code!, `code-${invite.id}`)"
+                    />
+                  </div>
+                  <div v-else-if="invite.source !== 'pdf-qr'" class="text-xs text-gray-400 mt-1">code not stored (created before codes were kept)</div>
+                  <div v-if="overridesSummary(invite)" class="text-xs text-gray-500 mt-0.5">{{ overridesSummary(invite) }}</div>
+                  <div v-if="invite.revision && !invite.depth" class="mt-1 flex items-center gap-1 flex-wrap" :data-testid="`pin-${invite.id}`">
+                    <UBadge
+                      size="sm" variant="subtle" icon="i-lucide-pin" :color="pinColor[pinOf(invite)!]"
+                      :label="`${shortSha(invite.revision)}${invite.pinnedBy === 'profile' ? ' (profile)' : ''}${pinOf(invite) === 'outdated' ? ' · outdated' : pinOf(invite) === 'missing' ? ' · not stored, shows current CV' : ''}`"
+                    />
+                    <UButton
+                      v-if="pinOf(invite) === 'missing' && revisions?.source"
+                      size="xs" color="neutral" variant="ghost" icon="i-lucide-git-branch" label="Fetch from git"
+                      :loading="busy === invite.id" @click="fetchPin(invite)"
+                    />
+                    <UButton
+                      v-if="pinOf(invite) !== 'current' && revisions?.current && inviteStatus(invite) !== 'revoked'"
+                      size="xs" color="warning" variant="ghost" icon="i-lucide-refresh-ccw"
+                      :label="`Pin to current (${shortSha(revisions.current)})`" :loading="busy === invite.id"
+                      @click="repin(invite, revisions.current)"
+                    />
+                    <UButton
+                      v-if="invite.pinnedBy === 'invite' && inviteStatus(invite) !== 'revoked'"
+                      size="xs" color="neutral" variant="ghost" label="Unpin" :disabled="busy === invite.id"
+                      @click="repin(invite, null)"
+                    />
+                  </div>
+                  <div v-if="invite.revision && !invite.depth && pinOf(invite) === 'outdated'" class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                    Changed since: {{ changeSummary(findRevision(invite.revision, revisions)) }}
+                  </div>
+                  <div v-if="pdfResults[invite.id]" class="mt-1 flex gap-1 flex-wrap">
+                    <span v-if="typeof pdfResults[invite.id] === 'string'" class="text-xs text-red-600">{{ pdfResults[invite.id] }}</span>
+                    <template v-else>
+                      <UBadge
+                        v-for="p in (pdfResults[invite.id] as PdfOutcome[])" :key="p.locale" size="sm"
+                        :color="p.ok ? 'success' : 'error'" variant="subtle"
+                        :label="p.ok ? `${p.locale} ✓` : `${p.locale} ✗ ${p.error ?? ''}`"
+                      />
+                    </template>
+                  </div>
+                </td>
+                <td class="px-4 py-2">{{ invite.profile }}</td>
+                <td class="px-4 py-2">
+                  <UBadge :color="statusColor[inviteStatus(invite)]" variant="subtle" :label="inviteStatus(invite)" />
+                </td>
+                <td class="px-4 py-2 tabular-nums">
+                  {{ invite.useCount }}<span v-if="invite.maxUses != null" class="text-gray-500"> / {{ invite.maxUses }}</span>
+                  <span v-if="invite.viewOnceMinutes != null" class="block text-xs text-gray-500 whitespace-nowrap">
+                    {{ viewOnceLabel(invite.viewOnceMinutes).toLowerCase() }}
+                  </span>
+                  <span v-if="invite.viewOnceUntil" class="block text-xs text-gray-500 whitespace-nowrap">
+                    until {{ formatDate(invite.viewOnceUntil) }}
+                  </span>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.lastUsedAt) }}</td>
+                <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.expiresAt) }}</td>
+                <td class="px-4 py-2 whitespace-nowrap">{{ formatDate(invite.createdAt) }}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-right">
+                  <template v-if="!invite.depth && inviteStatus(invite) !== 'revoked'">
+                    <UButton
+                      v-if="['active', 'exhausted', 'viewing'].includes(inviteStatus(invite))"
+                      size="xs" icon="i-lucide-file-text" color="neutral" variant="ghost" label="Re-render PDF"
+                      :loading="busy === invite.id" @click="renderPdf(invite)"
+                    />
+                    <UButton
+                      v-if="['exhausted', 'viewing', 'viewed'].includes(inviteStatus(invite))"
+                      size="xs" icon="i-lucide-rotate-ccw" color="neutral" variant="ghost" label="Rearm"
+                      :disabled="busy === invite.id" @click="rearm(invite)"
+                    />
+                    <UButton
+                      v-if="invite.source !== 'pdf-qr'"
+                      size="xs" icon="i-lucide-pencil" color="neutral" variant="ghost" label="Edit"
+                      :disabled="busy === invite.id" @click="editing === invite.id ? editing = null : startEdit(invite)"
+                    />
+                    <UButton size="xs" icon="i-lucide-ban" color="error" variant="ghost" label="Revoke" :disabled="busy === invite.id" @click="revoke(invite)" />
+                  </template>
+                </td>
+              </tr>
+              <tr v-if="editing === invite.id" class="bg-gray-50 dark:bg-gray-800/50" :data-testid="`edit-${invite.id}`">
+                <td colspan="8" class="px-4 py-3">
+                  <form class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end" @submit.prevent="saveEdit(invite)">
+                    <label class="text-sm space-y-1">
+                      <span class="text-gray-500">For (label)</span>
+                      <UInput v-model="edit.label" class="w-full" aria-label="Label" />
+                    </label>
+                    <label class="text-sm space-y-1">
+                      <span class="text-gray-500">Expires on</span>
+                      <UInput v-model="edit.expiresOn" type="date" class="w-full" aria-label="Expires on" />
+                    </label>
+                    <label class="text-sm space-y-1">
+                      <span class="text-gray-500">Max. redemptions</span>
+                      <UInput
+                        v-model="edit.maxUses" type="number" min="1" placeholder="unlimited" class="w-full"
+                        aria-label="Max. redemptions" :disabled="!!edit.viewOnceMinutes"
+                      />
+                    </label>
+                    <label class="text-sm space-y-1">
+                      <span class="text-gray-500">View once</span>
+                      <USelect v-model="edit.viewOnceMinutes" :items="viewOnceItems(invite.viewOnceMinutes ?? 0)" class="w-full" aria-label="View once" />
+                    </label>
+                    <div class="flex gap-2">
+                      <UButton type="submit" size="sm" label="Save" :loading="busy === invite.id" />
+                      <UButton size="sm" color="neutral" variant="ghost" label="Cancel" @click="editing = null" />
+                    </div>
+                  </form>
+                  <p v-if="editError" class="mt-2 text-sm text-red-600 dark:text-red-400">{{ editError }}</p>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>

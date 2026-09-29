@@ -85,18 +85,23 @@ public sealed class AccessService(
         var hostTenant = tenants.FindByHost(context.Request.Host.Host);
         if (hostTenant is not null && hostTenant.Id != invite.TenantId) return RedeemResult.Invalid;
 
+        string? token = null;
         if (invite.ViewOnceMinutes is { } graceMinutes)
         {
-            // Burn atomically: of two devices redeeming at the same moment, only one gets in.
+            // Burn atomically: of two devices redeeming at the same moment, only one gets in. The token binds
+            // the access to this browser's cookie, so a rearmed invite does not let earlier browsers back in.
             var until = now.AddMinutes(graceMinutes);
+            token = InviteCodes.Generate();
             var burned = await db.Invites.Where(i => i.Id == invite.Id && i.UseCount == 0).ExecuteUpdateAsync(u => u
                 .SetProperty(i => i.UseCount, 1)
                 .SetProperty(i => i.LastUsedAt, now)
-                .SetProperty(i => i.ViewOnceUntil, until), ct);
+                .SetProperty(i => i.ViewOnceUntil, until)
+                .SetProperty(i => i.ViewOnceToken, token), ct);
             if (burned == 0) return RedeemResult.Invalid;
             invite.UseCount = 1;
             invite.LastUsedAt = now;
             invite.ViewOnceUntil = until;
+            invite.ViewOnceToken = token;
         }
         else
         {
@@ -105,15 +110,16 @@ public sealed class AccessService(
             await db.SaveChangesAsync(ct);
         }
 
-        var maxAge = invite.ExpiresAt is { } exp ? exp - now : TimeSpan.FromDays(365);
-        if (invite.ViewOnceUntil is { } viewOnceEnd && viewOnceEnd - now < maxAge) maxAge = viewOnceEnd - now;
-        context.Response.Cookies.Append(CookieName, _protector.Protect(invite.Id.ToString("N")), new CookieOptions
+        // Expiry and view-once window are enforced on every request, not by the cookie lifetime, so the
+        // admin can extend them later (§4).
+        var payload = invite.Id.ToString("N") + (token is null ? "" : "." + token);
+        context.Response.Cookies.Append(CookieName, _protector.Protect(payload), new CookieOptions
         {
             HttpOnly = true,
             Secure = context.Request.IsHttps,
             SameSite = SameSiteMode.Lax,
             Path = "/",
-            MaxAge = maxAge,
+            MaxAge = TimeSpan.FromDays(365),
         });
         return RedeemResult.Ok;
     }
@@ -137,10 +143,11 @@ public sealed class AccessService(
         if (invite.Source == InviteSources.PdfQr && invite.CodeProtected is { } own)
             return _codeProtector.Unprotect(own);
 
-        var child = await db.Invites.FirstOrDefaultAsync(i => i.ParentId == invite.Id && i.Source == InviteSources.PdfQr, ct);
+        var child = await db.Invites.FirstOrDefaultAsync(i => i.ParentId == invite.Id && i.Source == InviteSources.PdfQr && i.RevokedAt == null, ct);
         if (child?.CodeProtected is { } existing)
         {
             child.ExpiresAt = invite.ExpiresAt;       // follow the parent if it was changed
+            child.Label = invite.Label;
             await db.SaveChangesAsync(ct);
             return _codeProtector.Unprotect(existing);
         }
@@ -230,13 +237,21 @@ public sealed class AccessService(
     public static AccessPolicy? ParseOverrides(string? json) =>
         string.IsNullOrEmpty(json) ? null : JsonSerializer.Deserialize<AccessPolicy>(json, TenantStore.FileJsonOptions);
 
+    /// <summary>
+    /// Invite of the access cookie ("&lt;id&gt;" or "&lt;id&gt;.&lt;view-once token&gt;"). A view-once invite is only
+    /// returned for the cookie of its current redemption.
+    /// </summary>
     private async Task<Invite?> ReadCookieInviteAsync(HttpContext context, CancellationToken ct)
     {
         if (!context.Request.Cookies.TryGetValue(CookieName, out var raw) || string.IsNullOrEmpty(raw)) return null;
         try
         {
-            var id = Guid.ParseExact(_protector.Unprotect(raw), "N");
-            return await db.Invites.SingleOrDefaultAsync(i => i.Id == id, ct);
+            var parts = _protector.Unprotect(raw).Split('.', 2);
+            var id = Guid.ParseExact(parts[0], "N");
+            var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id, ct);
+            if (invite is { IsViewOnce: true } && (invite.ViewOnceToken is null || parts.ElementAtOrDefault(1) != invite.ViewOnceToken))
+                return null;
+            return invite;
         }
         catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or FormatException)
         {

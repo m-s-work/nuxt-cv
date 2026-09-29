@@ -9,7 +9,7 @@ useSeoMeta({
 
 // CV data comes from the API; tenant and visible fields are decided server-side.
 const { locale } = useI18n()
-const { cv, access, status, hostKind, ensure, consent, versions, arrivedViaLink, decideConsent, withdrawConsent } = useCv()
+const { cv, status, hostKind, ensure, consent, versions, arrivedViaLink, decideConsent, withdrawConsent } = useCv()
 const apiBase = useRuntimeConfig().public.apiBase as string
 
 const experiences = computed(() => cv.value?.experiences ?? [])
@@ -291,7 +291,6 @@ onUnmounted(() => {
   <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
   <div v-else>
     <CvHeatmapOverlay v-if="heatmapView" />
-    <CvViewOnceNotice v-if="access?.viewOnceUntil && !heatmapView" :until="access.viewOnceUntil" />
     <CvTrackingNotice
       v-if="noticeOpen && consent.state === 'accept'"
       :name="ownerName" @details="openPrivacyDetails" @opt-out="onOptOut" @close="noticeOpen = false"
