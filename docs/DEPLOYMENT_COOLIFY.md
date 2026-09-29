@@ -159,9 +159,11 @@ Owner-only reading statistics with a consent modal (docs/VISITOR_SESSION_TRACKIN
    "Consent modal & visitor tracking").
    Readers outside the EU/EEA/UK/CH (`"consent": "notice"`) or who already agreed elsewhere (`"consent": "prior"`,
    with `consentNote`) can be tracked without the modal; set it per invite in the admin UI (§9.2 of the tracking doc).
-3. Optional location data: put MaxMind-format databases into the volume, e.g. DB-IP Lite (free, CC BY 4.0):
-   `dbip-city-lite-<yyyy-mm>.mmdb` as `/data/geo/city.mmdb` and `dbip-asn-lite-<yyyy-mm>.mmdb` as
-   `/data/geo/asn.mmdb` (restart the API after updating them). Lookups happen locally; no IP leaves the server.
+3. Location data comes from the internal `geo` service (compose, no domain): on start it downloads the free
+   DB-IP Lite city and ASN databases (CC BY 4.0) into its volume `geo-data` and checks daily for the next monthly
+   release. The API asks it via `Tracking__GeoUrl` (default `http://geo:3100`); lookups stay inside the server.
+   The admin *Analytics* tab shows the loaded releases. To turn location data off set `CV_GEO_URL=` (empty).
+   Without the service the API can also read `/data/geo/city.mmdb` + `asn.mmdb` directly.
 4. Reports: admin UI → *Analytics*. Data is deleted automatically after the retention periods (`tracking.retention`).
 5. Have the consent texts reviewed before going live; changing them (`CONSENT_TEXT_VERSION` in
    `src/app/utils/tracking.ts` and `TrackingPolicy.TextVersion` in the API) asks every visitor again.

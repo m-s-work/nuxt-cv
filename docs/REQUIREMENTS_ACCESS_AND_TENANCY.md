@@ -228,7 +228,7 @@ the CV, `<sha>-dirty` / `unversioned`) and `consent: { required, state, policyVe
 /data
 ├── app.db                       # SQLite: invites (all tenants)
 ├── tracking.db                  # SQLite: visitor tracking (consents, visitors, sessions, events, heat cells, CV snapshots)
-├── geo/                         # optional: city.mmdb + asn.mmdb (DB-IP Lite / GeoLite2) for local IP → location lookup
+├── geo/                         # optional fallback: city.mmdb + asn.mmdb when no geo service is configured
 ├── pdf/<tenant>/                # rendered PDFs: invite-<id>.<locale>.pdf / public-<profile>.<locale>.pdf (+ .sha256)
 ├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
 └── tenants/

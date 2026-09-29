@@ -1,0 +1,13 @@
+{
+  "name": "cv-geo",
+  "private": true,
+  "type": "module",
+  "description": "Internal IP -> location / network lookup for the CV API (DB-IP Lite databases, refreshed monthly)",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "maxmind": "5.0.7"
+  }
+}

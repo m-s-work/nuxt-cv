@@ -128,7 +128,17 @@ onMounted(load)
             <dt class="text-gray-500">Retention</dt>
             <dd>IP / fingerprint {{ settings.retention.identifiersMonths }} · events {{ settings.retention.eventsMonths }} · summaries {{ settings.retention.summaryMonths }} · heatmap {{ settings.retention.heatMonths }} months after the last visit</dd>
             <dt class="text-gray-500">DNT / GPC</dt><dd>{{ settings.honorBrowserSignals ? 'treated as decline' : 'modal is shown anyway' }}</dd>
-            <dt class="text-gray-500">Location data</dt><dd>{{ settings.geo ? 'local geo database found' : 'no geo database (data/geo/city.mmdb, asn.mmdb)' }}</dd>
+            <dt class="text-gray-500">Location data</dt>
+            <dd>
+              <template v-if="settings.geoSource === 'service'">
+                geo service ·
+                <template v-if="settings.geoStatus?.error">unreachable</template>
+                <template v-else>city {{ settings.geoStatus?.databases?.city ?? 'downloading…' }}, network {{ settings.geoStatus?.databases?.asn ?? 'downloading…' }}</template>
+                · <a href="https://db-ip.com" target="_blank" rel="noopener" class="underline">IP Geolocation by DB-IP</a>
+              </template>
+              <template v-else-if="settings.geoSource === 'files'">local database files</template>
+              <template v-else>off (no geo service configured)</template>
+            </dd>
             <dt class="text-gray-500">Policy version</dt><dd><code>{{ settings.policyVersion }}</code></dd>
           </dl>
           <p class="mt-2 text-xs text-gray-500">Invites can switch the modal and tracking on or off; otherwise the profile, then the tenant decides.</p>

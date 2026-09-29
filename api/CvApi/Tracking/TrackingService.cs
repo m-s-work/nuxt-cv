@@ -218,7 +218,7 @@ public sealed partial class TrackingService(
         }
 
         var clientCv = Short(start.CvVersion);
-        var g = geo.Lookup(ip);
+        var g = await geo.LookupAsync(ip, ct);
         var session = new TrackSession
         {
             Id = batch.SessionId,

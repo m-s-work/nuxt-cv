@@ -42,6 +42,7 @@ builder.Services.AddScoped<CvApi.Tracking.AnalyticsService>();
 builder.Services.AddSingleton<CvApi.Tracking.ConsentCookies>();
 builder.Services.AddSingleton<CvApi.Tracking.CvSourceVersion>();
 builder.Services.AddSingleton<CvApi.Tracking.GeoLookup>();
+builder.Services.AddHttpClient(CvApi.Tracking.GeoLookup.HttpClientName);
 builder.Services.AddHostedService<CvApi.Tracking.RetentionService>();
 
 // Keys sign the access cookie; they must survive redeploys, otherwise every invitee is logged out.

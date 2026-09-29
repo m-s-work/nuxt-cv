@@ -375,6 +375,53 @@ public sealed class TrackingTests : IDisposable
     }
 
     [Fact]
+    public async Task Location_comes_from_the_internal_geo_service()
+    {
+        // Fake geo container: answers /lookup like geo/server.mjs.
+        var port = StartAndGetPort(new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0));
+        using var listener = new HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        var requested = new List<string>();
+        _ = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                HttpListenerContext ctx;
+                try { ctx = await listener.GetContextAsync(); } catch { return; }
+                requested.Add(ctx.Request.Url!.PathAndQuery);
+                var body = System.Text.Encoding.UTF8.GetBytes(
+                    """{"ip":"203.0.113.7","country":"AT","region":"Vienna","city":"Vienna","asn":64500,"asOrg":"ACME Corp"}""");
+                ctx.Response.ContentType = "application/json";
+                await ctx.Response.OutputStream.WriteAsync(body);
+                ctx.Response.Close();
+            }
+        });
+        _factory.Settings["Tracking:GeoUrl"] = $"http://127.0.0.1:{port}";
+
+        var client = await InvitedClient();
+        await Accept(client);
+        var cvVersion = (await Cv(client))["cvVersion"]!.GetValue<string>();
+        await Send(client, new { sessionId = "s-geo-0000000000001", seq = 0, bp = "lg", start = Start(cvVersion), events = Array.Empty<object>() });
+
+        var session = Db(db => db.Sessions.Single());
+        Assert.Equal("AT", session.IpCountry);
+        Assert.Equal("Vienna", session.IpCity);
+        Assert.Equal(64500, session.Asn);
+        Assert.Equal("ACME Corp", session.AsOrg);
+        Assert.Contains("/lookup?ip=203.0.113.7", requested);
+        listener.Stop();
+    }
+
+    private static int StartAndGetPort(System.Net.Sockets.TcpListener probe)
+    {
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
+    }
+
+    [Fact]
     public void Fingerprint_similarity_and_networks()
     {
         Assert.Equal(0.5, TrackingService.Similarity(["a", "b"], ["a", "c"]));

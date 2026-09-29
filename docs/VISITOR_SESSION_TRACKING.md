@@ -687,7 +687,7 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
 | Consent + visitor cookies | `Tracking/ConsentCookies.cs` (`cv_consent`, `cv_vid`, signed with data protection) |
 | Consent log, event ingest, person linking | `Tracking/TrackingService.cs`, endpoints in `Endpoints/TrackingEndpoints.cs` |
 | CV source SHA / dirty detection | `Tracking/CvSourceVersion.cs` (uses the CV revisions of requirements §14) |
-| Local geo / ASN lookup | `Tracking/GeoLookup.cs` (`/data/geo/city.mmdb`, `/data/geo/asn.mmdb`, MaxMind format) |
+| Local geo / ASN lookup | `geo/` service (compose `geo`, `GET /lookup?ip=`, DB-IP Lite downloaded and refreshed monthly); API client `Tracking/GeoLookup.cs` (`Tracking__GeoUrl`, fallback: `/data/geo/*.mmdb`) |
 | Reports, score, heatmap data | `Tracking/AnalyticsService.cs`, `Endpoints/AnalyticsEndpoints.cs` |
 | Sliding retention job | `Tracking/RetentionService.cs` (daily) |
 | Storage | `/data/tracking.db` (own SQLite file, `Tracking/TrackingModels.cs`) |
@@ -708,7 +708,9 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
 ```
 
 API settings: `Tracking__EventsPerMinute` (rate limit per IP, default 120), `Tracking__RetentionIntervalHours`
-(default 24), `Tracking__GeoCityDb` / `Tracking__GeoAsnDb` (paths, default `/data/geo/*.mmdb`).
+(default 24), `Tracking__GeoUrl` (geo service, compose default `http://geo:3100`), `Tracking__GeoCityDb` /
+`Tracking__GeoAsnDb` (database files when no service is set, default `/data/geo/*.mmdb`). Geo service: `GEO_CITY_URL`,
+`GEO_ASN_URL` (sources, `{yyyy}`/`{mm}` placeholders), `GEO_REFRESH_HOURS` (default 24).
 
 **Differences from the plan**
 

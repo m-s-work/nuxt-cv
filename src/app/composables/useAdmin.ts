@@ -233,6 +233,9 @@ export interface TrackingSettings {
   honorBrowserSignals: boolean
   retention: { identifiersMonths: number, eventsMonths: number, summaryMonths: number, heatMonths: number }
   geo: boolean
+  /** "service" (internal geo container), "files" (local databases) or null. */
+  geoSource?: 'service' | 'files' | null
+  geoStatus?: { status?: string, error?: string, databases?: { city?: string | null, asn?: string | null } } | null
   profiles: Record<string, boolean | null>
   consentMode: ConsentMode
   profileModes: Record<string, ConsentMode>

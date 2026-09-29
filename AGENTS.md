@@ -54,11 +54,12 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`
 | `api/CvApi.Tests/` | xUnit tests |
 | `api/sample-data/` | Sample tenants (`demo`, `bob`) for development and showcase screenshots |
 | `pdf/` | Internal PDF renderer (Playwright/Chromium), called by the API |
-| `docker-compose.yml` | Deployment (Coolify): `web` (nginx + SPA), `api`, `pdf` |
+| `geo/` | Internal IP → location / network lookup (DB-IP Lite, refreshed monthly), called by the API |
+| `docker-compose.yml` | Deployment (Coolify): `web` (nginx + SPA), `api`, `pdf`, `geo` |
 | `docs/REQUIREMENTS_ACCESS_AND_TENANCY.md` | Source of truth for tenancy, invites, redaction, API, showcase |
 | `docs/DEPLOYMENT_COOLIFY.md` | Deployment and operations |
 | `docs/TEMPLATES.md` | PDF (and planned web) templates, selection, how to add one |
-| `docs/VISITOR_SESSION_TRACKING.md` | Plan: visitor/session tracking, heatmap, interest signals (owner-only) |
+| `docs/VISITOR_SESSION_TRACKING.md` | Visitor/session tracking, consent, heatmap, interest signals (owner-only) |
 
 ## Commands
 
@@ -68,6 +69,7 @@ cd api/CvApi && dotnet run            # API on http://localhost:5080 (sample dat
 cd src && npm test -- --run           # frontend tests
 cd src && npm run dev                 # frontend on http://localhost:3000 (proxies /api)
 cd src && npm run generate            # production build (static)
+cd geo && npm test                    # geo lookup service
 ```
 
 Run the relevant tests and the build before committing.

@@ -11,6 +11,9 @@ public class ApiFactory : WebApplicationFactory<Program>
     public const string AliceHost = "alice-cv.example.org";
     public const string SharedHost = "cv.example.org";
 
+    /// <summary>Extra configuration, set before the first request.</summary>
+    public Dictionary<string, string> Settings { get; } = [];
+
     public string DataPath { get; } = Path.Combine(Path.GetTempPath(), "cvapi-tests-" + Guid.NewGuid().ToString("N"));
 
     public ApiFactory()
@@ -96,6 +99,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Admin:ApiKey", AdminKey);
         builder.UseSetting("Git:AllowLocalRepos", "true");
         builder.UseSetting("Tracking:EventsPerMinute", "100000");
+        foreach (var (key, value) in Settings) builder.UseSetting(key, value);
     }
 
     protected override void Dispose(bool disposing)

@@ -73,7 +73,7 @@ public static class AnalyticsEndpoints
             await analytics.EraseVisitorAsync(tenantId, visitorId, ct) ? Results.NoContent() : Results.NotFound());
 
         // Effective tracking switch per profile and the tenant settings (for the admin UI).
-        admin.MapGet("/settings", (string tenantId, TenantStore tenants, GeoLookup geo) =>
+        admin.MapGet("/settings", async (string tenantId, TenantStore tenants, GeoLookup geo, CancellationToken ct) =>
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var c = tenant.Config;
@@ -85,6 +85,8 @@ public static class AnalyticsEndpoints
                 honorBrowserSignals = c.Tracking?.HonorBrowserSignals ?? false,
                 retention,
                 geo = geo.Available,
+                geoSource = geo.Source,
+                geoStatus = await geo.StatusAsync(ct),
                 profiles = c.Profiles.ToDictionary(p => p.Key, p => p.Value.Tracking?.Enabled),
                 consentMode = TrackingPolicy.Modes.Contains(c.Tracking?.Consent) ? c.Tracking!.Consent : "modal",
                 profileModes = c.Profiles.Where(p => p.Value.Tracking?.Consent is not null)
