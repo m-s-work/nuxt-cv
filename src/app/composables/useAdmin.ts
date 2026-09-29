@@ -26,7 +26,7 @@ export interface AccessPolicy {
   /** Pinned CV revision (git SHA or prefix); "" in invite overrides = current CV. */
   revision?: string
   /** Consent modal + visitor tracking switch; invite > profile > tenant (docs/VISITOR_SESSION_TRACKING.md). */
-  tracking?: { enabled?: boolean }
+  tracking?: { enabled?: boolean, consent?: ConsentMode, consentNote?: string }
 }
 
 export interface AdminTenant {
@@ -234,6 +234,8 @@ export interface TrackingSettings {
   retention: { identifiersMonths: number, eventsMonths: number, summaryMonths: number, heatMonths: number }
   geo: boolean
   profiles: Record<string, boolean | null>
+  consentMode: ConsentMode
+  profileModes: Record<string, ConsentMode>
   policyVersion: string
 }
 
@@ -291,9 +293,14 @@ export interface OverridesForm {
   /** Empty = keep the profile's grants; otherwise replaces them. */
   grants: string
   replaceGrants: boolean
-  /** Consent modal / tracking: inherit from profile and tenant, force on, force off. */
-  tracking?: FlagChoice
+  /** Consent modal / tracking: inherit from profile and tenant, a consent mode, or off. */
+  tracking?: 'inherit' | ConsentMode | 'off'
+  /** Where / when consent was given elsewhere (mode "prior"). */
+  consentNote?: string
 }
+
+/** How consent is obtained (docs/VISITOR_SESSION_TRACKING.md §9.2). */
+export type ConsentMode = 'modal' | 'notice' | 'prior'
 
 /** Builds the invite `overrides` object, or undefined if nothing is overridden. */
 export function buildOverrides(form: OverridesForm): AccessPolicy | undefined {
@@ -308,8 +315,11 @@ export function buildOverrides(form: OverridesForm): AccessPolicy | undefined {
   const hidden = splitList(form.hiddenFields)
   if (hidden.length) overrides.hiddenFields = hidden
   if (form.replaceGrants) overrides.grants = splitList(form.grants)
-  if (form.tracking === 'on') overrides.tracking = { enabled: true }
-  else if (form.tracking === 'off') overrides.tracking = { enabled: false }
+  if (form.tracking === 'off') overrides.tracking = { enabled: false }
+  else if (form.tracking && form.tracking !== 'inherit') {
+    overrides.tracking = { enabled: true, consent: form.tracking }
+    if (form.tracking === 'prior' && form.consentNote?.trim()) overrides.tracking.consentNote = form.consentNote.trim()
+  }
   return Object.keys(overrides).length ? overrides : undefined
 }
 

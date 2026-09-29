@@ -53,6 +53,17 @@ async function onAccept() {
   await syncTracking()
 }
 
+function openPrivacyDetails() {
+  noticeOpen.value = false
+  consentReopened.value = true
+  consentOpen.value = true
+}
+
+async function onOptOut() {
+  noticeOpen.value = false
+  await onDecline()
+}
+
 async function onDecline() {
   consentOpen.value = false
   const wasAccepted = consent.value.state === 'accept'
@@ -64,8 +75,16 @@ async function onDecline() {
 // Footer "Privacy" link re-opens the modal with the current choice.
 watch(consentOpen, (open) => { if (open && consent.value.state) consentReopened.value = true })
 
+// Notice mode (§9.2): tracking runs, a non-blocking notice with opt-out is shown on the first visit.
+const noticeOpen = ref(false)
+
 function maybeAskConsent() {
-  if (isPrint || status.value !== 'ready' || !consent.value.required || consent.value.state) return
+  if (isPrint || heatmapView || status.value !== 'ready' || !consent.value.required) return
+  if (consent.value.mode === 'notice' && consent.value.impliedNow) {
+    useSplashScreen().onSplashHidden(() => { noticeOpen.value = true })
+    return
+  }
+  if (consent.value.state || (consent.value.mode && consent.value.mode !== 'modal')) return
   useSplashScreen().onSplashHidden(() => {
     consentReopened.value = false
     consentOpen.value = true
@@ -272,9 +291,13 @@ onUnmounted(() => {
   <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
   <div v-else>
     <CvHeatmapOverlay v-if="heatmapView" />
+    <CvTrackingNotice
+      v-if="noticeOpen && consent.state === 'accept'"
+      :name="ownerName" @details="openPrivacyDetails" @opt-out="onOptOut" @close="noticeOpen = false"
+    />
     <CvConsentModal
       v-if="consentOpen && consent.required && !heatmapView"
-      :consent="consent" :name="ownerName" :reopened="consentReopened"
+      :consent="consent" :name="ownerName" :reopened="consentReopened" :details="consentReopened && consent.mode !== 'modal'"
       @accept="onAccept" @decline="onDecline" @close="consentOpen = false"
     />
     <!-- Typeset A4 layout for print / PDF; the screen layout below is hidden in print -->

@@ -318,6 +318,62 @@ public sealed class TrackingTests : IDisposable
         Assert.All(Db(db => db.Consents.ToList()), c => Assert.Null(c.VisitorId));
     }
 
+    [Theory]
+    [InlineData("notice")]
+    [InlineData("prior")]
+    public async Task Implied_consent_tracks_without_modal_and_can_be_withdrawn(string mode)
+    {
+        var client = await InvitedClient(new { tracking = new { consent = mode, consentNote = "Agreed on LinkedIn, 2026-09-01" } });
+        var cv = await Cv(client);
+        var consent = cv["consent"]!;
+        Assert.Equal(mode, consent["mode"]!.GetValue<string>());
+        Assert.Equal("accept", consent["state"]!.GetValue<string>());
+        Assert.True(consent["impliedNow"]!.GetValue<bool>());
+        Assert.DoesNotContain("LinkedIn", cv.ToJsonString());           // the note is owner-only
+
+        // Second visit: remembered, logged only once.
+        Assert.False((await Cv(client))["consent"]!["impliedNow"]!.GetValue<bool>());
+        var record = Db(db => db.Consents.Single());
+        Assert.Equal(mode, record.Source);
+        Assert.NotNull(record.VisitorId);
+
+        await Send(client, new { sessionId = "s-implied-000000001", seq = 0, bp = "lg", start = Start(cv["cvVersion"]!.GetValue<string>()), events = Array.Empty<object>() });
+        Assert.Equal(1, Db(db => db.Sessions.Count()));
+
+        await client.DeleteAsync("/api/consent");
+        Assert.Equal("decline", (await Cv(client))["consent"]!["state"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Notice_mode_honours_browser_signals_prior_mode_does_not()
+    {
+        var notice = await InvitedClient(new { tracking = new { consent = "notice" } });
+        notice.DefaultRequestHeaders.Add("Sec-GPC", "1");
+        Assert.Equal("decline", (await Cv(notice))["consent"]!["state"]!.GetValue<string>());
+
+        var prior = await InvitedClient(new { tracking = new { consent = "prior" } });
+        prior.DefaultRequestHeaders.Add("Sec-GPC", "1");
+        Assert.Equal("accept", (await Cv(prior))["consent"]!["state"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Consent_mode_is_inherited_and_an_earlier_decline_is_kept()
+    {
+        _factory.UpdateTenant("alice", t => t["tracking"] = new JsonObject { ["consent"] = "notice" });
+        var client = await InvitedClient(new { tracking = new { consent = "modal" } });
+        var consent = (await Cv(client))["consent"]!;
+        Assert.Equal("modal", consent["mode"]!.GetValue<string>());
+        Assert.Null(consent["state"]);
+        await client.PostAsJsonAsync("/api/consent", new { choice = "decline", policyVersion = consent["policyVersion"]!.GetValue<string>() });
+
+        var profileLevel = await InvitedClient();                        // tenant default: notice
+        Assert.Equal("notice", (await Cv(profileLevel))["consent"]!["mode"]!.GetValue<string>());
+
+        // Same browser, profile switched to "prior" meanwhile: the earlier decline stays.
+        _factory.UpdateTenant("alice", t => t["profiles"]!["full"]!["tracking"] = new JsonObject { ["consent"] = "prior" });
+        Assert.Equal("decline", (await Cv(client))["consent"]!["state"]!.GetValue<string>());
+    }
+
     [Fact]
     public void Fingerprint_similarity_and_networks()
     {

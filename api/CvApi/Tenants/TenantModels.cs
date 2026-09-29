@@ -42,6 +42,16 @@ public sealed class TrackingSettings
 {
     public bool? Enabled { get; set; }
 
+    /// <summary>
+    /// How consent is obtained (inherited like <see cref="Enabled"/>): "modal" (default, ask first), "notice" (no modal,
+    /// a non-blocking notice with opt-out – only for visitors outside the EU/EEA/UK/CH) or "prior" (consent was given
+    /// elsewhere, e.g. on another platform; no modal, opt-out stays available).
+    /// </summary>
+    public string? Consent { get; set; }
+
+    /// <summary>Where / when the prior consent was obtained (for "prior"; shown in the admin, kept as proof).</summary>
+    public string? ConsentNote { get; set; }
+
     /// <summary>Treat DNT / GPC as a decline without showing the modal (default: ask anyway). Tenant level only.</summary>
     public bool? HonorBrowserSignals { get; set; }
 

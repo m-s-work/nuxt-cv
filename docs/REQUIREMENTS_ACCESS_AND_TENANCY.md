@@ -153,6 +153,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 - `tracking.enabled` (consent modal + visitor tracking) can be set on the tenant, a profile and in invite
   overrides; the most specific level wins (invite > profile > tenant, default on). Without `privacy.controller`
   there is never a modal or tracking.
+- `tracking.consent` (`modal` default, `notice` = notice + opt-out for readers outside the EU/EEA/UK/CH, `prior` =
+  consent given elsewhere, with `consentNote`) is inherited the same way (VISITOR_SESSION_TRACKING.md §9.2).
 
 ---
 

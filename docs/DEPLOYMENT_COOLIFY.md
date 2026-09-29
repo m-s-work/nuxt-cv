@@ -157,6 +157,8 @@ Owner-only reading statistics with a consent modal (docs/VISITOR_SESSION_TRACKIN
    Visitors then see the consent modal; nothing is recorded before they accept.
 2. Optional: switch it off for a profile (`"tracking": { "enabled": false }` in the profile) or per invite (admin UI,
    "Consent modal & visitor tracking").
+   Readers outside the EU/EEA/UK/CH (`"consent": "notice"`) or who already agreed elsewhere (`"consent": "prior"`,
+   with `consentNote`) can be tracked without the modal; set it per invite in the admin UI (§9.2 of the tracking doc).
 3. Optional location data: put MaxMind-format databases into the volume, e.g. DB-IP Lite (free, CC BY 4.0):
    `dbip-city-lite-<yyyy-mm>.mmdb` as `/data/geo/city.mmdb` and `dbip-asn-lite-<yyyy-mm>.mmdb` as
    `/data/geo/asn.mmdb` (restart the API after updating them). Lookups happen locally; no IP leaves the server.

@@ -120,6 +120,11 @@ onMounted(load)
                 :label="`${name}: ${enabled === false ? 'off' : enabled === true ? 'on' : 'default'}`"
               />
             </dd>
+            <dt class="text-gray-500">Consent</dt>
+            <dd>
+              {{ { modal: 'consent modal', notice: 'notice + opt-out (non-EU)', prior: 'consent given elsewhere' }[settings.consentMode] }}
+              <span v-for="(mode, name) in settings.profileModes" :key="name" class="text-gray-500"> · {{ name }}: {{ mode }}</span>
+            </dd>
             <dt class="text-gray-500">Retention</dt>
             <dd>IP / fingerprint {{ settings.retention.identifiersMonths }} · events {{ settings.retention.eventsMonths }} · summaries {{ settings.retention.summaryMonths }} · heatmap {{ settings.retention.heatMonths }} months after the last visit</dd>
             <dt class="text-gray-500">DNT / GPC</dt><dd>{{ settings.honorBrowserSignals ? 'treated as decline' : 'modal is shown anyway' }}</dd>

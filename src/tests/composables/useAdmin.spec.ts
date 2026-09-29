@@ -123,7 +123,9 @@ describe('tracking in the admin', () => {
     const base = { flags: {}, hiddenFields: '', grants: '', replaceGrants: false }
     expect(buildOverrides({ ...base, tracking: 'inherit' })).toBeUndefined()
     expect(buildOverrides({ ...base, tracking: 'off' })).toEqual({ tracking: { enabled: false } })
-    expect(buildOverrides({ ...base, tracking: 'on' })).toEqual({ tracking: { enabled: true } })
+    expect(buildOverrides({ ...base, tracking: 'notice' })).toEqual({ tracking: { enabled: true, consent: 'notice' } })
+    expect(buildOverrides({ ...base, tracking: 'prior', consentNote: ' LinkedIn 2026-09 ' }))
+      .toEqual({ tracking: { enabled: true, consent: 'prior', consentNote: 'LinkedIn 2026-09' } })
   })
 
   it('formats durations', async () => {

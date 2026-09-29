@@ -131,6 +131,10 @@ export interface CvTemplates {
  */
 export interface CvConsent {
   required: boolean
+  /** modal: ask first; notice: no modal, a notice with opt-out; prior: consent given elsewhere (§9.2). */
+  mode?: 'modal' | 'notice' | 'prior'
+  /** Implied consent was recorded on this request (notice mode shows its notice once). */
+  impliedNow?: boolean
   state?: 'accept' | 'decline' | null
   policyVersion?: string
   controller?: string

@@ -22,8 +22,14 @@ public sealed record Retention(int IdentifiersMonths, int EventsMonths, int Summ
 /// <summary>Effective tracking settings of one visitor's grant.</summary>
 /// <param name="Enabled">Tracking (and with it the consent modal) is on for this grant.</param>
 /// <param name="DisabledBy">Level that switched it off: "invite", "profile", "tenant", "no-privacy" or "render".</param>
+/// <param name="Mode">How consent is obtained: "modal", "notice" or "prior" (see <see cref="TrackingPolicy.Modes"/>).</param>
+/// <param name="ConsentNote">Where / when prior consent was obtained (mode "prior").</param>
 public sealed record TrackingDecision(bool Enabled, string? DisabledBy, string? Controller, string? Contact, bool HonorBrowserSignals,
-    Retention Retention, string PolicyVersion);
+    Retention Retention, string PolicyVersion, string Mode = "modal", string? ConsentNote = null)
+{
+    /// <summary>Tracking starts without a modal decision (implied consent: notice or prior).</summary>
+    public bool Implied => Mode is "notice" or "prior";
+}
 
 public static class TrackingPolicy
 {
@@ -32,6 +38,13 @@ public static class TrackingPolicy
     /// Bump both together when the wording changes: every visitor is asked again.
     /// </summary>
     public const string TextVersion = "2026-09-29";
+
+    /// <summary>
+    /// modal: ask first (required for EU/EEA/UK/CH visitors). notice: no modal, a non-blocking notice with opt-out, for
+    /// markets where notice + opt-out is enough. prior: the visitor already consented elsewhere (documented in
+    /// consentNote); no modal, opt-out via the footer stays available.
+    /// </summary>
+    public static readonly string[] Modes = ["modal", "notice", "prior"];
 
     /// <summary>
     /// Resolves the tracking switch: invite overrides &gt; profile &gt; tenant, default on. Tenants without a
@@ -52,15 +65,20 @@ public static class TrackingPolicy
         var controller = config.Privacy?.Controller?.Trim();
         var contact = config.Privacy?.Contact?.Trim();
         var retention = Retention.From(tenantTracking?.Retention);
-        var honor = tenantTracking?.HonorBrowserSignals ?? false;
+        var mode = Valid(invite?.Tracking?.Consent) ?? Valid(profile?.Tracking?.Consent) ?? Valid(tenantTracking?.Consent) ?? "modal";
+        var note = invite?.Tracking?.ConsentNote ?? profile?.Tracking?.ConsentNote ?? tenantTracking?.ConsentNote;
+        // Without an explicit decision DNT / GPC count as an opt-out, unless the tenant says otherwise.
+        var honor = tenantTracking?.HonorBrowserSignals ?? mode == "notice";
 
         string? disabledBy = grant.ViaRenderTicket ? "render"
             : !enabled ? level
             : string.IsNullOrEmpty(controller) ? "no-privacy"
             : null;
         return new TrackingDecision(disabledBy is null, disabledBy, controller, contact, honor, retention,
-            PolicyVersionOf(controller, contact, retention));
+            PolicyVersionOf(controller, contact, retention), mode, mode == "prior" ? note?.Trim() : null);
     }
+
+    private static string? Valid(string? mode) => mode is not null && Modes.Contains(mode) ? mode : null;
 
     /// <summary>Hash of everything the consent text shows; a change asks every visitor again (R9.12).</summary>
     public static string PolicyVersionOf(string? controller, string? contact, Retention retention) =>

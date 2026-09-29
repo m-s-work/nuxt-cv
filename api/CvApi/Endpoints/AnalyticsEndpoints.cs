@@ -86,6 +86,9 @@ public static class AnalyticsEndpoints
                 retention,
                 geo = geo.Available,
                 profiles = c.Profiles.ToDictionary(p => p.Key, p => p.Value.Tracking?.Enabled),
+                consentMode = TrackingPolicy.Modes.Contains(c.Tracking?.Consent) ? c.Tracking!.Consent : "modal",
+                profileModes = c.Profiles.Where(p => p.Value.Tracking?.Consent is not null)
+                    .ToDictionary(p => p.Key, p => p.Value.Tracking!.Consent),
                 policyVersion = TrackingPolicy.PolicyVersionOf(c.Privacy?.Controller?.Trim(), c.Privacy?.Contact?.Trim(), retention),
             });
         });

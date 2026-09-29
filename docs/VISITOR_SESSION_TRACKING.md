@@ -587,6 +587,29 @@ Notes on the wording: friendly and reader-centred ("learn how it is read", "most
 you") without calling it a product feature or using words like "analytics" or "heatmap". Nothing is hidden:
 the first layer names the categories, the second lists every data point.
 
+### 9.2 Consent modes: modal, notice, prior
+
+The modal (§9.1) is the default and the only mode that is valid for visitors in the EU/EEA, the UK and Switzerland.
+For other cases the owner can choose per tenant, profile or invite (most specific wins, like `tracking.enabled`):
+
+| `tracking.consent` | What the visitor sees | Tracking starts | Use for |
+|---|---|---|---|
+| `modal` (default) | Consent modal (§9.1) | after "Accept" | EU/EEA/UK/CH, or when unsure |
+| `notice` | Non-blocking notice once: what is recorded, "What exactly is recorded", "Opt out", "OK" | immediately | Readers outside the EU/EEA/UK/CH where notice + opt-out is enough |
+| `prior` | Nothing (footer "Privacy" link stays) | immediately | The reader already consented to this tracking elsewhere, e.g. in a conversation or on a recruiting platform; `consentNote` says where and when |
+
+- R9.23 Implied consent (`notice`, `prior`) is logged in the consent log like an accept, with `source` = the mode, and
+  sets `cv_consent` + `cv_vid`, so everything downstream works as after an accept. It is logged once per browser.
+- R9.24 Opting out stays as easy as in modal mode: the notice's "Opt out" and the footer "Privacy" link withdraw
+  (R9.19); an earlier decline or withdrawal of the same browser is always kept, whatever the mode.
+- R9.25 In `notice` mode DNT / GPC count as an opt-out by default (`honorBrowserSignals` defaults to true there);
+  in `prior` mode the explicit consent given elsewhere wins.
+- R9.26 `consentNote` (where / when the consent was given) is owner-only: shown in the admin, never sent to the
+  visitor. The owner must be able to prove that consent (GDPR Art. 7(1)) and that it covered this processing –
+  a consent to "be contacted" or a platform's own tracking does not cover this CV's tracking.
+- R9.27 The mode is chosen by the owner; there is no automatic detection by IP location (unreliable, and the EU
+  rules apply to people in the EU wherever the owner is). Planning basis, not legal advice.
+
 ---
 
 ## 10. Storage (SQLite `app.db`)
@@ -695,7 +718,7 @@ API settings: `Tracking__EventsPerMinute` (rate limit per IP, default 120), `Tra
   session and section statistics; only semantic events are kept as raw events.
 - The fingerprint uses user agent / platform, languages, time zone, screen, memory/CPU, touch, a font probe, canvas
   and WebGL hashes and DNT/GPC; no audio fingerprint.
-- `expand` and `dead_click` are accepted by the API but not emitted yet (no expandable entries in the current layout).
+- `expand` is accepted by the API but not emitted yet (no expandable entries in the current layout).
 - A session that is not ended explicitly ends at its last heartbeat (no `session_end` on page close, because a reload
   of the same tab continues the session).
 - Coverage in the interest score counts the sections seen by the group against all sections seen by any visitor of

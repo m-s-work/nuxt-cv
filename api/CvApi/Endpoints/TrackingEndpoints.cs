@@ -98,16 +98,28 @@ public static class TrackingEndpoints
         if (!decision.Enabled) return new { required = false };
 
         var state = cookies.State(ctx, decision.PolicyVersion);
+        var impliedNow = false;
         if (state is null && decision.HonorBrowserSignals && TrackingService.Signals(ctx.Request) is not null)
         {
             await tracking.RecordSignalDeclineAsync(ctx, grant, decision, ct);
             state = "decline";
+        }
+        else if (state is null && decision.Implied)
+        {
+            // Notice / prior consent (§9.2): no modal. Logged like an accept, with the mode as source; the visitor
+            // can opt out at any time via the notice or the footer.
+            await tracking.RecordConsentAsync(ctx, grant, decision, "accept", decision.Mode, ct);
+            state = "accept";
+            impliedNow = true;
         }
         // Every visit with valid consent refreshes the browser id's lifetime (R3.1).
         if (state == "accept") cookies.EnsureVisitorKey(ctx);
         return new
         {
             required = true,
+            // "modal": ask first; "notice": show the non-blocking notice once (impliedNow); "prior": nothing to show.
+            mode = decision.Mode,
+            impliedNow,
             state,
             policyVersion = decision.PolicyVersion,
             controller = decision.Controller,

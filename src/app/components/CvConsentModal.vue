@@ -8,11 +8,11 @@
  */
 import type { CvConsent } from '~/composables/useCv'
 
-const props = defineProps<{ consent: CvConsent, name: string, reopened?: boolean }>()
+const props = defineProps<{ consent: CvConsent, name: string, reopened?: boolean, details?: boolean }>()
 const emit = defineEmits<{ accept: [], decline: [], close: [] }>()
 const { t } = useI18n()
 
-const showDetails = ref(false)
+const showDetails = ref(!!props.details)
 const dialog = ref<HTMLElement | null>(null)
 const text = ref<HTMLElement | null>(null)
 
