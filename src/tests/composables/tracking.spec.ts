@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  CONSENT_TEXT_VERSION, breakpointOf, isInView, isRageClick, linkKind, relativePosition, scrollDepth, sha256, timelineAnchor
+  CONSENT_TEXT_VERSION, breakpointOf, isInView, isRageClick, linkKind, looksClickable, relativePosition, scrollDepth, sha256, timelineAnchor
 } from '~/utils/tracking'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -41,6 +41,13 @@ describe('tracking helpers', () => {
     expect(isRageClick([{ t: 0, x: 0, y: 0 }, { t: 300, x: 5, y: 5 }, { t: 600, x: 2, y: 1 }])).toBe(true)
     expect(isRageClick([{ t: 0, x: 0, y: 0 }, { t: 300, x: 5, y: 5 }, { t: 1600, x: 2, y: 1 }])).toBe(false)
     expect(isRageClick([{ t: 0, x: 0, y: 0 }, { t: 300, x: 100, y: 5 }, { t: 600, x: 2, y: 1 }])).toBe(false)
+  })
+
+  it('finds dead-click candidates', () => {
+    expect(looksClickable('SPAN', 'pointer', false)).toBe(true)
+    expect(looksClickable('img', 'auto', false)).toBe(true)
+    expect(looksClickable('P', 'text', false)).toBe(false)
+    expect(looksClickable('A', 'pointer', true)).toBe(false)
   })
 
   it('maps timeline entries and scroll depth', () => {

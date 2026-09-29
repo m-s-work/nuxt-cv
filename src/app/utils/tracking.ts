@@ -75,6 +75,15 @@ export function isRageClick(clicks: Array<{ t: number, x: number, y: number }>):
   return last[2]!.t - first.t <= 1000 && last.every(c => Math.hypot(c.x - first.x, c.y - first.y) <= 30)
 }
 
+/**
+ * Whether a clicked element promises an action (dead-click candidate): a pointer cursor or an image, but not a real
+ * control (links, buttons, inputs – those are handled by the browser anyway).
+ */
+export function looksClickable(tagName: string, cursor: string, isControl: boolean): boolean {
+  if (isControl) return false
+  return cursor === 'pointer' || tagName.toUpperCase() === 'IMG'
+}
+
 /** Random URL-safe id (session / tab ids). */
 export function randomId(bytes = 16): string {
   const data = new Uint8Array(bytes)

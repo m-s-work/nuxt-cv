@@ -5,7 +5,7 @@
  * Failures never affect the CV: everything is fire-and-forget.
  */
 import {
-  anchorOf, breakpointOf, collectFingerprint, isInView, isRageClick, linkKind, randomId, relativePosition, scrollDepth
+  anchorOf, breakpointOf, collectFingerprint, isInView, isRageClick, linkKind, looksClickable, randomId, relativePosition, scrollDepth
 } from '~/utils/tracking'
 
 export interface TrackingVersions {
@@ -247,12 +247,32 @@ function onClick(event: MouseEvent) {
     if (lk === 'mailto' || lk === 'tel') trackEvent('contact', { a: anchor, kind: lk })
     else if (lk) trackEvent('link_out', { a: anchor, kind: lk })
   }
+  if (looksClickable(el.tagName, getComputedStyle(el).cursor, !!el.closest('a[href],button,input,select,textarea,label,[role="button"],[tabindex]:not([tabindex="-1"])')))
+    watchForDeadClick(anchor, target, event)
   recentClicks.push({ t: now(), x: event.clientX, y: event.clientY })
   recentClicks = recentClicks.slice(-3)
   if (isRageClick(recentClicks)) {
     trackEvent('rage_click', { a: anchor, count: 3 })
     recentClicks = []
   }
+}
+
+/**
+ * Dead click (R5 "dead_click"): something that looks clickable was clicked and within a second nothing happened –
+ * no DOM change, no navigation, no scrolling. Points at elements that promise an action they do not have.
+ */
+function watchForDeadClick(anchor: string | undefined, target: HTMLElement | null, event: MouseEvent) {
+  const href = location.href
+  const scrollY = window.scrollY
+  let changed = false
+  const observer = new MutationObserver(() => { changed = true; observer.disconnect() })
+  observer.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true })
+  const position = target ? relativePosition(event.clientX, event.clientY, target.getBoundingClientRect()) : undefined
+  setTimeout(() => {
+    observer.disconnect()
+    if (changed || location.href !== href || Math.abs(window.scrollY - scrollY) > 2) return
+    trackEvent('dead_click', { a: anchor, ...(position ? { x: position[0], y: position[1] } : {}) })
+  }, 1000)
 }
 
 function onScroll() {
