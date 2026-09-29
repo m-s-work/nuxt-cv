@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using CvApi.Access;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CvApi.Tests;
 
@@ -144,6 +147,187 @@ public sealed class AccessTests : IDisposable
         var code = await _factory.CreateInviteAsync("alice", new { profile = "full", maxUses = 1 });
         Assert.Equal(HttpStatusCode.NoContent, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
+    }
+
+    [Fact]
+    public async Task View_once_invite_works_only_for_the_first_browser_and_only_for_the_grace_window()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", viewOnce = true });
+        var first = _factory.ClientFor(ApiFactory.SharedHost);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(first, code)).StatusCode);
+        var cv = await Cv(first);
+        Assert.False(cv["access"]!.AsObject().ContainsKey("viewOnceUntil"));    // the visitor is not told
+        var until = (await Invite(code))["viewOnceUntil"]!.GetValue<DateTimeOffset>();
+        Assert.InRange(until - _factory.Clock.GetUtcNow(), TimeSpan.FromMinutes(29), TimeSpan.FromMinutes(30));
+
+        // Other devices: the code is gone.
+        var other = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(other, code)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await other.GetAsync("/api/cv")).StatusCode);
+
+        // Same browser opening the link again within the window: still fine, not counted.
+        _factory.Clock.Advance(TimeSpan.FromMinutes(20));
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(first, code)).StatusCode);
+        await Cv(first);
+
+        // After the window, the cookie no longer grants access either.
+        _factory.Clock.Advance(TimeSpan.FromMinutes(11));
+        Assert.Equal(HttpStatusCode.Forbidden, (await first.GetAsync("/api/cv")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(first, code)).StatusCode);
+    }
+
+    [Fact]
+    public async Task View_once_grace_window_is_configurable_per_invite()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", viewOnce = true, viewOnceMinutes = 5 });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(client, code)).StatusCode);
+
+        _factory.Clock.Advance(TimeSpan.FromMinutes(4));
+        await Cv(client);
+        _factory.Clock.Advance(TimeSpan.FromMinutes(2));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/cv")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Existing_database_gets_new_invite_columns()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // Database created before view-once invites existed.
+            db.Database.ExecuteSqlRaw("ALTER TABLE Invites DROP COLUMN ViewOnceMinutes");
+            db.Database.ExecuteSqlRaw("ALTER TABLE Invites DROP COLUMN ViewOnceUntil");
+            db.Database.ExecuteSqlRaw("ALTER TABLE Invites DROP COLUMN ViewOnceToken");
+            db.AddMissingColumns();
+            db.AddMissingColumns();     // idempotent
+        }
+
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(client, code)).StatusCode);
+        await Cv(client);
+    }
+
+    private HttpClient Admin()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        return admin;
+    }
+
+    private async Task<JsonObject> Invite(string code) =>
+        (await Admin().GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/invites"))!
+            .Single(i => i!["code"]?.GetValue<string>() == code)!.AsObject();
+
+    private async Task<HttpResponseMessage> Rearm(string code) =>
+        await Admin().PostAsync($"/api/admin/tenants/alice/invites/{(await Invite(code))["id"]}/rearm", null);
+
+    private async Task<HttpResponseMessage> UpdateSettings(string code, object body) =>
+        await Admin().PutAsJsonAsync($"/api/admin/tenants/alice/invites/{(await Invite(code))["id"]}/settings", body);
+
+    [Fact]
+    public async Task Rearmed_view_once_invite_works_once_more_but_not_for_the_earlier_browser()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", viewOnce = true });
+        var first = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(first, code)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await Rearm(code)).StatusCode);
+        var rearmed = await Invite(code);
+        Assert.Equal(0, rearmed["useCount"]!.GetValue<int>());
+        Assert.False(rearmed.ContainsKey("viewOnceUntil"));
+
+        // The earlier browser lost access, even though the invite is unused again.
+        Assert.Equal(HttpStatusCode.Forbidden, (await first.GetAsync("/api/cv")).StatusCode);
+
+        var second = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(second, code)).StatusCode);
+        await Cv(second);
+        Assert.Equal(HttpStatusCode.Forbidden, (await first.GetAsync("/api/cv")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(first, code)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Rearm_resets_max_uses_and_keeps_existing_sessions_of_normal_invites()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", maxUses = 1 });
+        var first = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(first, code);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await Rearm(code)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
+        await Cv(first);
+    }
+
+    [Fact]
+    public async Task Revoked_invite_cannot_be_rearmed_or_edited()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        await Admin().DeleteAsync($"/api/admin/tenants/alice/invites/{(await Invite(code))["id"]}");
+        Assert.Equal(HttpStatusCode.Conflict, (await Rearm(code)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await UpdateSettings(code, new { label = "x" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Settings_can_be_changed_later()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", label = "Old", maxUses = 1, expiresInDays = 1 });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, code);
+
+        var expires = _factory.Clock.GetUtcNow().AddDays(10);
+        var response = await UpdateSettings(code, new { label = "New", expiresAt = expires, maxUses = 3 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await Invite(code);
+        Assert.Equal("New", updated["label"]!.GetValue<string>());
+        Assert.Equal(3, updated["maxUses"]!.GetValue<int>());
+        Assert.Equal(expires, updated["expiresAt"]!.GetValue<DateTimeOffset>(), TimeSpan.FromMilliseconds(1));
+
+        // Longer expiry applies to the existing session as well.
+        _factory.Clock.Advance(TimeSpan.FromDays(2));
+        await Cv(client);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await UpdateSettings(code, new { maxUses = 0 })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await UpdateSettings(code, new { viewOnceMinutes = 0 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Changing_the_view_once_window_later_counts_from_the_opening()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", viewOnce = true, viewOnceMinutes = 10 });
+        var client = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(client, code);
+
+        _factory.Clock.Advance(TimeSpan.FromMinutes(15));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/cv")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = 60 })).StatusCode);
+        await Cv(client);                                                            // same browser is back
+        Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Turning_view_once_on_ends_earlier_sessions_and_off_keeps_the_opener()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        var early = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(early, code);
+
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = 30 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await early.GetAsync("/api/cv")).StatusCode);
+
+        var opener = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(opener, code)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = (int?)null })).StatusCode);
+        _factory.Clock.Advance(TimeSpan.FromHours(2));
+        await Cv(opener);                                                            // normal invite now
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)).StatusCode);
     }
 
     [Fact]

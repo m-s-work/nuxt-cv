@@ -80,7 +80,9 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+    var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    appDb.Database.EnsureCreated();
+    appDb.AddMissingColumns();
     scope.ServiceProvider.GetRequiredService<CvApi.Tracking.TrackingDbContext>().Database.EnsureCreated();
 }
 
