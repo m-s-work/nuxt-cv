@@ -33,6 +33,11 @@ async function load() {
 // --- Create -------------------------------------------------------------------------------
 
 const profileItems = computed(() => props.tenant.profiles.map(p => ({ label: p, value: p })))
+const trackingItems = [
+  { label: 'Profile / tenant default', value: 'inherit' },
+  { label: 'Ask (modal + tracking on)', value: 'on' },
+  { label: 'Off (no modal, no tracking)', value: 'off' }
+]
 const flagItems = [
   { label: 'profile default', value: 'inherit' },
   { label: 'hide', value: 'on' },
@@ -66,7 +71,8 @@ function emptyForm() {
       flags: Object.fromEntries(REDACTION_FLAGS.map(f => [f, 'inherit'])) as Record<string, FlagChoice>,
       hiddenFields: '',
       grants: '',
-      replaceGrants: false
+      replaceGrants: false,
+      tracking: 'inherit' as FlagChoice
     } satisfies OverridesForm
   }
 }
@@ -189,6 +195,8 @@ function overridesSummary(invite: AdminInvite) {
   for (const [flag, value] of Object.entries(o.flags ?? {})) parts.push(`${value ? '+' : '−'}${flag.replace(/^hide/, '')}`)
   if (o.hiddenFields?.length) parts.push(`hidden: ${o.hiddenFields.join(', ')}`)
   if (o.grants) parts.push(`grants: ${o.grants.join(', ') || '(none)'}`)
+  if (o.tracking?.enabled === false) parts.push('no consent modal / tracking')
+  else if (o.tracking?.enabled === true) parts.push('tracking on')
   return parts.join(' · ')
 }
 
@@ -226,6 +234,11 @@ onMounted(load)
               placeholder="commit SHA, tag or branch, e.g. application-acme" aria-label="Commit or tag"
             />
             <span class="block text-xs text-gray-500">Versions no longer stored are fetched from the CV's git repository.</span>
+          </label>
+          <label class="text-sm space-y-1 sm:col-span-2">
+            <span class="text-gray-500">Consent modal &amp; visitor tracking</span>
+            <USelect v-model="form.overrides.tracking" :items="trackingItems" class="w-full" aria-label="Consent modal and tracking" />
+            <span class="block text-xs text-gray-500">Off: this invite never sees the consent modal and is never tracked.</span>
           </label>
         </div>
 

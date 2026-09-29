@@ -155,6 +155,22 @@ interface CvResponse {
 /** Query parameter carrying the invite code, e.g. https://cv.example.org/?c=abc */
 export const INVITE_PARAM = 'c'
 
+/** Owner heatmap view (admin iframe): no consent modal, no tracking, no splash screen. */
+export function isHeatmapView(): boolean {
+  return import.meta.client && new URLSearchParams(window.location.search).has('heatmap')
+}
+
+/** Replaces "/api/assets/<file>" URLs with object URLs of files loaded by `load` (admin heatmap view). */
+export async function inlineAssets<T>(data: T, load: (path: string) => Promise<Blob>): Promise<T> {
+  const json = JSON.stringify(data)
+  const files = [...new Set(json.match(/\/api\/assets\/[A-Za-z0-9._-]+/g) ?? [])]
+  const urls = new Map<string, string>()
+  await Promise.all(files.map(async (file) => {
+    try { urls.set(file, URL.createObjectURL(await load(`assets/${file.slice('/api/assets/'.length)}`))) } catch { /* missing asset */ }
+  }))
+  return JSON.parse(json.replace(/\/api\/assets\/[A-Za-z0-9._-]+/g, m => urls.get(m) ?? m)) as T
+}
+
 /**
  * Formats a period from ISO dates of any precision ("2020", "2020-03", "2020-03-15").
  * Year precision renders as "2020", finer precision as "03/2020".
@@ -247,12 +263,35 @@ export function useCv() {
   }
 
   /**
+   * Heatmap view for the owner (/?heatmap=1&tenant=…&cv=…, opened by the admin page in an iframe): renders the
+   * stored CV snapshot of that version instead of calling /api/cv (docs/VISITOR_SESSION_TRACKING.md R6.8, R6.12).
+   * Uses the admin key of this browser tab; assets are loaded through the admin API.
+   */
+  async function initHeatmap(params: URLSearchParams) {
+    status.value = 'loading'
+    const admin = useAdmin()
+    const tenant = params.get('tenant') ?? ''
+    try {
+      const snapshot = await admin.cvSnapshot(tenant, params.get('cv') ?? '')
+      const data = await inlineAssets(snapshot.cv as CvData, path => admin.readBlob(tenant, path))
+      cv.value = withPeriods(data, presentLabel(snapshot.locale))
+      access.value = { tenant, profile: 'heatmap', viaInvite: false }
+      consent.value = { required: false }
+      features.value = { pdf: false }
+      status.value = 'ready'
+    } catch {
+      status.value = 'error'
+    }
+  }
+
+  /**
    * Redeems an invite code from the URL (?c=...), removes it from the address bar
    * so it does not end up in bookmarks/history/screenshots, then loads the CV.
    */
   async function init(locale: string) {
     if (import.meta.client) {
       const url = new URL(window.location.href)
+      if (url.searchParams.has('heatmap')) return initHeatmap(url.searchParams)
       const code = url.searchParams.get(INVITE_PARAM)
       if (code) {
         arrivedViaLink.value = true
@@ -267,7 +306,7 @@ export function useCv() {
   /** Initializes once, afterwards reloads only when the locale changed. */
   async function ensure(locale: string) {
     if (status.value === 'idle') await init(locale)
-    else if (loadedLocale.value !== locale) await load(locale)
+    else if (loadedLocale.value !== locale && !isHeatmapView()) await load(locale)
   }
 
   /** Records the visitor's choice in the consent modal (§9.1). */

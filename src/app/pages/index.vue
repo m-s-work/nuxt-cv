@@ -25,6 +25,7 @@ watch(locale, (newLocale, oldLocale) => {
 
 // --- Visitor tracking: consent modal first, tracker only after "Accept" (docs/VISITOR_SESSION_TRACKING.md) ----------
 const isPrint = import.meta.client && new URLSearchParams(window.location.search).has('print')
+const heatmapView = isHeatmapView()
 const consentOpen = useState<boolean>('consent-modal-open', () => false)
 const consentReopened = ref(false)
 const ownerName = computed(() => cv.value?.profile?.name ?? '')
@@ -270,8 +271,9 @@ onUnmounted(() => {
   <CvNoAccess v-else-if="status === 'no-access' || status === 'error'" :error="status === 'error'" />
   <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
   <div v-else>
+    <CvHeatmapOverlay v-if="heatmapView" />
     <CvConsentModal
-      v-if="consentOpen && consent.required"
+      v-if="consentOpen && consent.required && !heatmapView"
       :consent="consent" :name="ownerName" :reopened="consentReopened"
       @accept="onAccept" @decline="onDecline" @close="consentOpen = false"
     />

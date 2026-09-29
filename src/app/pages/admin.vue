@@ -21,7 +21,8 @@ const tabs = [
   { label: 'Invites', value: 'invites', icon: 'i-lucide-ticket' },
   { label: 'Files', value: 'files', icon: 'i-lucide-folder' },
   { label: 'Preview', value: 'preview', icon: 'i-lucide-eye' },
-  { label: 'Design', value: 'design', icon: 'i-lucide-palette' }
+  { label: 'Design', value: 'design', icon: 'i-lucide-palette' },
+  { label: 'Analytics', value: 'analytics', icon: 'i-lucide-chart-line' }
 ]
 
 async function loadTenants() {
@@ -227,6 +228,7 @@ onMounted(() => {
             <AdminFiles v-else-if="tab === 'files'" :key="`f-${activeTenantId}`" :tenant-id="activeTenantId" :is-new="!!creatingTenant" @changed="onTenantChanged(activeTenantId)" />
             <AdminPreview v-else-if="tab === 'preview' && selected && !creatingTenant" :key="`p-${selected.id}`" :tenant="selected" :revisions="revisions" />
             <AdminTemplates v-else-if="tab === 'design' && selected && !creatingTenant" :key="`d-${selected.id}`" :tenant="selected" @changed="onTenantChanged(selected.id)" />
+            <AdminAnalytics v-else-if="tab === 'analytics' && selected && !creatingTenant" :key="`a-${selected.id}`" :tenant="selected" />
             <p v-else class="text-sm text-gray-500">Save a <code>tenant.json</code> first.</p>
           </template>
         </template>

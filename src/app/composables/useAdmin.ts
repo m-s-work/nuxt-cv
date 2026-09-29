@@ -25,6 +25,8 @@ export interface AccessPolicy {
   hiddenFields?: string[]
   /** Pinned CV revision (git SHA or prefix); "" in invite overrides = current CV. */
   revision?: string
+  /** Consent modal + visitor tracking switch; invite > profile > tenant (docs/VISITOR_SESSION_TRACKING.md). */
+  tracking?: { enabled?: boolean }
 }
 
 export interface AdminTenant {
@@ -124,6 +126,141 @@ export interface CreatedInvite {
   pdf?: PdfOutcome[]
 }
 
+// --- Visitor tracking reports (docs/VISITOR_SESSION_TRACKING.md §8.2) -----------------------------
+
+export interface ConsentCounts {
+  accept: number
+  decline: number
+  withdraw: number
+  declineBySource: Record<string, number>
+}
+
+export interface AnalyticsGroup {
+  groupKey: string
+  inviteId?: string
+  label: string
+  profile?: string
+  source?: string
+  parentId?: string
+  revoked: boolean
+  visitors: number
+  persons: number
+  sessions: number
+  visits: number
+  activeMs: number
+  visibleMs: number
+  firstVisit?: string
+  lastVisit?: string
+  consent: ConsentCounts
+  score: number
+}
+
+export interface AnalyticsSession {
+  id: string
+  visitorId: string
+  visitId: string
+  previousSessionId?: string
+  startedAt: string
+  lastSeenAt: string
+  endedAt?: string
+  endReason?: string
+  openMs: number
+  visibleMs: number
+  activeMs: number
+  maxScroll: number
+  locale?: string
+  breakpoint?: string
+  viewportW?: number
+  viewportH?: number
+  referrer?: string
+  localHour?: number
+  signals?: string
+  ip?: string
+  ipTruncated: boolean
+  ipCountry?: string
+  ipCity?: string
+  asOrg?: string
+  fp?: string
+  appSha?: string
+  cvSourceSha?: string
+  cvVersion?: string
+  versionMismatch: boolean
+}
+
+export interface ScoreParts { time: number, coverage: number, returns: number, detail: number, intent: number, spread: number }
+
+export interface AnalyticsGroupDetail {
+  groupKey: string
+  score: { total: number, parts: ScoreParts }
+  consent: ConsentCounts
+  visitors: Array<{
+    id: string, personId: string, personReason: string, device?: string, browser?: string, os?: string, language?: string,
+    firstSeen: string, lastSeen: string, sessions: number, visits: number, activeMs: number
+  }>
+  sessions: AnalyticsSession[]
+  anchors: Array<{
+    anchor: string, label?: string, visibleMs: number, hoverMs: number, clicks: number, views: number, sessions: number,
+    readingRatio?: number, reading?: 'skimmed' | 'scanned' | 'read'
+  }>
+  techIntent: Array<{ tech: string, count: number }>
+  actions: Record<string, number>
+  networks: Array<{ org?: string, city?: string, country?: string, sessions: number, visitors: number }>
+  versions: Array<{ appSha?: string, cvSourceSha?: string, cvVersion?: string, sessions: number, firstSeen: string, lastSeen: string }>
+}
+
+export interface AnalyticsSessionDetail {
+  session: AnalyticsSession
+  ips: Array<{ ip: string, firstSeen: string, lastSeen: string }>
+  linked: Array<{ id: string, startedAt: string, endReason?: string, cvVersion?: string, appSha?: string }>
+  anchors: Array<{ anchor: string, label?: string, visibleMs: number, hoverMs: number, clicks: number, views: number }>
+  events: Array<{ t: number, type: string, anchor?: string, label?: string, payload?: Record<string, unknown> }>
+}
+
+export type HeatmapType = 'move' | 'click' | 'attention'
+
+export interface HeatmapFacet { breakpoint: string, appSha: string, cvVersion: string, weight: number }
+
+export interface HeatmapData {
+  type: HeatmapType
+  facets: HeatmapFacet[]
+  cells?: Array<{ anchor: string, x: number, y: number, w: number }>
+  anchors?: Array<{ anchor: string, weight: number }>
+}
+
+export interface TrackingSettings {
+  privacy?: { controller?: string, contact?: string }
+  tenantEnabled: boolean
+  honorBrowserSignals: boolean
+  retention: { identifiersMonths: number, eventsMonths: number, summaryMonths: number, heatMonths: number }
+  geo: boolean
+  profiles: Record<string, boolean | null>
+  policyVersion: string
+}
+
+export interface ConsentStats {
+  total: ConsentCounts
+  byPolicyVersion: Array<{ policyVersion: string, first: string, last: string, counts: ConsentCounts, acceptRate?: number }>
+  withSignals: ConsentCounts
+}
+
+/** Readable name of an anchor without a CV label: "section:preferredTechs" → "Preferred techs (section)". */
+export function anchorName(anchor: string, label?: string | null): string {
+  if (label) return label
+  const [kind, key = ''] = anchor.split(':', 2)
+  const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+  const name = words.charAt(0).toUpperCase() + words.slice(1)
+  return kind === 'section' ? `${name} (section)` : kind === 'tech' ? `${key} (technology)` : kind === 'contact' ? `Contact: ${key}` : anchor
+}
+
+/** "2 h 5 min", "3 min 20 s", "40 s". */
+export function formatDuration(ms: number): string {
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s} s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} min${s % 60 ? ` ${s % 60} s` : ''}`
+  return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`
+}
+
 export interface AdminFile {
   path: string
   size: number
@@ -154,6 +291,8 @@ export interface OverridesForm {
   /** Empty = keep the profile's grants; otherwise replaces them. */
   grants: string
   replaceGrants: boolean
+  /** Consent modal / tracking: inherit from profile and tenant, force on, force off. */
+  tracking?: FlagChoice
 }
 
 /** Builds the invite `overrides` object, or undefined if nothing is overridden. */
@@ -169,6 +308,8 @@ export function buildOverrides(form: OverridesForm): AccessPolicy | undefined {
   const hidden = splitList(form.hiddenFields)
   if (hidden.length) overrides.hiddenFields = hidden
   if (form.replaceGrants) overrides.grants = splitList(form.grants)
+  if (form.tracking === 'on') overrides.tracking = { enabled: true }
+  else if (form.tracking === 'off') overrides.tracking = { enabled: false }
   return Object.keys(overrides).length ? overrides : undefined
 }
 
@@ -322,6 +463,19 @@ export function useAdmin() {
       request<{ sha: string }>(`${t(tenant)}/revisions/fetch`, { method: 'POST', body: { ref } }),
     /** revision: SHA = pin, "" = current CV (ignores a profile pin), null = follow the profile. */
     pinInvite: (tenant: string, id: string, revision: string | null) =>
-      request<AdminInvite>(`${t(tenant)}/invites/${id}/revision`, { method: 'PUT', body: { revision } })
+      request<AdminInvite>(`${t(tenant)}/invites/${id}/revision`, { method: 'PUT', body: { revision } }),
+    analyticsGroups: (tenant: string) => request<AnalyticsGroup[]>(`${t(tenant)}/analytics/groups`),
+    analyticsGroup: (tenant: string, group: string) =>
+      request<AnalyticsGroupDetail>(`${t(tenant)}/analytics/groups/${encodeURIComponent(group)}`),
+    analyticsSession: (tenant: string, id: string) =>
+      request<AnalyticsSessionDetail>(`${t(tenant)}/analytics/sessions/${encodeURIComponent(id)}`),
+    heatmap: (tenant: string, query: { group?: string, bp?: string, appSha?: string, cvVersion?: string, type: HeatmapType }) =>
+      request<HeatmapData>(`${t(tenant)}/analytics/heatmap`, { query }),
+    cvSnapshot: (tenant: string, cvVersion: string) =>
+      request<{ cvVersion: string, locale: string, cvSourceSha?: string, cv: unknown }>(`${t(tenant)}/analytics/cv-snapshots/${cvVersion}`),
+    trackingSettings: (tenant: string) => request<TrackingSettings>(`${t(tenant)}/analytics/settings`),
+    consentStats: (tenant: string) => request<ConsentStats>(`${t(tenant)}/analytics/consent`),
+    eraseVisitor: (tenant: string, visitorId: string) =>
+      request<void>(`${t(tenant)}/analytics/visitors/${visitorId}`, { method: 'DELETE' })
   }
 }
