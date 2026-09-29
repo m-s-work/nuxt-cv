@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const baseURL = process.env.NUXT_APP_BASE_URL || '/'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
@@ -23,8 +25,14 @@ export default defineNuxtConfig({
   ssr: false,
 
   app: {
-    baseURL: process.env.NUXT_APP_BASE_URL || '/',
+    baseURL,
     buildAssetsDir: '_nuxt/',
+    head: {
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: `${baseURL}favicon.svg` },
+        { rel: 'icon', type: 'image/x-icon', href: `${baseURL}favicon.ico`, sizes: '16x16 32x32 48x48' }
+      ]
+    }
   },
 
   runtimeConfig: {
