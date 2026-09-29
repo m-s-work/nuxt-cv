@@ -33,8 +33,9 @@ describe('CvConsentModal', () => {
     const decline = wrapper.get('[data-testid="consent-decline"]')
     expect(accept.text()).toBe('Accept')
     expect(decline.text()).toBe('Continue without accepting')
-    // Equal buttons (R9.21): same colour, variant and size.
+    // Equal buttons (R9.21): identical classes.
     expect(accept.classes()).toEqual(decline.classes())
+    expect(accept.classes()).not.toContain('truncate')
     await accept.trigger('click')
     await decline.trigger('click')
     expect(wrapper.emitted('accept')).toHaveLength(1)

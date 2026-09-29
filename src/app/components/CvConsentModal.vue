@@ -23,6 +23,10 @@ const params = computed(() => ({
   identifiersMonths: props.consent.retention?.identifiersMonths ?? 13,
   summaryMonths: props.consent.retention?.summaryMonths ?? 25
 }))
+// One style for both choices (R9.21); labels may wrap instead of being cut off.
+const buttonClass = 'flex items-center justify-center gap-2 min-h-12 w-full rounded-xl px-4 py-3 text-center font-medium '
+  + 'bg-blue-50 text-blue-800 ring-1 ring-blue-200 hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-600 '
+  + 'dark:bg-blue-950 dark:text-blue-100 dark:ring-blue-800 dark:hover:bg-blue-900 transition-colors'
 const canClose = computed(() => props.reopened && !!props.consent.state)
 const hasSignals = computed(() => !!props.consent.signals)
 
@@ -77,30 +81,30 @@ onMounted(() => nextTick(() => text.value?.focus()))
       <!-- The two real promises about the data, illustrated (R9.20: bundled icons only). -->
       <ul class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <li class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-gray-800 px-4 py-3">
-          <UIcon name="i-lucide-server" class="size-6 shrink-0 text-primary" />
+          <UIcon name="i-lucide-server" class="size-6 shrink-0 text-blue-600 dark:text-blue-400" />
           <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('consent.pointServer', params) }}</span>
         </li>
         <li class="flex items-center gap-3 rounded-xl bg-gray-50 dark:bg-gray-800 px-4 py-3">
-          <UIcon name="i-lucide-shield-check" class="size-6 shrink-0 text-primary" />
+          <UIcon name="i-lucide-shield-check" class="size-6 shrink-0 text-blue-600 dark:text-blue-400" />
           <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('consent.pointThirdParties') }}</span>
         </li>
       </ul>
 
       <!-- Equal buttons: same size, colour and weight (R9.21). -->
       <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <UButton
-          color="primary" variant="soft" size="lg" block icon="i-lucide-check"
-          :label="t('consent.accept')" data-testid="consent-accept" @click="emit('accept')"
-        />
-        <UButton
-          color="primary" variant="soft" size="lg" block icon="i-lucide-arrow-right"
-          :label="t('consent.decline')" data-testid="consent-decline" @click="emit('decline')"
-        />
+        <button type="button" :class="buttonClass" data-testid="consent-accept" @click="emit('accept')">
+          <UIcon name="i-lucide-check" class="size-5 shrink-0" />
+          <span>{{ t('consent.accept') }}</span>
+        </button>
+        <button type="button" :class="buttonClass" data-testid="consent-decline" @click="emit('decline')">
+          <UIcon name="i-lucide-arrow-right" class="size-5 shrink-0" />
+          <span>{{ t('consent.decline') }}</span>
+        </button>
       </div>
 
       <button
         type="button"
-        class="mt-5 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+        class="mt-5 inline-flex items-center gap-1 text-sm text-blue-700 dark:text-blue-300 hover:underline"
         :aria-expanded="showDetails"
         aria-controls="consent-details"
         @click="showDetails = !showDetails"
