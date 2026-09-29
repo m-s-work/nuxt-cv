@@ -73,7 +73,7 @@ CV of a software architect built with Nuxt 4.
 
 The application will be available at `http://localhost:3000` (sample tenant `demo`).
 `http://127.0.0.1:3000` behaves like the shared host and requires an invite, see
-[docs/DEPLOYMENT_COOLIFY.md](docs/DEPLOYMENT_COOLIFY.md#5-local-development).
+[docs/DEPLOYMENT_COOLIFY.md](docs/DEPLOYMENT_COOLIFY.md#7-local-development).
 
 ### Development
 

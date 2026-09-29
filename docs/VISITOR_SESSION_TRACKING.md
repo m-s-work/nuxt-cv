@@ -1,6 +1,7 @@
-# Plan: Visitor & Session Tracking
+# Visitor & Session Tracking
 
-Status: **planned** – nothing in this document is implemented yet.
+Status: **implemented** (phases P0–P5). §15 lists where the code lives and where the implementation differs
+from the plan below.
 Related: [`REQUIREMENTS_ACCESS_AND_TENANCY.md`](REQUIREMENTS_ACCESS_AND_TENANCY.md) (§4 invites, §10 non-goals, §11 R11.4).
 
 The CV owner wants to know **who looked at the CV, for how long, and what they were interested in**.
@@ -233,22 +234,18 @@ inside an anchor. Every session is therefore stamped with the versions it was re
   shows a warning when `appSha` of the selected cells differs; the owner can filter by `appSha`
   (`git log` of that SHA explains what changed). Heatmaps across versions MAY be merged, but only per anchor
   (section-level attention stays comparable; cursor/click cells are only exact within one `appSha`).
-- R6.14 **CV source SHA, clean trees only.** The tenant's CV files (`tenant.json`, `cv.<locale>.json`,
-  `assets/`) are deployed from a git repository with `tools/cv-sync.sh`:
+- R6.14 **CV source SHA, clean trees only.** The tenant's CV files (`cv.<locale>.json`, `assets/`) are
+  deployed from a git repository with `tools/cv-sync.sh`, which registers the commit as a CV revision
+  (requirements §14):
   - `cv-sync.sh` refuses to upload when the tenant directory has uncommitted or untracked changes
-    (`git status --porcelain -- <dir>` non-empty) or is not inside a git repository. There is no
-    `--allow-dirty`: what is served must always be a commit.
-  - It sends `X-Cv-Source-Sha: <git rev-parse HEAD>` with every upload and finally
-    `PUT /api/admin/tenants/{tenant}/source` `{ sha, files: { "<path>": "<sha256>", … } }` – the manifest of
-    everything it uploaded.
-  - The API stores it as `/data/tenants/<id>/source.json` (`sha`, per-file SHA-256, `deployedAt`) and
-    serves the tenant with that `cvSourceSha`.
-  - **Dirty detection on the server:** the API compares the files in the volume with the manifest (on load and
-    after every upload). A file uploaded without a matching manifest (manual `curl`) or changed on the volume
-    makes the tenant **dirty**: `cvSourceSha` becomes `<sha>-dirty` (or `unversioned` without any manifest),
-    `GET /api/admin/tenants` shows `dirty: true` with the differing files, and sessions record it as is.
-    Reports mark such sessions, and the heatmap view falls back to the CV snapshot (R6.12).
-  - `api/sample-data` is loaded as `unversioned` in development; nothing is enforced there.
+    (`git status --porcelain -- <dir>` non-empty). There is no `--allow-dirty`: what is served must always be a
+    commit.
+  - The registered revision stores the SHA-256 of every file. `cvSourceSha` is the current revision's SHA
+    (or the pinned revision of the invite/profile, which is served from its own snapshot and therefore clean).
+  - **Dirty detection on the server:** when the files in the volume differ from the current revision's hashes
+    (e.g. a manual upload or an edit on the volume), `cvSourceSha` becomes `<sha>-dirty`; without any registered
+    revision it is `unversioned`. Sessions record the value as is; the heatmap view uses the CV snapshot (R6.12).
+  - `api/sample-data` is `unversioned` in development; nothing is enforced there.
 - R6.15 Reports list the versions per invite (first/last seen per `appSha` / `cvSourceSha` / `cvVersion`), so "they read the
   CV before I added project X" is visible.
 
@@ -350,15 +347,14 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 
 | Method & path | Purpose |
 |---|---|
-| `GET /api/admin/tenants/{tenant}/analytics/invites` | Per invite: visitors, sessions, active time, last visit, score, consent counts (accept / decline by source / withdraw, R9.15). |
-| `GET /api/admin/tenants/{tenant}/analytics/consent` | Consent rate per tenant, invite and `policyVersion` (R9.15). |
-| `GET /api/admin/tenants/{tenant}/analytics/invites/{id}` | Visitors of the invite, section/entry ranking, tech intent, score breakdown. |
-| `GET /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Sessions of a visitor. |
-| `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info and fingerprint. |
-| `GET /api/admin/tenants/{tenant}/analytics/persons` | Probable persons (sessions linked by cookie, fingerprint and network, R3.10). |
-| `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&appSha=&cvVersion=&type=move\|click\|attention` | Aggregated heat cells for rendering (R6.8), filterable by version (§6.4). |
-| `PUT /api/admin/tenants/{tenant}/source` `{ sha, files }` | CV source manifest from `cv-sync.sh` (R6.14). |
+| `GET /api/admin/tenants/{tenant}/analytics/groups` | Per visitor group (invite / public profile): label, visitors, persons, sessions, visits, active time, last visit, consent counts (R9.15), interest score. |
+| `GET /api/admin/tenants/{tenant}/analytics/groups/{groupKey}` | Visitors, sessions, attention per anchor (with reading ratio), technology intent, actions, networks, versions, score breakdown. |
+| `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info, fingerprint and linked sessions. |
+| `GET /api/admin/tenants/{tenant}/analytics/persons` | Probable persons (visitors linked by cookie or fingerprint + network, R3.10). |
+| `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&appSha=&cvVersion=&type=move\|click\|attention` | Aggregated heat cells (or attention per anchor) for rendering (R6.8), plus the available breakpoint/version combinations. |
 | `GET /api/admin/tenants/{tenant}/analytics/cv-snapshots/{cvVersion}` | Redacted CV as the visitor saw it (R6.12). |
+| `GET /api/admin/tenants/{tenant}/analytics/consent` | Consent counts, rate per `policyVersion`, decisions of browsers with DNT/GPC (R9.15). |
+| `GET /api/admin/tenants/{tenant}/analytics/settings` | Effective tracking settings: controller, tenant/profile switches, retention, geo database, policy version. |
 | `DELETE /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Erase a visitor (data subject request). |
 
 Anchor labels in responses are resolved from the master CV (unredacted – the owner may see everything).
@@ -657,3 +653,51 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
 4. Track the showcase page anonymously (conversion: showcase → invite code entered)?
 5. Where does the owner UI (P5) live – separate static app, or a route of the API?
 6. Which local geo/ASN database (DB-IP Lite: CC BY, no account; MaxMind GeoLite2: licence key) and how is it updated?
+
+---
+
+## 15. Implementation
+
+| Part | Where |
+|---|---|
+| Settings, inheritance (invite > profile > tenant), policy version | `api/CvApi/Tracking/TrackingPolicy.cs`, `Tenants/TenantModels.cs` (`privacy`, `tracking`) |
+| Consent + visitor cookies | `Tracking/ConsentCookies.cs` (`cv_consent`, `cv_vid`, signed with data protection) |
+| Consent log, event ingest, person linking | `Tracking/TrackingService.cs`, endpoints in `Endpoints/TrackingEndpoints.cs` |
+| CV source SHA / dirty detection | `Tracking/CvSourceVersion.cs` (uses the CV revisions of requirements §14) |
+| Local geo / ASN lookup | `Tracking/GeoLookup.cs` (`/data/geo/city.mmdb`, `/data/geo/asn.mmdb`, MaxMind format) |
+| Reports, score, heatmap data | `Tracking/AnalyticsService.cs`, `Endpoints/AnalyticsEndpoints.cs` |
+| Sliding retention job | `Tracking/RetentionService.cs` (daily) |
+| Storage | `/data/tracking.db` (own SQLite file, `Tracking/TrackingModels.cs`) |
+| Consent modal, footer "Privacy" link | `src/app/components/CvConsentModal.vue`, `CvFooter.vue` |
+| Tracker | `src/app/composables/useVisitorTracking.ts`, helpers + fingerprint in `src/app/utils/tracking.ts` |
+| Admin | `src/app/components/AdminAnalytics.vue`, `AdminHeatmap.vue`, heatmap overlay `CvHeatmapOverlay.vue` (`/?heatmap=1`) |
+
+**Configuration**
+
+```jsonc
+// tenant.json
+"privacy":  { "controller": "Bob Builder", "contact": "privacy@example.org" },   // required, else no tracking
+"tracking": { "enabled": true, "honorBrowserSignals": false,
+              "retention": { "identifiersMonths": 13, "eventsMonths": 13, "summaryMonths": 25, "heatMonths": 25 } },
+"profiles": { "friends": { "tracking": { "enabled": false } } }                    // no modal for this profile
+// invite overrides (admin UI: "Consent modal & visitor tracking")
+{ "tracking": { "enabled": false } }
+```
+
+API settings: `Tracking__EventsPerMinute` (rate limit per IP, default 120), `Tracking__RetentionIntervalHours`
+(default 24), `Tracking__GeoCityDb` / `Tracking__GeoAsnDb` (paths, default `/data/geo/*.mmdb`).
+
+**Differences from the plan**
+
+- The CV source SHA comes from the revisions registered by `cv-sync.sh` (requirements §14) instead of a separate
+  upload manifest; `cv-sync.sh` now refuses dirty trees.
+- Pointer samples are only aggregated into heat cells (no raw storage). Heartbeats, scroll and section views update
+  session and section statistics; only semantic events are kept as raw events.
+- The fingerprint uses user agent / platform, languages, time zone, screen, memory/CPU, touch, a font probe, canvas
+  and WebGL hashes and DNT/GPC; no audio fingerprint.
+- `expand` and `dead_click` are accepted by the API but not emitted yet (no expandable entries in the current layout).
+- A session that is not ended explicitly ends at its last heartbeat (no `session_end` on page close, because a reload
+  of the same tab continues the session).
+- Coverage in the interest score counts the sections seen by the group against all sections seen by any visitor of
+  the tenant.
+

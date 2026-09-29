@@ -63,6 +63,8 @@ The named volume `cv-data` is mounted at `/data` in the API container:
 
 ```
 /data/app.db       invites (SQLite)
+/data/tracking.db  visitor tracking (SQLite, see docs/VISITOR_SESSION_TRACKING.md)
+/data/geo/         optional city.mmdb + asn.mmdb for local IP → location lookup
 /data/keys/        cookie-signing keys – losing them logs out every invitee
 /data/tenants/<id>/tenant.json, cv.<locale>.json, assets/
 ```
@@ -147,7 +149,22 @@ cd tenants/bob && find . -type f \( -name tenant.json -o -name 'cv.*.json' -o -p
 `GET /api/admin/tenants` lists the combined `dataHash` of every tenant. `/api/cv` returns `cvHash`, the hash of
 exactly the redacted CV the visitor receives.
 
-## 5. Security notes
+## 5. Visitor tracking
+
+Owner-only reading statistics with a consent modal (docs/VISITOR_SESSION_TRACKING.md). Off until enabled per tenant:
+
+1. Add the controller to `tenant.json`: `"privacy": { "controller": "Your Name", "contact": "privacy@example.org" }`.
+   Visitors then see the consent modal; nothing is recorded before they accept.
+2. Optional: switch it off for a profile (`"tracking": { "enabled": false }` in the profile) or per invite (admin UI,
+   "Consent modal & visitor tracking").
+3. Optional location data: put MaxMind-format databases into the volume, e.g. DB-IP Lite (free, CC BY 4.0):
+   `dbip-city-lite-<yyyy-mm>.mmdb` as `/data/geo/city.mmdb` and `dbip-asn-lite-<yyyy-mm>.mmdb` as
+   `/data/geo/asn.mmdb` (restart the API after updating them). Lookups happen locally; no IP leaves the server.
+4. Reports: admin UI → *Analytics*. Data is deleted automatically after the retention periods (`tracking.retention`).
+5. Have the consent texts reviewed before going live; changing them (`CONSENT_TEXT_VERSION` in
+   `src/app/utils/tracking.ts` and `TrackingPolicy.TextVersion` in the API) asks every visitor again.
+
+## 6. Security notes
 
 - The admin API is reachable through the public domain but requires `X-Admin-Key`. Use a long random key.
   To keep it off the internet entirely, leave `CV_ADMIN_API_KEY` empty and only set it temporarily when needed.
@@ -160,7 +177,7 @@ exactly the redacted CV the visitor receives.
 
 ---
 
-## 6. Local development
+## 7. Local development
 
 ```bash
 # API (sample tenants "demo" on localhost and "bob" via invite; admin key "dev-admin-key")
