@@ -56,6 +56,20 @@ public static partial class AdminEndpoints
     {
         var admin = app.MapGroup("/admin").AddEndpointFilter(RequireAdminKey);
 
+        // Favicon catalogue for the picker: every symbol drawn in the given colours (defaults if not set),
+        // so the admin UI previews exactly what /api/favicon.svg serves.
+        admin.MapGet("/favicon", (string? color, string? background) => Results.Ok(new
+        {
+            defaults = new { symbol = Favicon.DefaultSymbol, color = Favicon.DefaultColor, background = Favicon.DefaultBackground },
+            colors = Favicon.Colors,
+            symbols = Favicon.Glyphs.Select(g => new
+            {
+                name = g.Name,
+                glyph = g.Glyph,
+                svg = Favicon.Svg(new FaviconConfig { Symbol = g.Name, Color = color, Background = background }),
+            }),
+        }));
+
         admin.MapGet("/tenants", (TenantStore tenants) => tenants.All.Select(t => new
         {
             id = t.Id,

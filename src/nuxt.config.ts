@@ -1,4 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const baseURL = process.env.NUXT_APP_BASE_URL || '/'
+const apiBase = process.env.NUXT_PUBLIC_API_BASE || '/api'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
@@ -23,14 +26,22 @@ export default defineNuxtConfig({
   ssr: false,
 
   app: {
-    baseURL: process.env.NUXT_APP_BASE_URL || '/',
+    baseURL,
     buildAssetsDir: '_nuxt/',
+    head: {
+      // The API draws the tenant's favicon (tenant.json "favicon"); the .ico is the default for browsers
+      // without SVG favicons.
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: `${apiBase}/favicon.svg` },
+        { rel: 'icon', type: 'image/x-icon', href: `${baseURL}favicon.ico`, sizes: '16x16 32x32 48x48' }
+      ]
+    }
   },
 
   runtimeConfig: {
     public: {
       // Base path of the C# API. Same origin in production (nginx proxies /api to the API container).
-      apiBase: '/api',
+      apiBase,
       // Invite code of a public demo CV (e.g. "demo"); the showcase links to it when set. Build time.
       demoInviteCode: process.env.NUXT_PUBLIC_DEMO_INVITE_CODE || ''
     }

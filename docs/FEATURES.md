@@ -41,7 +41,7 @@ consoles, *CV as Code* describes a CV **and who may see which part of it** in pl
 | File | Contains | IaC analogy |
 |---|---|---|
 | `cv.<locale>.json` | the complete master CV per language, with `requires` / `fieldRequires` markers on confidential parts | resource definitions |
-| `tenant.json` | hosts, profiles (grants, flags, hidden fields), public access | policies / environments |
+| `tenant.json` | hosts, profiles (grants, flags, hidden fields), public access, favicon | policies / environments |
 | `assets/` | photo, logos, screenshots | artifacts |
 
 Properties:

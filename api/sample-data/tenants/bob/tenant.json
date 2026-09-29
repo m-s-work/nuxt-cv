@@ -3,6 +3,7 @@
   "name": "Bob Builder",
   "hosts": [],
   "defaultLocale": "en",
+  "favicon": { "symbol": "terminal", "color": "green" },
   // Visitor tracking (docs/VISITOR_SESSION_TRACKING.md): shown in the consent modal. Without a controller nothing is tracked.
   "privacy": { "controller": "Bob Builder", "contact": "privacy@bob-builder.example" },
   // Tracking defaults: on unless a profile or invite switches it off ("tracking": { "enabled": false }).

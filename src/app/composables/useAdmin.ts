@@ -430,6 +430,13 @@ function removeTrailingCommas(text: string): string {
 }
 
 /** Readable message from a failed $fetch call. */
+export interface FaviconCatalogue {
+  defaults: { symbol: string, color: string, background: string }
+  /** Named colours → hex */
+  colors: Record<string, string>
+  symbols: Array<{ name: string, glyph: string, svg: string }>
+}
+
 export function errorMessage(error: unknown): string {
   const e = error as { statusCode?: number, data?: { error?: string, detail?: string }, message?: string }
   if (e?.data?.error) return e.data.detail ? `${e.data.error}: ${e.data.detail}` : e.data.error
@@ -505,6 +512,9 @@ export function useAdmin() {
     /** PDF of a profile in any template (not cached); revision as for preview. Needs the PDF renderer. */
     pdfPreview: (tenant: string, query: { profile: string, locale?: string, template?: string, vars?: string, revision?: string }) =>
       request<Blob>(`${t(tenant)}/pdf-preview`, { query, responseType: 'blob' }),
+    /** Favicon catalogue: every symbol drawn in the given colours (named or hex; defaults if not set). */
+    faviconCatalogue: (color?: string, background?: string) =>
+      request<FaviconCatalogue>('/favicon', { query: { color: color || undefined, background: background || undefined } }),
     revisions: (tenant: string) => request<CvRevisions>(`${t(tenant)}/revisions`),
     /** Fetches a revision (SHA, tag or branch) from the tenant's git repo again. */
     fetchRevision: (tenant: string, ref: string) =>

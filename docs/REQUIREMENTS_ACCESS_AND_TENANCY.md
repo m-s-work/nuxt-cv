@@ -157,6 +157,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   "hosts": ["bob-cv.velarix.space"],
   "defaultLocale": "en",
   "publicProfile": null,            // e.g. "public" to enable public access on bob's hosts
+  "favicon": { "symbol": "terminal", "color": "green" },   // optional, see §7.1
   // Visitor tracking (VISITOR_SESSION_TRACKING.md): consent modal only with a controller; "tracking" is the default.
   "privacy":  { "controller": "Bob Builder", "contact": "privacy@example.org" },
   "tracking": { "enabled": true },
@@ -196,6 +197,17 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   (so `hidePhoto` also blocks direct URL access to the photo).
 - R7.3 No personal images may live in the frontend's `public/` folder.
 
+### 7.1 Favicon
+
+- R7.F1 Each tenant MAY set its browser-tab icon in `tenant.json`:
+  `"favicon": { "symbol": "cv-braces", "color": "blue", "background": "dark" }`.
+  - `symbol`: `code` (`</>`), `braces` (`{}`), `terminal` (`>_`), `cv-braces` (`{cv}`), `cv-tag` (`<cv/>`), `lambda` (`λ`).
+  - `color` / `background`: `green`, `blue`, `violet`, `amber`, `white`, `dark`, `light` or a hex value (`#rgb`, `#rrggbb`).
+  - Every field is optional; missing, unknown or invalid values use the default (`cv-braces`, `blue` on `dark`).
+- R7.F2 `GET /api/favicon.svg` draws the icon of the visitor's tenant (invite cookie or tenant host), the default
+  otherwise. The page links it; `favicon.ico` of the web container is the default for browsers without SVG favicons.
+  The icon holds no CV data, so it is also served on a tenant host without access.
+
 ---
 
 ## 8. API surface
@@ -207,9 +219,11 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
+| `GET /api/favicon.svg` | cookie / host (optional) | Favicon of the visitor's tenant, else the default (§7.1). `Cache-Control: private, no-cache`. |
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/version` | – | Deployed build: `{ api: { commit, builtAt }, pdf: { commit, builtAt } }`. The web container serves `/version.json` (`{ commit, builtAt }`). |
 | `GET /api/admin/tenants/{tenant}/hash` | admin key | SHA-256 per data file (`tenant.json`, `cv.<locale>.json`, `assets/*`) + `combined`. |
+| `GET /api/admin/favicon?color=&background=` | admin key | Favicon catalogue for the picker: `defaults`, named `colors` and every symbol as SVG in the given colours (§7.1, R13.7). |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`), profile pins, `dataHash`. |
 | `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
 | `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites (`viewOnce`, `viewOnceMinutes`: R4.9). Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
@@ -258,7 +272,7 @@ the CV, `<sha>-dirty` / `unversioned`) and `consent: { required, state, policyVe
 ├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
 └── tenants/
     └── bob/
-        ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale
+        ├── tenant.json          # hosts, profiles, publicProfile, defaultLocale, favicon
         ├── cv.en.json           # master CV (English)
         ├── cv.de.json           # master CV (German)
         ├── assets/              # photos, logos, screenshots
@@ -376,6 +390,10 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   (with erasure), sessions with their event timeline, and heatmaps rendered on the CV snapshot a version's visitors
   saw (`/?heatmap=1`, uses the admin key of the tab). The invite form can switch the consent modal and tracking
   on or off per invite.
+- R13.7 Favicon picker (top of the "Design" tab): symbol, symbol colour and background (named swatches or any
+  hex colour) with a preview at real sizes and in a mock browser tab. The previews come from
+  `GET /api/admin/favicon`, so they match `/api/favicon.svg` exactly. Saving edits only `favicon` in
+  `tenant.json` (comments kept); "Reset to default" removes it (§7.1).
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
   admin page's own CSS chunk, so the public pages are unaffected.

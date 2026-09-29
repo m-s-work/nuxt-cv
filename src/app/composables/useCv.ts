@@ -250,6 +250,13 @@ export function useCv() {
     }
   }
 
+  /** The API draws the favicon of the visitor's tenant; after redeeming an invite it may be a different one. */
+  function refreshFavicon() {
+    if (!import.meta.client) return
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"][type="image/svg+xml"]')
+    if (link) link.href = `${apiBase}/favicon.svg?v=${Date.now()}`
+  }
+
   /** Redeems an invite code. Returns false if the code is not valid. */
   async function redeem(code: string): Promise<boolean> {
     try {
@@ -259,6 +266,7 @@ export function useCv() {
         credentials: 'include'
       })
       inviteRejected.value = false
+      refreshFavicon()
       return true
     } catch {
       inviteRejected.value = true
