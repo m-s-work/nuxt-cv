@@ -25,6 +25,7 @@ export const useTechFilter = () => {
     } else {
       current.splice(index, 1)
     }
+    trackEvent('tech_filter', { a: `tech:${tech}`, tech, on: index === -1 })
 
     updateQueryParams(current)
   }

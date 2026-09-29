@@ -63,6 +63,8 @@ The named volume `cv-data` is mounted at `/data` in the API container:
 
 ```
 /data/app.db       invites (SQLite)
+/data/tracking.db  visitor tracking (SQLite, see docs/VISITOR_SESSION_TRACKING.md)
+/data/geo/         optional city.mmdb + asn.mmdb for local IP → location lookup
 /data/keys/        cookie-signing keys – losing them logs out every invitee
 /data/tenants/<id>/tenant.json, cv.<locale>.json, assets/
 ```
@@ -147,7 +149,26 @@ cd tenants/bob && find . -type f \( -name tenant.json -o -name 'cv.*.json' -o -p
 `GET /api/admin/tenants` lists the combined `dataHash` of every tenant. `/api/cv` returns `cvHash`, the hash of
 exactly the redacted CV the visitor receives.
 
-## 5. Security notes
+## 5. Visitor tracking
+
+Owner-only reading statistics with a consent modal (docs/VISITOR_SESSION_TRACKING.md). Off until enabled per tenant:
+
+1. Add the controller to `tenant.json`: `"privacy": { "controller": "Your Name", "contact": "privacy@example.org" }`.
+   Visitors then see the consent modal; nothing is recorded before they accept.
+2. Optional: switch it off for a profile (`"tracking": { "enabled": false }` in the profile) or per invite (admin UI,
+   "Consent modal & visitor tracking").
+   Readers outside the EU/EEA/UK/CH (`"consent": "notice"`) or who already agreed elsewhere (`"consent": "prior"`,
+   with `consentNote`) can be tracked without the modal; set it per invite in the admin UI (§9.2 of the tracking doc).
+3. Location data comes from the internal `geo` service (compose, no domain): on start it downloads the free
+   DB-IP Lite city and ASN databases (CC BY 4.0) into its volume `geo-data` and checks daily for the next monthly
+   release. The API asks it via `Tracking__GeoUrl` (default `http://geo:3100`); lookups stay inside the server.
+   The admin *Analytics* tab shows the loaded releases. To turn location data off set `CV_GEO_URL=` (empty).
+   Without the service the API can also read `/data/geo/city.mmdb` + `asn.mmdb` directly.
+4. Reports: admin UI → *Analytics*. Data is deleted automatically after the retention periods (`tracking.retention`).
+5. Have the consent texts reviewed before going live; changing them (`CONSENT_TEXT_VERSION` in
+   `src/app/utils/tracking.ts` and `TrackingPolicy.TextVersion` in the API) asks every visitor again.
+
+## 6. Security notes
 
 - The admin API is reachable through the public domain but requires `X-Admin-Key`. Use a long random key.
   To keep it off the internet entirely, leave `CV_ADMIN_API_KEY` empty and only set it temporarily when needed.
@@ -160,7 +181,7 @@ exactly the redacted CV the visitor receives.
 
 ---
 
-## 6. Local development
+## 7. Local development
 
 ```bash
 # API (sample tenants "demo" on localhost and "bob" via invite; admin key "dev-admin-key")

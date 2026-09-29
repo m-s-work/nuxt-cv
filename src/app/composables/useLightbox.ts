@@ -27,6 +27,7 @@ export function useLightbox() {
     currentIndex.value = index
     currentGroupId.value = groupId
     isOpen.value = true
+    trackLightbox(groupId)
     
     // Prevent body scroll when lightbox is open
     if (typeof document !== 'undefined') {

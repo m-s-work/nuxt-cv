@@ -55,7 +55,8 @@ public static class PublicEndpoints
         });
 
         app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf,
-            IConfiguration config, CancellationToken ct) =>
+            IConfiguration config, Tracking.ConsentCookies consentCookies, Tracking.TrackingService tracking,
+            Tracking.CvSourceVersion sourceVersion, CancellationToken ct) =>
         {
             NoStore(ctx);
             var grant = await access.ResolveAsync(ctx, ct);
@@ -66,6 +67,7 @@ public static class PublicEndpoints
 
             var (master, resolvedLocale) = loaded.Value;
             var redacted = CvRedactor.Redact(master, grant.Policy);
+            var redactedJson = redacted.ToJsonString();
             return Results.Ok(new
             {
                 access = new
@@ -82,7 +84,12 @@ public static class PublicEndpoints
                 // Platform site for the "Created with …" credit (shared base URL, if configured).
                 links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
                 // SHA-256 of exactly this redacted CV (the "cv" value below) – for tests and deployment checks.
-                cvHash = Sha256.OfText(redacted.ToJsonString()),
+                cvHash = Sha256.OfText(redactedJson),
+                // Versions of this view for the visitor tracking (§6.4): short hash of the redacted CV and the CV's git SHA.
+                cvVersion = TrackingEndpoints.CvVersionOf(redactedJson),
+                cvSourceSha = sourceVersion.For(grant.Tenant, grant.Policy.Revision),
+                // Consent modal (docs/VISITOR_SESSION_TRACKING.md §9.1); required = false: no modal, no tracking.
+                consent = await TrackingEndpoints.ConsentInfoAsync(ctx, grant, consentCookies, tracking, ct),
                 cv = redacted,
             });
         });

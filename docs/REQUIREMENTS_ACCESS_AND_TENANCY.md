@@ -134,6 +134,9 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   "hosts": ["bob-cv.velarix.space"],
   "defaultLocale": "en",
   "publicProfile": null,            // e.g. "public" to enable public access on bob's hosts
+  // Visitor tracking (VISITOR_SESSION_TRACKING.md): consent modal only with a controller; "tracking" is the default.
+  "privacy":  { "controller": "Bob Builder", "contact": "privacy@example.org" },
+  "tracking": { "enabled": true },
   "profiles": {
     "public":    { "flags": { "hideCompanies": true, "hideTimeframeMonths": true, "hidePhoto": true,
                               "hideContactDetails": true, "hideBirthDate": true },
@@ -147,6 +150,11 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 - Invite `overrides` use the same shape (`flags`, `hiddenFields`, `grants`):
   flags set in the override replace the profile's value, `hiddenFields` are **added**,
   `grants` (if set) **replace** the profile's grants.
+- `tracking.enabled` (consent modal + visitor tracking) can be set on the tenant, a profile and in invite
+  overrides; the most specific level wins (invite > profile > tenant, default on). Without `privacy.controller`
+  there is never a modal or tracking.
+- `tracking.consent` (`modal` default, `notice` = notice + opt-out for readers outside the EU/EEA/UK/CH, `prior` =
+  consent given elsewhere, with `consentNote`) is inherited the same way (VISITOR_SESSION_TRACKING.md §9.2).
 
 ---
 
@@ -193,6 +201,10 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List stored CV revisions (`current`, `modified`, `source`, per revision `outdated`, `changes` (files changed since, same SHA-256 as `…/hash`), `refs`) / register the current CV files as revision `{ sha, message?, committedAt?, repo?, path? }` (§14). |
 | `POST /api/admin/tenants/{tenant}/revisions/fetch` `{ ref }` | admin key | Fetch a revision (SHA, tag or branch) from the tenant's git repo again (§14). |
 | `PUT /api/admin/tenants/{tenant}/invites/{id}/revision` `{ revision }` | admin key | Pin an invite (and its QR invite) to a revision; `""` = current CV, `null` = follow the profile (§14). |
+| `POST /api/consent` `{ choice, source?, policyVersion }` | cookie / host | Visitor tracking: accept / decline the consent modal; `409 policy_changed` if the text changed. See VISITOR_SESSION_TRACKING.md §8. |
+| `DELETE /api/consent` | cookie / host | Withdraw consent (footer "Privacy"). |
+| `POST /api/events` | cookie / host + consent | Tracking events of one session; always `204`. |
+| `GET/DELETE /api/admin/tenants/{tenant}/analytics/…` | admin key | Tracking reports, heatmap data, CV snapshots, erasure (VISITOR_SESSION_TRACKING.md §8.2). |
 
 - Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
   admin endpoints are disabled (`404`).
@@ -205,6 +217,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 
 `/api/cv` also returns `features: { pdf: true|false }` so the frontend only offers the PDF download when available,
 and `cvHash`: the SHA-256 of the compact JSON of the returned `cv` (for tests and deployment checks).
+For the visitor tracking it also returns `cvVersion` (first 16 hex chars of `cvHash`), `cvSourceSha` (git SHA of
+the CV, `<sha>-dirty` / `unversioned`) and `consent: { required, state, policyVersion, controller, contact, retention, signals }`.
 
 ---
 
@@ -213,6 +227,8 @@ and `cvHash`: the SHA-256 of the compact JSON of the returned `cv` (for tests an
 ```
 /data
 ├── app.db                       # SQLite: invites (all tenants)
+├── tracking.db                  # SQLite: visitor tracking (consents, visitors, sessions, events, heat cells, CV snapshots)
+├── geo/                         # optional fallback: city.mmdb + asn.mmdb when no geo service is configured
 ├── pdf/<tenant>/                # rendered PDFs: invite-<id>.<locale>.pdf / public-<profile>.<locale>.pdf (+ .sha256)
 ├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
 └── tenants/
@@ -234,7 +250,8 @@ A sample tenant lives in `api/sample-data/`.
 ## 10. Non-goals (for now)
 
 - No user accounts or passwords for visitors.
-- No per-visitor analytics beyond `useCount` / `lastUsedAt`.
+- No analytics without consent: visitor & session tracking ([`VISITOR_SESSION_TRACKING.md`](VISITOR_SESSION_TRACKING.md))
+  only runs after the visitor accepted the consent modal; it is owner-only and never shown to invitees (R11.4).
 
 ---
 
@@ -248,6 +265,8 @@ A sample tenant lives in `api/sample-data/`.
   privacy flags, invite links, multi-tenancy, languages, timeline, technology filter, print/PDF, dark mode).
 - R11.4 **Analytics and tracking features (e.g. heatmap tracking, visitor statistics, invite usage insights)
   MUST NOT be mentioned** on the showcase or anywhere visible to invitees. They are for the CV owner only.
+  The legally required consent modal for visitor tracking (`VISITOR_SESSION_TRACKING.md` §9.1) is not a
+  feature presentation and is allowed; it describes the recorded data plainly, without marketing it as a feature.
 - R11.5 On a tenant host the showcase is never shown (the neutral page is used), so tenant hosts do not
   advertise the platform.
 
@@ -326,6 +345,11 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
   profile and locale. Saving edits only `templates` of that scope in `tenant.json` (comments kept) and
   stores only the preset plus values that differ from it. See `docs/TEMPLATES.md`.
+- R13.6 Analytics tab (visitor tracking, `VISITOR_SESSION_TRACKING.md`): tracking settings and consent rate,
+  per invite reach, time and interest score, attention per section/entry, technology intent, networks, visitors
+  (with erasure), sessions with their event timeline, and heatmaps rendered on the CV snapshot a version's visitors
+  saw (`/?heatmap=1`, uses the admin key of the tab). The invite form can switch the consent modal and tracking
+  on or off per invite.
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
   admin page's own CSS chunk, so the public pages are unaffected.

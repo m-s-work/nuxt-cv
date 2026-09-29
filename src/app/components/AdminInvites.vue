@@ -33,6 +33,13 @@ async function load() {
 // --- Create -------------------------------------------------------------------------------
 
 const profileItems = computed(() => props.tenant.profiles.map(p => ({ label: p, value: p })))
+const trackingItems = [
+  { label: 'Profile / tenant default', value: 'inherit' },
+  { label: 'Ask first (consent modal)', value: 'modal' },
+  { label: 'Notice + opt-out, no modal (outside EU/EEA/UK/CH only)', value: 'notice' },
+  { label: 'Consent already given elsewhere (no modal)', value: 'prior' },
+  { label: 'Off (no modal, no tracking)', value: 'off' }
+]
 const flagItems = [
   { label: 'profile default', value: 'inherit' },
   { label: 'hide', value: 'on' },
@@ -66,7 +73,9 @@ function emptyForm() {
       flags: Object.fromEntries(REDACTION_FLAGS.map(f => [f, 'inherit'])) as Record<string, FlagChoice>,
       hiddenFields: '',
       grants: '',
-      replaceGrants: false
+      replaceGrants: false,
+      tracking: 'inherit' as NonNullable<OverridesForm['tracking']>,
+      consentNote: ''
     } satisfies OverridesForm
   }
 }
@@ -189,6 +198,10 @@ function overridesSummary(invite: AdminInvite) {
   for (const [flag, value] of Object.entries(o.flags ?? {})) parts.push(`${value ? '+' : '−'}${flag.replace(/^hide/, '')}`)
   if (o.hiddenFields?.length) parts.push(`hidden: ${o.hiddenFields.join(', ')}`)
   if (o.grants) parts.push(`grants: ${o.grants.join(', ') || '(none)'}`)
+  if (o.tracking?.enabled === false) parts.push('no consent modal / tracking')
+  else if (o.tracking?.consent === 'notice') parts.push('tracking: notice + opt-out')
+  else if (o.tracking?.consent === 'prior') parts.push(`tracking: consent given elsewhere${o.tracking.consentNote ? ` (${o.tracking.consentNote})` : ''}`)
+  else if (o.tracking?.enabled === true) parts.push('tracking: consent modal')
   return parts.join(' · ')
 }
 
@@ -227,6 +240,18 @@ onMounted(load)
             />
             <span class="block text-xs text-gray-500">Versions no longer stored are fetched from the CV's git repository.</span>
           </label>
+          <label class="text-sm space-y-1 sm:col-span-2">
+            <span class="text-gray-500">Consent modal &amp; visitor tracking</span>
+            <USelect v-model="form.overrides.tracking" :items="trackingItems" class="w-full" aria-label="Consent modal and tracking" />
+            <UInput
+              v-if="form.overrides.tracking === 'prior'" v-model="form.overrides.consentNote" class="w-full mt-1"
+              placeholder="Where and when, e.g. LinkedIn message 2026-09-01" aria-label="Where consent was given"
+            />
+            <span class="block text-xs text-gray-500">
+              Off: never asked, never tracked. Notice: tracked right away with a notice and opt-out – not allowed for visitors in the EU/EEA/UK/CH.
+              Elsewhere: only if that consent covered this CV's tracking; note where, you may have to prove it.
+            </span>
+          </label>
         </div>
 
         <UButton
@@ -250,7 +275,7 @@ onMounted(load)
         </div>
 
         <p v-if="createError" class="text-sm text-red-600 dark:text-red-400">{{ createError }}</p>
-        <UButton type="submit" icon="i-lucide-plus" label="Create invite" :loading="creating" :disabled="!form.profile || (form.revision === 'other' && !form.otherRevision.trim())" />
+        <UButton type="submit" icon="i-lucide-plus" label="Create invite" :loading="creating" :disabled="!form.profile || (form.revision === 'other' && !form.otherRevision.trim()) || (form.overrides.tracking === 'prior' && !form.overrides.consentNote.trim())" />
         <span v-if="creating" class="text-sm text-gray-500 ml-3">Rendering PDFs, this can take a few seconds…</span>
       </form>
 

@@ -116,3 +116,41 @@ describe('changeSummary', () => {
     expect(changeSummary(undefined)).toBe('')
   })
 })
+
+describe('tracking in the admin', () => {
+  it('adds the tracking switch to invite overrides', async () => {
+    const { buildOverrides } = await import('~/composables/useAdmin')
+    const base = { flags: {}, hiddenFields: '', grants: '', replaceGrants: false }
+    expect(buildOverrides({ ...base, tracking: 'inherit' })).toBeUndefined()
+    expect(buildOverrides({ ...base, tracking: 'off' })).toEqual({ tracking: { enabled: false } })
+    expect(buildOverrides({ ...base, tracking: 'notice' })).toEqual({ tracking: { enabled: true, consent: 'notice' } })
+    expect(buildOverrides({ ...base, tracking: 'prior', consentNote: ' LinkedIn 2026-09 ' }))
+      .toEqual({ tracking: { enabled: true, consent: 'prior', consentNote: 'LinkedIn 2026-09' } })
+  })
+
+  it('formats durations', async () => {
+    const { formatDuration } = await import('~/composables/useAdmin')
+    expect(formatDuration(40_000)).toBe('40 s')
+    expect(formatDuration(200_000)).toBe('3 min 20 s')
+    expect(formatDuration(7_500_000)).toBe('2 h 5 min')
+  })
+
+  it('inlines CV assets for the heatmap view', async () => {
+    const { inlineAssets } = await import('~/composables/useCv')
+    const loaded: string[] = []
+    const result = await inlineAssets({ profile: { photoUrl: '/api/assets/me.jpg' }, x: ['/api/assets/me.jpg', 'keep'] },
+      async (path) => { loaded.push(path); return new Blob(['x']) })
+    expect(loaded).toEqual(['assets/me.jpg'])
+    expect(result.profile.photoUrl).toMatch(/^blob:/)
+    expect(result.x[1]).toBe('keep')
+  })
+})
+
+describe('anchorName', () => {
+  it('names anchors without a CV label', async () => {
+    const { anchorName } = await import('~/composables/useAdmin')
+    expect(anchorName('section:preferredTechs')).toBe('Preferred techs (section)')
+    expect(anchorName('tech:C#')).toBe('C# (technology)')
+    expect(anchorName('experience:3', 'ACME · Architect')).toBe('ACME · Architect')
+  })
+})

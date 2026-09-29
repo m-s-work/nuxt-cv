@@ -54,6 +54,7 @@ const birthDate = computed(() => {
         </svg>
         <a 
           :href="`mailto:${details.email}`"
+          data-track="contact:email"
           class="text-sm text-gray-800 dark:text-gray-200 print:text-black hover:underline"
         >
           {{ details.email }}
@@ -66,6 +67,7 @@ const birthDate = computed(() => {
         </svg>
         <a 
           :href="`tel:${details.phone?.replace(/\s/g, '')}`"
+          data-track="contact:phone"
           class="text-sm text-gray-800 dark:text-gray-200 print:text-black hover:underline"
         >
           {{ details.phone }}
