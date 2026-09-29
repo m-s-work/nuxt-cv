@@ -76,4 +76,26 @@ public sealed class FaviconApiTests : IDisposable
         await visitor.PostAsJsonAsync("/api/access/redeem", new { code });
         Assert.Contains("λ", await Get(visitor));
     }
+
+    [Fact]
+    public async Task Admin_catalogue_draws_every_symbol_in_the_requested_colours()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var catalogue = await admin.GetFromJsonAsync<JsonObject>("/api/admin/favicon?color=violet&background=%23ffffff");
+
+        Assert.Equal("cv-braces", catalogue!["defaults"]!["symbol"]!.GetValue<string>());
+        Assert.Equal("#a78bfa", catalogue["colors"]!["violet"]!.GetValue<string>());
+        var symbols = catalogue["symbols"]!.AsArray();
+        Assert.Equal(Favicon.Symbols.Count, symbols.Count);
+        Assert.All(symbols, s => Assert.Contains("color=\"#a78bfa\"", s!["svg"]!.GetValue<string>()));
+        Assert.All(symbols, s => Assert.Contains("fill=\"#ffffff\"", s!["svg"]!.GetValue<string>()));
+    }
+
+    [Fact]
+    public async Task Admin_catalogue_needs_the_admin_key()
+    {
+        var response = await _factory.ClientFor(ApiFactory.SharedHost).GetAsync("/api/admin/favicon");
+        Assert.False(response.IsSuccessStatusCode);
+    }
 }

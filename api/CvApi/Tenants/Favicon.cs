@@ -49,6 +49,12 @@ public static partial class Favicon
         ["lambda"] = Text("λ", 22),
     };
 
+    /// <summary>What each symbol shows (labels in the admin picker), in catalogue order.</summary>
+    public static readonly IReadOnlyList<(string Name, string Glyph)> Glyphs =
+    [
+        ("code", "</>"), ("braces", "{}"), ("terminal", ">_"), ("cv-braces", "{cv}"), ("cv-tag", "<cv/>"), ("lambda", "λ"),
+    ];
+
     public static string Svg(FaviconConfig? config)
     {
         var symbol = config?.Symbol is { } s && Symbols.TryGetValue(s, out var content) ? content : Symbols[DefaultSymbol];

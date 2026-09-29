@@ -192,6 +192,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/health` | – | Liveness for Coolify. |
 | `GET /api/version` | – | Deployed build: `{ api: { commit, builtAt }, pdf: { commit, builtAt } }`. The web container serves `/version.json` (`{ commit, builtAt }`). |
 | `GET /api/admin/tenants/{tenant}/hash` | admin key | SHA-256 per data file (`tenant.json`, `cv.<locale>.json`, `assets/*`) + `combined`. |
+| `GET /api/admin/favicon?color=&background=` | admin key | Favicon catalogue for the picker: `defaults`, named `colors` and every symbol as SVG in the given colours (§7.1, R13.6). |
 | `GET /api/admin/tenants` | admin key | List tenants, hosts, profiles, locales (existing `cv.<locale>.json`), profile pins, `dataHash`. |
 | `GET /api/admin/tenants/{tenant}/profiles` | admin key | Profile definitions (`grants`, `flags`, `hiddenFields`) of the tenant. |
 | `GET/POST /api/admin/tenants/{tenant}/invites` | admin key | List / create invites. Every invite includes its `code` and `link` (if stored, R4.2). The list includes linked QR invites (`source: "pdf-qr"`, `parentId`). |
@@ -339,6 +340,10 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
   profile and locale. Saving edits only `templates` of that scope in `tenant.json` (comments kept) and
   stores only the preset plus values that differ from it. See `docs/TEMPLATES.md`.
+- R13.6 Favicon picker (top of the "Design" tab): symbol, symbol colour and background (named swatches or any
+  hex colour) with a preview at real sizes and in a mock browser tab. The previews come from
+  `GET /api/admin/favicon`, so they match `/api/favicon.svg` exactly. Saving edits only `favicon` in
+  `tenant.json` (comments kept); "Reset to default" removes it (§7.1).
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
   admin page's own CSS chunk, so the public pages are unaffected.
