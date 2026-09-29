@@ -26,8 +26,10 @@ async function download() {
     link.click()
     link.remove()
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    trackEvent('pdf', { locale: locale.value, ok: true })
   } catch {
     failed.value = true
+    trackEvent('pdf', { locale: locale.value, ok: false })
   } finally {
     loading.value = false
   }

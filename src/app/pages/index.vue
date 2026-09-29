@@ -9,7 +9,8 @@ useSeoMeta({
 
 // CV data comes from the API; tenant and visible fields are decided server-side.
 const { locale } = useI18n()
-const { cv, status, hostKind, ensure } = useCv()
+const { cv, status, hostKind, ensure, consent, versions, arrivedViaLink, decideConsent, withdrawConsent } = useCv()
+const apiBase = useRuntimeConfig().public.apiBase as string
 
 const experiences = computed(() => cv.value?.experiences ?? [])
 const studies = computed(() => cv.value?.studies ?? [])
@@ -17,7 +18,74 @@ const projects = computed(() => cv.value?.projects ?? [])
 const otherEntries = computed(() => cv.value?.otherEntries ?? [])
 
 await ensure(locale.value)
-watch(locale, newLocale => ensure(newLocale))
+watch(locale, (newLocale, oldLocale) => {
+  trackEvent('locale_switch', { from: oldLocale, to: newLocale })
+  ensure(newLocale)
+})
+
+// --- Visitor tracking: consent modal first, tracker only after "Accept" (docs/VISITOR_SESSION_TRACKING.md) ----------
+const isPrint = import.meta.client && new URLSearchParams(window.location.search).has('print')
+const consentOpen = useState<boolean>('consent-modal-open', () => false)
+const consentReopened = ref(false)
+const ownerName = computed(() => cv.value?.profile?.name ?? '')
+
+async function syncTracking() {
+  if (isPrint || status.value !== 'ready' || !consent.value.required) {
+    stopTracking()
+    return
+  }
+  if (consent.value.state === 'accept') {
+    startTracking({
+      apiBase,
+      locale: locale.value,
+      viaLink: arrivedViaLink.value,
+      versions: { appSha: await loadAppSha(), cvVersion: versions.value.cvVersion, cvSourceSha: versions.value.cvSourceSha }
+    })
+  } else {
+    stopTracking()
+  }
+}
+
+async function onAccept() {
+  consentOpen.value = false
+  await decideConsent('accept', consentReopened.value ? 'footer' : 'modal')
+  await syncTracking()
+}
+
+async function onDecline() {
+  consentOpen.value = false
+  const wasAccepted = consent.value.state === 'accept'
+  stopTracking()
+  if (wasAccepted) await withdrawConsent()
+  else await decideConsent('decline', consentReopened.value ? 'footer' : 'modal')
+}
+
+// Footer "Privacy" link re-opens the modal with the current choice.
+watch(consentOpen, (open) => { if (open && consent.value.state) consentReopened.value = true })
+
+function maybeAskConsent() {
+  if (isPrint || status.value !== 'ready' || !consent.value.required || consent.value.state) return
+  useSplashScreen().onSplashHidden(() => {
+    consentReopened.value = false
+    consentOpen.value = true
+  })
+}
+
+onMounted(() => {
+  if (isPrint) return
+  maybeAskConsent()
+  syncTracking()
+})
+// E.g. an invite code entered on the no-access page.
+watch(status, () => { maybeAskConsent(); syncTracking() })
+// Re-fetched CV (locale switch, …): new versions split the session (R4.7).
+watch(versions, () => syncTracking())
+onUnmounted(() => stopTracking())
+
+function onTimelineTrack(entryId: number | string) {
+  const anchor = timelineAnchor(entryId)
+  if (anchor) trackEvent('timeline', { a: anchor, action: 'select' })
+}
 
 // PDF renderer mode (?print=1): tell the renderer when the page is complete.
 // window.__CV_READY__ = 'ready' | 'no-access' | 'error' (see pdf/server.mjs)
@@ -75,6 +143,7 @@ function handleTimelineLeave() {
 
 // Handle timeline click - set as active until first hover
 function handleTimelineClick(entryId: number | string) {
+  onTimelineTrack(entryId)
   clickedEntryId.value = entryId
   activeEntryIds.value = [entryId]
 }
@@ -201,14 +270,19 @@ onUnmounted(() => {
   <CvNoAccess v-else-if="status === 'no-access' || status === 'error'" :error="status === 'error'" />
   <div v-else-if="status === 'loading'" class="min-h-screen bg-white dark:bg-gray-900" />
   <div v-else>
+    <CvConsentModal
+      v-if="consentOpen && consent.required"
+      :consent="consent" :name="ownerName" :reopened="consentReopened"
+      @accept="onAccept" @decline="onDecline" @close="consentOpen = false"
+    />
     <!-- Typeset A4 layout for print / PDF; the screen layout below is hidden in print -->
     <CvPrint />
     <div class="min-h-screen bg-white dark:bg-gray-900 print:hidden">
     <!-- Hero Section - Full page height -->
-    <CvHero />
+    <CvHero data-track="section:hero" />
     
     <!-- Intro Section - Between hero and main content -->
-    <CvIntro v-if="cv?.intro" />
+    <CvIntro v-if="cv?.intro" data-track="section:intro" />
     
     <!-- Main Content with Sidebar Layout -->
     <div class="cv-container">
@@ -218,32 +292,32 @@ onUnmounted(() => {
       >
         <div class="p-6 space-y-8">
           <!-- Profile with Picture (fades in on scroll) - Hidden on mobile -->
-          <div class="sidebar-profile hidden lg:block print:block">
+          <div class="sidebar-profile hidden lg:block print:block" data-track="section:profile">
             <CvProfile />
           </div>
           
           <!-- Personal Details - Hidden on mobile -->
-          <div class="hidden lg:block print:block">
+          <div class="hidden lg:block print:block" data-track="section:details">
             <CvDetails />
           </div>
           
           <!-- Languages - Hidden on mobile -->
-          <div class="hidden lg:block print:block">
+          <div class="hidden lg:block print:block" data-track="section:languages">
             <CvLanguages />
           </div>
           
           <!-- Preferred Technologies - Hidden on mobile -->
-          <div class="hidden lg:block print:block">
+          <div class="hidden lg:block print:block" data-track="section:preferredTechs">
             <CvPreferredTechs />
           </div>
           
           <!-- Driving Licenses - Hidden on mobile -->
-          <div class="hidden lg:block print:block">
+          <div class="hidden lg:block print:block" data-track="section:drivingLicenses">
             <CvDrivingLicenses />
           </div>
 
           <!-- PDF download (hidden when the PDF renderer is not configured) -->
-          <div class="hidden lg:block">
+          <div class="hidden lg:block" data-track="section:pdf">
             <CvPdfButton />
           </div>
 
@@ -261,7 +335,8 @@ onUnmounted(() => {
       <main class="main-content bg-white dark:bg-gray-900 print:bg-white">
         <div class="main-content-wrapper">
           <!-- Timeline (left side) -->
-          <CvTimeline 
+          <CvTimeline
+            data-track="section:timeline" 
             :experiences="experiences"
             :studies="studies"
             :projects="projects"
@@ -275,45 +350,45 @@ onUnmounted(() => {
           <!-- Content (right side) -->
           <div class="content-area p-6 lg:p-8 space-y-8 mx-auto max-w-4xl">
             <!-- Skills Section -->
-            <div id="skills-section">
+            <div id="skills-section" data-track="section:skills">
               <CvSkills />
             </div>
             
             <!-- Experiences Section -->
-            <div v-if="experiences.length" id="experiences-section" ref="experienceSectionRef">
+            <div v-if="experiences.length" id="experiences-section" ref="experienceSectionRef" data-track="section:experiences">
               <CvExperiences :experiences="experiences" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Studies Section -->
-            <div v-if="studies.length" id="studies-section" ref="studiesSectionRef">
+            <div v-if="studies.length" id="studies-section" ref="studiesSectionRef" data-track="section:studies">
               <CvStudies :studies="studies" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Projects Section -->
-            <div v-if="projects.length" id="projects-section" ref="projectsSectionRef">
+            <div v-if="projects.length" id="projects-section" ref="projectsSectionRef" data-track="section:projects">
               <CvProjects :projects="projects" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Other Experiences Section -->
-            <div v-if="otherEntries.length" id="other-section" ref="otherEntriesSectionRef">
+            <div v-if="otherEntries.length" id="other-section" ref="otherEntriesSectionRef" data-track="section:other">
               <CvOtherExperiences :entries="otherEntries" :active-ids="activeEntryIds" />
             </div>
 
             <!-- Sidebar sections on mobile (shown at end) -->
             <div class="lg:hidden print:hidden mobile-sidebar-sections space-y-8 mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
-              <CvPdfButton />
+              <CvPdfButton data-track="section:pdf" />
 
               <!-- Personal Details -->
-              <CvDetails />
+              <CvDetails data-track="section:details" />
               
               <!-- Languages -->
-              <CvLanguages />
+              <CvLanguages data-track="section:languages" />
               
               <!-- Preferred Technologies -->
-              <CvPreferredTechs />
+              <CvPreferredTechs data-track="section:preferredTechs" />
               
               <!-- Driving Licenses -->
-              <CvDrivingLicenses />
+              <CvDrivingLicenses data-track="section:drivingLicenses" />
             </div>
 
             <!-- Footer -->

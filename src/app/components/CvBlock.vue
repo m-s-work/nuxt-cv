@@ -87,6 +87,7 @@ function handleImageClick(index: number) {
   -->
   <UCard 
     :id="`${type}-${id}`"
+    :data-track="`${type}:${id}`"
     :class="{
       '!border-0 !ring-0': true,
       'print:!shadow-none': true,

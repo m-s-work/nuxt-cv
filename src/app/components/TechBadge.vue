@@ -29,6 +29,7 @@ const handleClick = () => {
       'cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all': clickable,
       'shadow-md': selected
     }"
+    :data-track="`tech:${technology}`"
     @click="handleClick"
   >
     {{ technology }}

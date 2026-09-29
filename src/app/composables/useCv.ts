@@ -125,8 +125,26 @@ export interface CvTemplates {
   pdfVars?: Record<string, unknown> | null
 }
 
+/**
+ * Consent modal info from the API (docs/VISITOR_SESSION_TRACKING.md §9.1). `required: false` = no modal and no
+ * tracking (switched off for this tenant / profile / invite). `state` null = the visitor has not decided yet.
+ */
+export interface CvConsent {
+  required: boolean
+  state?: 'accept' | 'decline' | null
+  policyVersion?: string
+  controller?: string
+  contact?: string
+  retention?: { identifiersMonths: number, eventsMonths: number, summaryMonths: number }
+  /** DNT / GPC sent by the browser ("dnt,gpc"). */
+  signals?: string | null
+}
+
 interface CvResponse {
   access: CvAccess
+  cvVersion?: string
+  cvSourceSha?: string
+  consent?: CvConsent
   locale: string
   features?: CvFeatures
   templates?: CvTemplates
@@ -175,6 +193,10 @@ export function useCv() {
   const features = useState<CvFeatures>('cv-features', () => ({ pdf: false }))
   const templates = useState<CvTemplates>('cv-templates', () => ({}))
   const links = useState<CvLinks>('cv-links', () => ({}))
+  const consent = useState<CvConsent>('cv-consent', () => ({ required: false }))
+  const versions = useState<{ cvVersion?: string, cvSourceSha?: string }>('cv-versions', () => ({}))
+  /** The visitor arrived with an invite link (?c=…) in this tab. */
+  const arrivedViaLink = useState<boolean>('cv-arrived-via-link', () => false)
 
   const apiBase = useRuntimeConfig().public.apiBase as string
 
@@ -196,6 +218,8 @@ export function useCv() {
       features.value = response.features ?? { pdf: false }
       templates.value = response.templates ?? {}
       links.value = response.links ?? {}
+      consent.value = response.consent ?? { required: false }
+      versions.value = { cvVersion: response.cvVersion, cvSourceSha: response.cvSourceSha }
       status.value = 'ready'
     } catch (error: unknown) {
       cv.value = null
@@ -231,6 +255,7 @@ export function useCv() {
       const url = new URL(window.location.href)
       const code = url.searchParams.get(INVITE_PARAM)
       if (code) {
+        arrivedViaLink.value = true
         await redeem(code)
         url.searchParams.delete(INVITE_PARAM)
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
@@ -245,9 +270,37 @@ export function useCv() {
     else if (loadedLocale.value !== locale) await load(locale)
   }
 
+  /** Records the visitor's choice in the consent modal (§9.1). */
+  async function decideConsent(choice: 'accept' | 'decline', source: 'modal' | 'footer' = 'modal') {
+    try {
+      await $fetch(`${apiBase}/consent`, {
+        method: 'POST',
+        body: { choice, source, policyVersion: consent.value.policyVersion },
+        credentials: 'include'
+      })
+      consent.value = { ...consent.value, state: choice }
+    } catch {
+      // Text changed meanwhile (409) or network error: the CV stays usable, the modal is shown again on next load.
+      consent.value = { ...consent.value, state: 'decline' }
+    }
+  }
+
+  /** Withdraws an accepted consent (footer "Privacy"): stops tracking and forgets the browser id. */
+  async function withdrawConsent() {
+    try {
+      await $fetch(`${apiBase}/consent`, { method: 'DELETE', credentials: 'include' })
+    } catch { /* ignored: the tracker is stopped either way */ }
+    consent.value = { ...consent.value, state: 'decline' }
+  }
+
   return {
     cv,
     access,
+    consent,
+    versions,
+    arrivedViaLink,
+    decideConsent,
+    withdrawConsent,
     status,
     hostKind,
     features,
