@@ -32,6 +32,31 @@ public sealed class CustomCodeTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, (await visitor.GetAsync("/api/cv")).StatusCode);
     }
 
+    [Fact]
+    public async Task Link_of_a_tenant_without_own_host_points_to_cv_on_the_shared_host()
+    {
+        var response = await Admin().PostAsJsonAsync("/api/admin/tenants/bob/invites", new { profile = "full", code = "bob-demo" });
+        var body = await response.Content.ReadFromJsonAsync<JsonObject>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // "/" is the showcase on the shared host, the CV lives at /cv there.
+        Assert.Equal("/cv?c=bob-demo", body!["link"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Cv_response_tells_the_frontend_the_host_kind()
+    {
+        await Admin().PostAsJsonAsync("/api/admin/tenants/alice/invites", new { profile = "full", code = "host-kind" });
+
+        var shared = _factory.ClientFor(ApiFactory.SharedHost);
+        await shared.PostAsJsonAsync("/api/access/redeem", new { code = "host-kind" });
+        var own = _factory.ClientFor("alice-cv.example.org");
+        await own.PostAsJsonAsync("/api/access/redeem", new { code = "host-kind" });
+
+        Assert.Equal("shared", (await shared.GetFromJsonAsync<JsonObject>("/api/cv"))!["host"]!.GetValue<string>());
+        Assert.Equal("tenant", (await own.GetFromJsonAsync<JsonObject>("/api/cv"))!["host"]!.GetValue<string>());
+    }
+
     [Theory]
     [InlineData("abc")]                       // too short
     [InlineData("has space")]

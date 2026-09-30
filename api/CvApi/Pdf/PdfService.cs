@@ -139,14 +139,15 @@ public sealed class PdfService(
     {
         var appBase = (configuration["Pdf:AppBaseUrl"] ?? "http://web").TrimEnd('/');
         // Nuxt i18n: default locale "en" has no prefix (prefix_except_default).
-        var path = locale == (configuration["Pdf:DefaultUiLocale"] ?? "en") ? "/" : $"/{locale}";
+        var prefix = locale == (configuration["Pdf:DefaultUiLocale"] ?? "en") ? "" : $"/{locale}";
         // The QR code in the PDF must point to the public site, not to the internal render URL.
         // For invites it carries a linked QR invite code, so scanning the printed PDF opens the same view;
         // not for view-once invites, whose view must not outlive its one visit.
-        var publicUrl = PublicUrl(grant.Tenant, path);
+        var publicUrl = PublicUrl(grant.Tenant, prefix);
         if (publicUrl is not null && grant.Invite is { IsViewOnce: false } invite)
             publicUrl += "?c=" + await access.GetOrCreateQrCodeAsync(invite, ct);
-        return new Uri($"{appBase}{path}?print=1" + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}"));
+        // The internal host is no tenant host, so the CV is rendered from /cv ("/" is the showcase there).
+        return new Uri($"{appBase}{prefix}/cv?print=1" + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}"));
     }
 
     private async Task<byte[]> RenderAsync(AccessGrant grant, Uri url, CancellationToken ct)
@@ -159,12 +160,13 @@ public sealed class PdfService(
         return pdf;
     }
 
-    private string? PublicUrl(Tenant tenant, string path)
+    /// <summary>Public CV URL: "/" on the tenant's own host, "/cv" on the shared host ("/" is the showcase there).</summary>
+    private string? PublicUrl(Tenant tenant, string localePrefix)
     {
-        var baseUrl = tenant.Config.Hosts.FirstOrDefault() is { } host
-            ? $"https://{TenantStore.NormalizeHost(host)}"
-            : configuration["Cv:SharedBaseUrl"]?.TrimEnd('/');
-        return string.IsNullOrEmpty(baseUrl) ? null : baseUrl + path;
+        if (tenant.Config.Hosts.FirstOrDefault() is { } host)
+            return $"https://{TenantStore.NormalizeHost(host)}{(localePrefix == "" ? "/" : localePrefix)}";
+        var shared = configuration["Cv:SharedBaseUrl"]?.TrimEnd('/');
+        return string.IsNullOrEmpty(shared) ? null : $"{shared}{localePrefix}/cv";
     }
 
     private string CacheFile(AccessGrant grant, string locale)
