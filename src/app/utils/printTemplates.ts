@@ -9,6 +9,8 @@ const accentSuggestions = ['#1d4ed8', '#29a8e0', '#0f766e', '#b45309', '#be123c'
 /**
  * Registry of print/PDF templates. To add one: create components/print/Print<Name>.vue
  * (use usePrintData() for the data), register it here and document it in docs/TEMPLATES.md.
+ * preview: first page with the sample tenant, shown when hovering the template in the admin Design tab;
+ * regenerate with `node scripts/template-previews.mjs` (see docs/TEMPLATES.md).
  * Names must match ^[a-z0-9][a-z0-9-]{0,31}$ (validated by the API).
  */
 export const printTemplates = {
@@ -16,6 +18,7 @@ export const printTemplates = {
     name: 'editorial',
     title: 'Editorial',
     description: 'Typeset two-column layout with serif name, photo, sidebar and date gutter.',
+    preview: '/templates/editorial.jpg',
     component: PrintEditorial as Component,
     vars: {
       vars: {
@@ -27,6 +30,7 @@ export const printTemplates = {
     name: 'classic',
     title: 'Classic',
     description: 'Single column, black and white, no photo – compact and ATS-friendly.',
+    preview: '/templates/classic.jpg',
     component: PrintClassic as Component,
     vars: undefined as TemplateVarsSchema | undefined
   },
@@ -34,6 +38,7 @@ export const printTemplates = {
     name: 'banner',
     title: 'Banner',
     description: 'Dark header band, round photo, full-height navy sidebar, accent initials – full bleed.',
+    preview: '/templates/banner.jpg',
     component: PrintBanner as Component,
     vars: {
       vars: {

@@ -383,7 +383,8 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   CV versions and see outdated pins (§14).
 - R13.5 Template builder ("Design" tab): choose the PDF template, colour set and template variables for the
   tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
-  profile and locale. Saving edits only `templates` of that scope in `tenant.json` (comments kept) and
+  profile and locale. Hovering a template shows a static preview image rendered from the sample tenant
+  (never real CV data). Saving edits only `templates` of that scope in `tenant.json` (comments kept) and
   stores only the preset plus values that differ from it. See `docs/TEMPLATES.md`.
 - R13.6 Analytics tab (visitor tracking, `VISITOR_SESSION_TRACKING.md`): tracking settings and consent rate,
   per invite reach, time and interest score, attention per section/entry, technology intent, networks, visitors

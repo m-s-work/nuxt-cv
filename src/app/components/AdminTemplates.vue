@@ -223,16 +223,28 @@ onBeforeUnmount(() => {
             <span class="font-medium">Not set here</span>
             <span class="block text-xs text-gray-500">{{ scope.kind === 'tenant' ? 'System default (Editorial)' : 'Uses the tenant default' }}</span>
           </button>
-          <button
-            v-for="t in templateList" :key="t.name" type="button"
-            class="text-left rounded-md border px-3 py-2"
-            :class="template === t.name ? 'border-primary ring-1 ring-primary' : 'border-gray-200 dark:border-gray-700'"
-            :data-testid="`template-${t.name}`"
-            @click="template = t.name"
+          <!-- Hover (or keyboard focus) shows the first page with the sample tenant, not the tenant's own CV. -->
+          <UPopover
+            v-for="t in templateList" :key="t.name" mode="hover" :open-delay="150" :close-delay="0"
+            :content="{ side: 'right', align: 'start', sideOffset: 12, collisionPadding: 12 }"
           >
-            <span class="font-medium">{{ t.title }}</span>
-            <span class="block text-xs text-gray-500">{{ t.description }}</span>
-          </button>
+            <button
+              type="button"
+              class="w-full text-left rounded-md border px-3 py-2"
+              :class="template === t.name ? 'border-primary ring-1 ring-primary' : 'border-gray-200 dark:border-gray-700'"
+              :data-testid="`template-${t.name}`"
+              @click="template = t.name"
+            >
+              <span class="font-medium">{{ t.title }}</span>
+              <span class="block text-xs text-gray-500">{{ t.description }}</span>
+            </button>
+            <template #content>
+              <figure class="p-2 w-72" :data-testid="`template-preview-${t.name}`">
+                <img :src="t.preview" :alt="`${t.title} template preview`" width="600" height="849" class="w-full h-auto rounded border border-gray-200 dark:border-gray-700 bg-white">
+                <figcaption class="mt-1.5 text-xs text-gray-500">{{ t.title }} – example data</figcaption>
+              </figure>
+            </template>
+          </UPopover>
         </div>
       </div>
 
