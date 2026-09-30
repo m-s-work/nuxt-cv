@@ -25,12 +25,31 @@ const PDF_OPTIONS = {
 const escapeHtml = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 // Running footer in the bottom page margin: "<name> · Curriculum Vitae" left, page numbers right.
-// Text comes from window.__CV_PDF_FOOTER__ (set by the page).
-function footerTemplate(text) {
-  return `<div style="width:100%;margin:0 15mm;display:flex;justify-content:space-between;
-    font-family:system-ui,sans-serif;font-size:7pt;color:#9aa1ad;letter-spacing:0.02em">
+// Text comes from window.__CV_PDF_FOOTER__ (set by the page). A template with a full-height sidebar sets
+// window.__CV_PDF_FOOTER_SIDE__ = { width, height, background, color } (height = the bottom page margin) so the sidebar continues through the
+// footer (the margin area is not part of the page content) and the name sits on the sidebar colour.
+const CSS_LENGTH = /^\d+(\.\d+)?(mm|pt|px|cm|in)$/
+const CSS_COLOR = /^(#[0-9a-fA-F]{3,8}|[a-z]+)$/
+
+function footerTemplate(text, side) {
+  const width = side && CSS_LENGTH.test(side.width) ? side.width : null
+  const height = side && CSS_LENGTH.test(side.height) ? side.height : '14mm'
+  const background = width && CSS_COLOR.test(side.background) ? side.background : null
+  const color = background && CSS_COLOR.test(side.color) ? side.color : null
+  const base = 'font-family:system-ui,sans-serif;font-size:7pt;letter-spacing:0.02em;color:#9aa1ad'
+  const pages = '<span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span>'
+  if (!background) {
+    return `<div style="width:100%;margin:0 15mm;display:flex;justify-content:space-between;${base}">
     <span>${escapeHtml(text)}</span>
-    <span><span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span></span>
+    <span>${pages}</span>
+  </div>`
+  }
+  return `<style>html,body{margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>
+  <div style="position:absolute;left:0;right:0;bottom:0;height:${height};display:flex;align-items:center;${base}">
+    <div style="position:absolute;top:0;bottom:0;left:0;width:${width};background:${background}"></div>
+    <span style="position:relative;width:${width};box-sizing:border-box;padding:0 6mm 0 9mm;color:${color ?? '#e8edf6'};opacity:0.75;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(text)}</span>
+    <span style="position:relative;margin-left:auto;padding-right:14mm">${pages}</span>
   </div>`
 }
 
@@ -91,11 +110,12 @@ async function render({ url, cookies = [], timeoutMs = DEFAULT_TIMEOUT_MS }) {
     if (state !== 'ready') throw new RenderError(422, `page not renderable: ${state}`)
     await page.evaluate(() => document.fonts.ready)
     const footer = await page.evaluate(() => window.__CV_PDF_FOOTER__ || '')
+    const footerSide = await page.evaluate(() => window.__CV_PDF_FOOTER_SIDE__ || null)
     return await page.pdf({
       ...PDF_OPTIONS,
       displayHeaderFooter: Boolean(footer),
       headerTemplate: '<span></span>',
-      footerTemplate: footerTemplate(footer)
+      footerTemplate: footerTemplate(footer, footerSide)
     })
   } finally {
     await context.close()

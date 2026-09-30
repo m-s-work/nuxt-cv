@@ -33,6 +33,24 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`
 - Reference the issue in the PR description (`Closes #71`).
 - Breaking changes: `feat!: …` or a `BREAKING CHANGE:` footer.
 
+### Every code change gets a pull request
+
+- Every code change is pushed on a branch and opened as a PR, so nothing is lost when a session or
+  container ends. Do not leave work only in a local checkout or on an unpushed branch.
+- Before creating a branch, run `git branch -a` and check that the name follows the branch format above
+  (`<type>/<nr>-<description>`); rename or create a correctly named branch if not.
+  Exception: if the session tooling assigns a branch name (e.g. `claude/…`), use it and put the
+  Conventional Commit in the PR title instead.
+
+### Delegating to subagents
+
+- Simple, well-scoped coding tasks (small UI fixes, renames, boilerplate, adding tests, doc edits) may be
+  handed off to Sonnet subagents when that saves tokens and/or speeds up the dev cycle by running
+  independent tasks in parallel.
+- Give each subagent a self-contained brief (files, expected behaviour, commands to run) and, for parallel
+  runs, non-overlapping files. Review and verify their result (tests, build) before committing.
+- Keep architecture, security-relevant (redaction, tenancy) and cross-cutting changes with the main agent.
+
 ### No force pushes
 
 - **Never force-push** (`git push --force`, `--force-with-lease`, deleting and re-pushing a branch)

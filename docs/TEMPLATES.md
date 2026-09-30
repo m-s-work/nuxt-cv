@@ -126,7 +126,8 @@ the UI: copy the snippet into the repository as well.
    optional `vars` schema with defaults and presets). The component receives the resolved values as `vars` prop.
 3. Add labels to `src/app/utils/printLabels.ts` if needed (EN + DE).
 4. Check it: `pdf-preview` with `template=<name>` for a full and a heavily redacted profile.
-5. After changing an existing template, bump `CV_PDF_LAYOUT_VERSION` so cached PDFs are re-rendered.
+5. Cached PDFs re-render automatically after a deployment (the build commit is part of the cache key);
+   `CV_PDF_LAYOUT_VERSION` forces it without a new build.
 6. Generate its preview image (`src/public/templates/<name>.jpg`; also after visible changes to a template).
    It renders page 1 of `pdf-preview` for the sample tenant `demo` (profile `full`) with pdf.js:
 
@@ -138,7 +139,13 @@ the UI: copy the snippet into the repository as well.
    ```
 
 The page size and margins (`@page`, A4) and the running footer (name, page x / y) are shared by all
-templates.
+templates. The footer is drawn by Chromium in the bottom page margin, outside the page content, so page
+backgrounds do not reach it. A template with a full-height sidebar sets
+`window.__CV_PDF_FOOTER_SIDE__ = { width, height, background, color }` (height = bottom margin) and the
+renderer continues the sidebar through the footer, with the name on the sidebar colour (see `PrintBanner.vue`).
+
+The banner template shows the initials in the photo circle when there is no photo or the profile hides it
+(`hidePhoto`).
 
 ---
 

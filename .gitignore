@@ -32,6 +32,3 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
-
-# Created by the API when running on the sample data
-api/sample-data/tracking.db*
