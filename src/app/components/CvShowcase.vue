@@ -40,6 +40,21 @@ const steps = ['maintain', 'invite', 'open'] as const
 // The visitor already redeemed an invite in this browser: link to the CV (/cv) instead of dropping the code.
 defineProps<{ hasAccess?: boolean }>()
 
+// "Not your invitation?": removes the invite from this browser (shared computers). Needs a confirmation, as the
+// visitor needs the link again to reopen the CV. Never says whether the invite is view-once (R4.9).
+const { forget } = useCv()
+const confirmForget = ref(false)
+const forgetting = ref(false)
+
+async function forgetInvite() {
+  forgetting.value = true
+  if (await forget()) {
+    window.location.reload()
+    return
+  }
+  forgetting.value = false
+}
+
 const { t } = useI18n()
 const { getAssetPath } = useAssetPath()
 const demoCode = useRuntimeConfig().public.demoInviteCode as string
@@ -96,6 +111,32 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
             >
               {{ t('showcase.continue') }}
             </NuxtLink>
+            <div class="-mt-4 mb-6 text-sm text-gray-500 dark:text-gray-400">
+              <button
+                v-if="!confirmForget" type="button" data-testid="showcase-forget"
+                class="underline hover:text-gray-700 dark:hover:text-gray-200" @click="confirmForget = true"
+              >
+                {{ t('showcase.forget') }}
+              </button>
+              <div v-else class="space-y-2" role="alert">
+                <p>{{ t('showcase.forgetConfirm') }}</p>
+                <div class="flex gap-2">
+                  <button
+                    type="button" data-testid="showcase-forget-confirm" :disabled="forgetting"
+                    class="rounded-lg bg-red-600 px-3 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    @click="forgetInvite"
+                  >
+                    {{ t('showcase.forgetYes') }}
+                  </button>
+                  <button
+                    type="button" class="rounded-lg px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    @click="confirmForget = false"
+                  >
+                    {{ t('showcase.forgetNo') }}
+                  </button>
+                </div>
+              </div>
+            </div>
           </template>
           <h2 class="text-lg font-semibold mb-1">{{ t('showcase.inviteTitle') }}</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ t('showcase.inviteText') }}</p>
@@ -279,7 +320,11 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
       "tryDemo": "Try the demo CV",
       "continueTitle": "Your invitation",
       "continueText": "You have already opened an invitation in this browser.",
-      "continue": "Continue to the CV"
+      "continue": "Continue to the CV",
+      "forget": "Not your invitation? Remove it from this browser",
+      "forgetConfirm": "Remove the invitation from this browser? You will need the invite link again to reopen the CV.",
+      "forgetYes": "Remove",
+      "forgetNo": "Cancel"
     }
   },
   "de": {
@@ -378,7 +423,11 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
       "tryDemo": "Demo-Lebenslauf ansehen",
       "continueTitle": "Deine Einladung",
       "continueText": "Du hast in diesem Browser bereits eine Einladung geöffnet.",
-      "continue": "Weiter zum Lebenslauf"
+      "continue": "Weiter zum Lebenslauf",
+      "forget": "Nicht deine Einladung? Aus diesem Browser entfernen",
+      "forgetConfirm": "Einladung aus diesem Browser entfernen? Zum erneuten Öffnen des Lebenslaufs brauchst du den Einladungslink wieder.",
+      "forgetYes": "Entfernen",
+      "forgetNo": "Abbrechen"
     }
   }
 }

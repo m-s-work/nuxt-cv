@@ -265,6 +265,16 @@ export function useCv() {
     if (link) link.href = `${apiBase}/favicon.svg?v=${Date.now()}`
   }
 
+  /** Removes the invite from this browser (access cookie); the invite itself stays valid. */
+  async function forget(): Promise<boolean> {
+    try {
+      await $fetch(`${apiBase}/access/logout`, { method: 'POST', credentials: 'include' })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** Redeems an invite code. Returns false if the code is not valid. */
   async function redeem(code: string): Promise<boolean> {
     try {
@@ -369,6 +379,7 @@ export function useCv() {
     init,
     load,
     ensure,
-    redeem
+    redeem,
+    forget
   }
 }

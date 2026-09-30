@@ -304,6 +304,9 @@ A sample tenant lives in `api/sample-data/`.
 - R11.1 Visitors of the shared host see a showcase page at `/`: what the product does,
   example screenshots, the public feature list and an invite-code form. Visitors who already have access
   additionally get a "Continue to the CV" link to `/cv` (R2.5); the invite is never dropped for this.
+  Below it, "Not your invitation? Remove it from this browser" (for shared computers) clears the access cookie
+  via `POST /api/access/logout` after a confirmation ("you need the invite link again"). The invite is not revoked;
+  the text never says whether it is view-once (R4.9).
 - R11.2 Screenshots MUST only show the sample tenant (`api/sample-data`), never a real CV. They are static
   files in `src/public/showcase/` and are regenerated from the sample tenant when the UI changes.
 - R11.3 The feature list MUST only contain **public** features (e.g. JSON-based CV, field-level gating,
