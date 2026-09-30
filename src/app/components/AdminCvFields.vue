@@ -14,6 +14,9 @@ const props = defineProps<{
   ignore?: string[]
 }>()
 
+// Tenant of the file being edited (provided by AdminCvEditor), for the asset picker.
+const tenantId = inject<string>('cv-editor-tenant', '')
+
 const get = (key: string) => props.value[key]
 const text = (key: string) => {
   const v = get(key)
@@ -65,6 +68,17 @@ const others = computed(() => unknownKeys(props.value, props.fields, [...(props.
             <USwitch :model-value="get(f.key) === true" @update:model-value="setField(value, f.key, $event ? true : null)" />
             {{ f.label }}
           </label>
+
+          <!-- Not in a <label>: a click anywhere in it would activate the picker's first button. -->
+          <div v-else-if="f.type === 'image' || f.type === 'images'" class="space-y-1">
+            <span class="text-xs font-medium text-gray-500 block">{{ f.label }}</span>
+            <AdminAssetPicker
+              :tenant-id="tenantId" :multiple="f.type === 'images'"
+              :model-value="f.type === 'images' ? list(f.key) : text(f.key) ? [text(f.key)] : []"
+              @update:model-value="setField(value, f.key, f.type === 'images' ? $event : $event[0] ?? null)"
+            />
+            <span v-if="f.hint" class="text-xs text-gray-500 block">{{ f.hint }}</span>
+          </div>
 
           <label v-else class="block space-y-1">
             <span class="text-xs font-medium text-gray-500 block">{{ f.label }}</span>

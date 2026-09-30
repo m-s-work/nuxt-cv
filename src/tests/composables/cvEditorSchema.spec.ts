@@ -64,3 +64,16 @@ describe('helpers', () => {
     expect(toLines(' a \n\n b\n')).toEqual(['a', 'b'])
   })
 })
+
+describe('media and website fields', () => {
+  it('uses the image picker for photos and media lists', () => {
+    const types = (block: string) => Object.fromEntries(field(block).fields!.map(f => [f.key, f.type]))
+    expect(types('profile').photoUrl).toBe('image')
+    expect(types('projects')).toMatchObject({ screenshots: 'images', images: 'images', logos: 'images' })
+  })
+
+  it('offers a website link on every dated entry', () => {
+    for (const block of ['experiences', 'studies', 'projects', 'otherEntries'])
+      expect(field(block).fields!.map(f => f.key)).toEqual(expect.arrayContaining(['url', 'urlLabel']))
+  })
+})

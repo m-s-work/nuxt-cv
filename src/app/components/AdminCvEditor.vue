@@ -13,6 +13,7 @@ const emit = defineEmits<{
   saved: []
 }>()
 const admin = useAdmin()
+provide('cv-editor-tenant', props.tenantId)
 
 const path = computed(() => `cv.${props.locale}.json`)
 const draft = ref<Record<string, unknown> | null>(null)

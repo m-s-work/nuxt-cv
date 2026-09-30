@@ -11,8 +11,10 @@ export type CvFieldType =
   | 'text' | 'textarea' | 'number' | 'date' | 'boolean'
   /** List of short strings (technologies, skills). */
   | 'tags'
-  /** List of longer strings, one per line (image URLs). */
+  /** List of longer strings, one per line. */
   | 'lines'
+  /** Image (asset or link to an image on a website): one, or a list. */
+  | 'image' | 'images'
   /** Grants needed to see an entry (`requires`). */
   | 'grants'
   | 'object' | 'list'
@@ -55,6 +57,13 @@ const REQUIRES: CvEditorField = {
   hint: 'Profiles / invites without all of these grants do not get this entry, e.g. private'
 }
 const ICON: CvEditorField = { key: 'icon', label: 'Icon', type: 'text', placeholder: 'e.g. briefcase, lightbulb' }
+const WEBSITE: CvEditorField[] = [
+  {
+    key: 'url', label: 'Website', type: 'text', placeholder: 'https://…',
+    hint: 'Link to a live website. Visitors open it through this site (the click is tracked, the site gets no referrer).'
+  },
+  { key: 'urlLabel', label: 'Link text', type: 'text', placeholder: 'default: the website’s host' }
+]
 const TECHNOLOGIES: CvEditorField = { key: 'technologies', label: 'Technologies', type: 'tags', wide: true }
 
 export const cvEditorSchema: CvEditorField[] = [
@@ -65,8 +74,8 @@ export const cvEditorSchema: CvEditorField[] = [
       { key: 'title', label: 'Title', type: 'text', placeholder: 'e.g. Software Architect' },
       { key: 'academicTitlePrefix', label: 'Academic title (prefix)', type: 'text', placeholder: 'e.g. Dr.' },
       { key: 'academicTitleSuffix', label: 'Academic title (suffix)', type: 'text', placeholder: 'e.g. Ph.D.' },
-      { key: 'photoUrl', label: 'Photo', type: 'text', placeholder: '/api/assets/photo.jpg' },
-      { key: 'photoUrlLarge', label: 'Photo (large)', type: 'text', placeholder: '/api/assets/photo-large.jpg' }
+      { key: 'photoUrl', label: 'Photo', type: 'image' },
+      { key: 'photoUrlLarge', label: 'Photo (large)', type: 'image' }
     ]
   },
   {
@@ -134,8 +143,9 @@ export const cvEditorSchema: CvEditorField[] = [
       ...DATES,
       { key: 'description', label: 'Description', type: 'textarea', wide: true },
       TECHNOLOGIES,
-      { key: 'images', label: 'Images', type: 'lines', wide: true, placeholder: '/api/assets/…' },
-      { key: 'logos', label: 'Logos', type: 'lines', wide: true, placeholder: '/api/assets/…' },
+      { key: 'images', label: 'Images', type: 'images', wide: true },
+      { key: 'logos', label: 'Logos', type: 'images', wide: true },
+      ...WEBSITE,
       REQUIRES
     ]
   },
@@ -149,6 +159,7 @@ export const cvEditorSchema: CvEditorField[] = [
       ICON,
       ...DATES,
       TECHNOLOGIES,
+      ...WEBSITE,
       REQUIRES
     ]
   },
@@ -164,9 +175,10 @@ export const cvEditorSchema: CvEditorField[] = [
       ...DATES,
       { key: 'description', label: 'Description', type: 'textarea', wide: true },
       TECHNOLOGIES,
-      { key: 'screenshots', label: 'Screenshots', type: 'lines', wide: true, placeholder: '/api/assets/…' },
-      { key: 'images', label: 'Images', type: 'lines', wide: true, placeholder: '/api/assets/…' },
-      { key: 'logos', label: 'Logos', type: 'lines', wide: true, placeholder: '/api/assets/…' },
+      { key: 'screenshots', label: 'Screenshots', type: 'images', wide: true },
+      { key: 'images', label: 'Images', type: 'images', wide: true },
+      { key: 'logos', label: 'Logos', type: 'images', wide: true },
+      ...WEBSITE,
       REQUIRES
     ]
   },
@@ -180,7 +192,8 @@ export const cvEditorSchema: CvEditorField[] = [
       ...DATES,
       { key: 'showPeriod', label: 'Show period', type: 'boolean' },
       { key: 'description', label: 'Description', type: 'textarea', wide: true },
-      { key: 'images', label: 'Images', type: 'lines', wide: true, placeholder: '/api/assets/…' },
+      { key: 'images', label: 'Images', type: 'images', wide: true },
+      ...WEBSITE,
       REQUIRES
     ]
   }
@@ -190,7 +203,7 @@ export const cvEditorSchema: CvEditorField[] = [
 export function emptyValue(field: CvEditorField): unknown {
   switch (field.type) {
     case 'object': return {}
-    case 'list': case 'tags': case 'lines': case 'grants': return []
+    case 'list': case 'tags': case 'lines': case 'images': case 'grants': return []
     case 'boolean': return false
     case 'number': return null
     default: return ''
