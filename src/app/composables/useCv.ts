@@ -44,6 +44,10 @@ export interface CvDated {
   endDate: string | null
   period?: string
   icon?: string
+  /** Website of the entry: "/api/go/<key>" (redirect through the API), in the admin preview the URL itself. */
+  url?: string
+  urlLabel?: string
+  urlHost?: string
 }
 
 export interface CvExperience extends CvDated {

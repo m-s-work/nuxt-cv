@@ -15,6 +15,9 @@ interface Props {
     screenshots?: string[]
     images?: string[]
     logos?: string[]
+    url?: string
+    urlLabel?: string
+    urlHost?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -57,6 +60,9 @@ function getProjectMedia(project: Props['projects'][0]) {
         :key="project.id"
         :id="project.id"
         :title="project.name"
+        :url="project.url"
+        :url-label="project.urlLabel"
+        :url-host="project.urlHost"
         :subtitle="project.type"
         :period="project.period"
         :description="project.description"

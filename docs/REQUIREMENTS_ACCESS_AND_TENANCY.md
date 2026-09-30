@@ -197,6 +197,26 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   (so `hidePhoto` also blocks direct URL access to the photo).
 - R7.3 No personal images may live in the frontend's `public/` folder.
 
+### 7.2 External images and website links
+
+- R7.E1 Media fields (`images`, `screenshots`, `logos`, `photo*`) MAY hold links to images on live websites
+  (`https://…`). Visitors never get the link: the API delivers `/api/media/<key>` (key = first 32 hex chars of the
+  URL's SHA-256) and serves the image itself, so the visitor's browser contacts no third party.
+  - Only URLs contained in the visitor's redacted CV are served (no open proxy; hidden entries stay hidden).
+  - Fetched directly (no system proxy) and only from public addresses (no loopback, private, link-local or CGNAT
+    networks); only images (PNG, JPEG, GIF, WebP, AVIF, SVG, ICO), at most 10 MB, 15 s timeout.
+  - Cached in `/data/cache/external-media/` for `Cv__ExternalMediaCacheHours` (default 24); a stale copy is served
+    while the origin is unreachable. Responses carry a sandboxing CSP (SVGs cannot run scripts on this origin).
+- R7.E2 Entries (experiences, studies, projects, other) MAY link to a live website: `url` (+ optional `urlLabel`).
+  The API delivers `url` as `/api/go/<key>` plus `urlHost` (shown as link text when there is no label);
+  `/api/go/<key>` redirects there (`302`, `Referrer-Policy: no-referrer`) if the visitor's redacted CV contains it.
+  The click is recorded by the visitor tracking as `link_out` (kind by the target host, only with consent,
+  `VISITOR_SESSION_TRACKING.md`).
+- R7.E3 `hideCompanies` also removes the website of experiences and of projects that name a client (it would
+  reveal the company).
+- R7.E4 `cvHash` / `cvVersion` of `/api/cv` are computed before the links are replaced (as tracking and
+  `cv-sync.sh --verify` compute them). The admin preview gets the original links.
+
 ### 7.1 Favicon
 
 - R7.F1 Each tenant MAY set its browser-tab icon in `tenant.json`:
@@ -218,6 +238,8 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/access/logout` | – | Clear access cookie. |
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
+| `GET /api/media/{key}` | cookie / host | External image of the visitor's redacted CV, proxied and cached (§7.2), else `404`. |
+| `GET /api/go/{key}` | cookie / host | Redirect to a website linked in the visitor's redacted CV (§7.2), else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/favicon.svg` | cookie / host (optional) | Favicon of the visitor's tenant, else the default (§7.1). `Cache-Control: private, no-cache`. |
 | `GET /api/health` | – | Liveness for Coolify. |
@@ -269,6 +291,7 @@ the CV, `<sha>-dirty` / `unversioned`) and `consent: { required, state, policyVe
 ├── app.db                       # SQLite: invites (all tenants)
 ├── tracking.db                  # SQLite: visitor tracking (consents, visitors, sessions, events, heat cells, CV snapshots)
 ├── geo/                         # optional fallback: city.mmdb + asn.mmdb when no geo service is configured
+├── cache/external-media/       # proxied external images (§7.2), safe to delete
 ├── pdf/<tenant>/                # rendered PDFs: invite-<id>.<locale>.pdf / public-<profile>.<locale>.pdf (+ .sha256)
 ├── keys/                        # ASP.NET Data Protection keys (cookie signing) – MUST persist
 └── tenants/
@@ -382,7 +405,9 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   assets; pin invites to CV versions and see outdated pins (§14).
 - R13.3a Edit tab: a graphical editor for `cv.<locale>.json` next to a preview of any profile, locale and stored
   CV version. The editor shows one collapsible section per block (profile, details, intro, skills, languages,
-  experiences, …) with forms for its fields, list entries can be added, duplicated, reordered and removed; the
+  experiences, …) with forms for its fields, list entries can be added, duplicated, reordered and removed; photos,
+  logos, images and screenshots are picked from the tenant's assets (with thumbnails and upload) or linked from a
+  website (§7.2), entries can link to a website; the
   redaction markers (`requires`, `fieldRequires`, `companyAlias`, `clientAlias`) are editable too. Keys it does not
   know are kept unchanged; saving writes formatted JSON (comments are removed, after a warning). The preview shows
   the CV as **Web** (the real CV page in an iframe, `/?preview=1`, fed by the admin page via `postMessage`, phone /

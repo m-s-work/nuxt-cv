@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CvApi.Access;
+using CvApi.Media;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
@@ -8,7 +9,7 @@ using Microsoft.AspNetCore.StaticFiles;
 
 namespace CvApi.Endpoints;
 
-public static class PublicEndpoints
+public static partial class PublicEndpoints
 {
     public const string AssetPrefix = "/api/assets/";
     public const string RedeemRateLimitPolicy = "redeem";
@@ -67,7 +68,10 @@ public static class PublicEndpoints
 
             var (master, resolvedLocale) = loaded.Value;
             var redacted = CvRedactor.Redact(master, grant.Policy);
+            // Hashes and versions are of the redacted CV itself (as tracking and cv-sync compute them); only then are
+            // external images and website links replaced by /api/media and /api/go paths (§7.2).
             var redactedJson = redacted.ToJsonString();
+            ExternalLinks.Rewrite(redacted);
             return Results.Ok(new
             {
                 access = new
@@ -83,7 +87,7 @@ public static class PublicEndpoints
                 templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html, pdfVars = grant.Templates.PdfVars },
                 // Platform site for the "Created with …" credit (shared base URL, if configured).
                 links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
-                // SHA-256 of exactly this redacted CV (the "cv" value below) – for tests and deployment checks.
+                // SHA-256 of the redacted CV (the "cv" value below before external URLs are proxied) – for tests and deployment checks.
                 cvHash = Sha256.OfText(redactedJson),
                 // Versions of this view for the visitor tracking (§6.4): short hash of the redacted CV and the CV's git SHA.
                 cvVersion = TrackingEndpoints.CvVersionOf(redactedJson),
@@ -142,7 +146,46 @@ public static class PublicEndpoints
                 : "application/octet-stream";
             return Results.File(path, contentType);
         });
+
+        // External image of the visitor's CV, fetched and cached by the API (§7.2).
+        app.MapGet("/media/{key}", async (string key, HttpContext ctx, AccessService access, TenantStore tenants,
+            ExternalMedia media, CancellationToken ct) =>
+        {
+            NoStore(ctx);
+            var grant = await access.ResolveAsync(ctx, ct);
+            if (grant is null || FindExternal(grant, tenants, key, ExternalLinks.Kind.Media) is not { } url) return Results.NotFound();
+            if (await media.GetAsync(url, ct) is not { } file) return Results.NotFound();
+            // SVGs from elsewhere must not run scripts on this origin when opened directly.
+            ctx.Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+            ctx.Response.Headers.XContentTypeOptions = "nosniff";
+            return Results.File(file.Path, file.ContentType);
+        });
+
+        // Link to a live website in the visitor's CV: redirects there (the frontend records the click as link_out).
+        app.MapGet("/go/{key}", async (string key, HttpContext ctx, AccessService access, TenantStore tenants, CancellationToken ct) =>
+        {
+            NoStore(ctx);
+            ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+            var grant = await access.ResolveAsync(ctx, ct);
+            if (grant is null || FindExternal(grant, tenants, key, ExternalLinks.Kind.Link) is not { } url) return Results.NotFound();
+            return Results.Redirect(url);
+        });
     }
+
+    /// <summary>External URL of a key if the visitor's redacted CV (in any locale) contains it.</summary>
+    private static string? FindExternal(AccessGrant grant, TenantStore tenants, string key, ExternalLinks.Kind kind)
+    {
+        if (!KeyRegex().IsMatch(key)) return null;
+        foreach (var locale in TenantStore.Locales(grant.Tenant, grant.Policy.Revision))
+        {
+            if (tenants.LoadCv(grant.Tenant, locale, grant.Policy.Revision) is not { } loaded) continue;
+            if (ExternalLinks.Find(CvRedactor.Redact(loaded.Cv, grant.Policy), key, kind) is { } url) return url;
+        }
+        return null;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[0-9a-f]{32}$")]
+    private static partial System.Text.RegularExpressions.Regex KeyRegex();
 
     /// <summary>An asset is only served if the visitor's redacted CV (in any locale) references it.</summary>
     private static bool IsReferenced(AccessGrant grant, TenantStore tenants, string file)

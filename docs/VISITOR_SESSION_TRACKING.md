@@ -147,7 +147,7 @@ The client buffers events and flushes them in batches (§8). Every event carries
 | `timeline` | action (zoom, select entry), anchor | Timeline interest |
 | `lightbox` | image anchor, ms open | Screenshot / project interest |
 | `expand` | anchor (details opened) | Wants more detail |
-| `link_out` | kind (`github`, `linkedin`, `project`, `other`), anchor | Leaves to verify |
+| `link_out` | kind (`github`, `linkedin`, `project`, `other`), anchor; website links of entries go through `/api/go/…` and are classified by their target host | Leaves to verify |
 | `contact` | kind (`mailto`, `tel`, `copy_email`, `copy_phone`) | Strongest intent signal |
 | `copy` | anchor, character count (not the text) | Takes notes / pastes into ATS |
 | `select` | anchor, character count | Reads closely |
