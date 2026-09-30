@@ -64,6 +64,7 @@ const parseError = computed(() => {
 
 async function open(path: string, template?: string) {
   if (dirty.value && !confirm('Discard unsaved changes?')) return
+  clearPreview()
   editorError.value = ''
   saved.value = false
   editing.value = path
@@ -148,25 +149,37 @@ async function upload(event: Event) {
   }
 }
 
+const preview = ref<{ path: string, url: string, type: string } | null>(null)
+
+function clearPreview() {
+  if (preview.value) URL.revokeObjectURL(preview.value.url)
+  preview.value = null
+}
+
 async function view(path: string) {
-  // Opened as a blob, because a plain link could not send the admin key header.
-  const win = window.open('', '_blank')
+  if (dirty.value && !confirm('Discard unsaved changes?')) return
+  editing.value = null
+  content.value = original.value = ''
+  editorError.value = ''
+  // Loaded as a blob, because a plain link could not send the admin key header.
   try {
     const blob = await admin.readBlob(props.tenantId, path)
-    const url = URL.createObjectURL(blob)
-    if (win) win.location.href = url
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    clearPreview()
+    preview.value = { path, url: URL.createObjectURL(blob), type: blob.type }
   } catch (e) {
-    win?.close()
+    clearPreview()
     error.value = errorMessage(e)
   }
 }
+
+onBeforeUnmount(clearPreview)
 
 async function remove(path: string) {
   if (!confirm(`Delete ${path}? This cannot be undone.`)) return
   try {
     await admin.deleteFile(props.tenantId, path)
     if (editing.value === path) editing.value = null
+    if (preview.value?.path === path) clearPreview()
     emit('changed')
     await load()
   } catch (e) {
@@ -221,7 +234,9 @@ onMounted(() => {
         <p v-if="!assets.length" class="text-sm text-gray-500">No assets.</p>
         <ul class="space-y-1 text-sm">
           <li v-for="f in assets" :key="f.path" class="flex items-center gap-1">
-            <button type="button" class="flex-1 min-w-0 text-left rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800" @click="view(f.path)">
+            <button type="button" class="flex-1 min-w-0 text-left rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800"
+              :class="{ 'bg-primary/10 text-primary': preview?.path === f.path }"
+              @click="view(f.path)">
               <code class="block truncate">{{ f.path.slice(7) }}</code>
               <span class="block text-xs text-gray-500">{{ formatBytes(f.size) }}</span>
             </button>
@@ -234,7 +249,21 @@ onMounted(() => {
     </aside>
 
     <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 min-w-0">
-      <div v-if="!editing" class="text-sm text-gray-500 p-6 text-center">
+      <template v-if="preview">
+        <div class="flex items-center gap-2 mb-2 flex-wrap">
+          <code class="font-semibold">{{ preview.path }}</code>
+          <div class="ml-auto flex gap-2">
+            <UButton size="sm" color="neutral" variant="ghost" label="Close" @click="clearPreview" />
+            <UButton size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" label="Delete" @click="remove(preview.path)" />
+          </div>
+        </div>
+        <div class="flex justify-center rounded border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-3">
+          <img v-if="preview.type.startsWith('image/')" :src="preview.url" :alt="preview.path" class="max-w-full max-h-[65vh] object-contain">
+          <iframe v-else-if="preview.type === 'application/pdf'" :src="preview.url" class="w-full h-[65vh]" :title="preview.path" />
+          <a v-else :href="preview.url" :download="preview.path.split('/').pop()" class="text-primary underline p-6">Download {{ preview.path }}</a>
+        </div>
+      </template>
+      <div v-else-if="!editing" class="text-sm text-gray-500 p-6 text-center">
         {{ loading ? 'Loading…' : 'Select a file to edit.' }}
       </div>
       <template v-else>
