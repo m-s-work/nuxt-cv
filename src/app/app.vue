@@ -6,8 +6,8 @@ const route = useRoute()
 const isAdmin = computed(() => /^(\/[a-z]{2})?\/admin\/?$/.test(route.path))
 if (isAdmin.value) hideSplash()
 
-// PDF renderer mode (?print=1) and the owner's heatmap view (?heatmap=1): no splash screen.
-if (import.meta.client && ['print', 'heatmap'].some(p => new URLSearchParams(window.location.search).has(p))) {
+// PDF renderer mode (?print=1) and the owner's heatmap view / preview (?heatmap=1, ?preview=1): no splash screen.
+if (import.meta.client && ['print', 'heatmap', 'preview'].some(p => new URLSearchParams(window.location.search).has(p))) {
   hideSplash()
 }
 

@@ -14,13 +14,33 @@ const loading = ref(false)
 const loginError = ref('')
 const tab = ref('invites')
 
+// Unsaved changes in the Edit tab's CV editor: ask before leaving the tab or the tenant.
+const editDirty = ref(false)
+const keepEdits = () => editDirty.value && !confirm('Discard unsaved CV changes?')
+const tabModel = computed({
+  get: () => tab.value,
+  set: (value: string) => {
+    if (value === tab.value || keepEdits()) return
+    editDirty.value = false
+    tab.value = value
+  }
+})
+const tenantModel = computed({
+  get: () => selectedId.value,
+  set: (value: string) => {
+    if (value === selectedId.value || keepEdits()) return
+    editDirty.value = false
+    selectedId.value = value
+  }
+})
+
 const selected = computed(() => tenants.value.find(t => t.id === selectedId.value))
 const tenantItems = computed(() => tenants.value.map(t => ({ label: `${t.name || t.id} (${t.id})`, value: t.id })))
 
 const tabs = [
   { label: 'Invites', value: 'invites', icon: 'i-lucide-ticket' },
   { label: 'Files', value: 'files', icon: 'i-lucide-folder' },
-  { label: 'Preview', value: 'preview', icon: 'i-lucide-eye' },
+  { label: 'Edit', value: 'edit', icon: 'i-lucide-pencil' },
   { label: 'Design', value: 'design', icon: 'i-lucide-palette' },
   { label: 'Analytics', value: 'analytics', icon: 'i-lucide-chart-line' }
 ]
@@ -132,7 +152,7 @@ onMounted(() => {
           <UIcon name="i-lucide-shield" class="size-5 text-primary" />
           <h1 class="font-semibold">CV admin</h1>
           <div v-if="admin.key.value && tenants.length" class="flex items-center gap-2 ml-auto flex-wrap">
-            <USelect v-model="selectedId" :items="tenantItems" class="min-w-56" aria-label="Tenant" />
+            <USelect v-model="tenantModel" :items="tenantItems" class="min-w-56" aria-label="Tenant" />
             <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" aria-label="Reload" :loading="loading" @click="loadTenants" />
             <UButton icon="i-lucide-log-out" color="neutral" variant="ghost" label="Log out" @click="logout" />
           </div>
@@ -223,10 +243,13 @@ onMounted(() => {
           </section>
 
           <template v-if="activeTenantId">
-            <UTabs v-model="tab" :items="tabs" :content="false" class="mb-4" />
+            <UTabs v-model="tabModel" :items="tabs" :content="false" class="mb-4" />
             <AdminInvites v-if="tab === 'invites' && selected && !creatingTenant" :key="`i-${selected.id}`" :tenant="selected" :revisions="revisions" @revisions-changed="loadRevisions" />
             <AdminFiles v-else-if="tab === 'files'" :key="`f-${activeTenantId}`" :tenant-id="activeTenantId" :is-new="!!creatingTenant" @changed="onTenantChanged(activeTenantId)" />
-            <AdminPreview v-else-if="tab === 'preview' && selected && !creatingTenant" :key="`p-${selected.id}`" :tenant="selected" :revisions="revisions" />
+            <AdminEdit
+              v-else-if="tab === 'edit' && selected && !creatingTenant" :key="`e-${selected.id}`" :tenant="selected" :revisions="revisions"
+              @revisions-changed="loadRevisions" @dirty="editDirty = $event"
+            />
             <div v-else-if="tab === 'design' && selected && !creatingTenant" class="space-y-4">
               <AdminFavicon :key="`fav-${selected.id}`" :tenant="selected" @changed="onTenantChanged(selected.id)" />
               <AdminTemplates :key="`d-${selected.id}`" :tenant="selected" @changed="onTenantChanged(selected.id)" />

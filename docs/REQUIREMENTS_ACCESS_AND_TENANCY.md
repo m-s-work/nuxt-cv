@@ -236,6 +236,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
 | `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en[&revision=<sha>\|current]` | admin key | Show redacted CV for a profile (optionally of a registered revision, §14). |
+| `POST /api/admin/tenants/{tenant}/preview` `{ profile, locale?, cv }` | admin key | Redact an unsaved CV draft for a profile (editor preview; nothing is stored, pins are ignored). |
 | `GET /api/admin/tenants/{tenant}/pdf-preview?profile=x&template=y&locale=en[&vars=…][&revision=<sha\|tag>\|current]` | admin key | Render a PDF of a profile in any template and CV version (not cached). |
 | `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List stored CV revisions (`current`, `modified`, `source`, per revision `outdated`, `changes` (files changed since, same SHA-256 as `…/hash`), `refs`) / register the current CV files as revision `{ sha, message?, committedAt?, repo?, path? }` (§14). |
 | `POST /api/admin/tenants/{tenant}/revisions/fetch` `{ ref }` | admin key | Fetch a revision (SHA, tag or branch) from the tenant's git repo again (§14). |
@@ -378,9 +379,16 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   max. redemptions and view once later; rearm used-up codes showing code, link and PDF render outcome; code and link of every invite stay visible and
   copyable in the list; revoke; re-render PDFs; edit `tenant.json`
   and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
-  assets; preview any profile, locale and stored CV version either as data (the redacted JSON exactly as
-  delivered) or as PDF in any template and colour set (`…/pdf-preview`, needs the renderer); pin invites to
-  CV versions and see outdated pins (§14).
+  assets; pin invites to CV versions and see outdated pins (§14).
+- R13.3a Edit tab: a graphical editor for `cv.<locale>.json` next to a preview of any profile, locale and stored
+  CV version. The editor shows one collapsible section per block (profile, details, intro, skills, languages,
+  experiences, …) with forms for its fields, list entries can be added, duplicated, reordered and removed; the
+  redaction markers (`requires`, `fieldRequires`, `companyAlias`, `clientAlias`) are editable too. Keys it does not
+  know are kept unchanged; saving writes formatted JSON (comments are removed, after a warning). The preview shows
+  the CV as **Web** (the real CV page in an iframe, `/?preview=1`, fed by the admin page via `postMessage`, phone /
+  tablet / desktop width), as **Data** (the redacted JSON exactly as delivered) or as **PDF** in any template and
+  colour set (`…/pdf-preview`, needs the renderer). Unsaved edits appear in the web and data views while typing:
+  the draft is redacted by the API (`POST …/preview`), nothing is stored; the PDF shows the saved file.
 - R13.5 Template builder ("Design" tab): choose the PDF template, colour set and template variables for the
   tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
   profile and locale. Saving edits only `templates` of that scope in `tenant.json` (comments kept) and

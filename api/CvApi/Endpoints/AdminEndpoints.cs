@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using CvApi.Access;
 using CvApi.Pdf;
@@ -26,6 +27,9 @@ public static partial class AdminEndpoints
     public sealed record RegisterRevisionRequest(string Sha, string? Message, DateTimeOffset? CommittedAt, string? Repo, string? Path);
 
     public sealed record FetchRevisionRequest(string Ref);
+
+    /// <summary>Unsaved CV draft to redact for a profile (admin editor preview).</summary>
+    public sealed record DraftPreviewRequest(string Profile, string? Locale, JsonObject? Cv);
 
     /// <summary>Revision: SHA/prefix = pin, "" = current CV even if the profile is pinned, null = follow the profile.</summary>
     public sealed record PinRequest(string? Revision);
@@ -465,6 +469,20 @@ public static partial class AdminEndpoints
             var effective = AccessService.GrantForProfile(tenant, profile, revision: revision == "current" ? "" : revision)!.Policy;
             if (tenants.LoadCv(tenant, locale, effective.Revision) is not { } loaded) return Results.NotFound();
             return Results.Ok(new { locale = loaded.Locale, revision = effective.Revision, cv = CvRedactor.Redact(loaded.Cv, effective) });
+        });
+
+        // Unsaved draft of a CV file (admin editor): redacted exactly as the profile would see it, nothing is stored.
+        // Pins are ignored – a draft is always a change of the current CV.
+        admin.MapPost("/tenants/{tenantId}/preview", (string tenantId, DraftPreviewRequest request, TenantStore tenants) =>
+        {
+            var tenant = tenants.Get(tenantId);
+            if (tenant is null) return Results.NotFound();
+            if (!tenant.Config.Profiles.ContainsKey(request.Profile))
+                return Results.BadRequest(new { error = "unknown_profile" });
+            if (request.Cv is null) return Results.BadRequest(new { error = "invalid_cv" });
+            var effective = AccessService.GrantForProfile(tenant, request.Profile, revision: "")!.Policy;
+            var draft = (JsonObject)request.Cv.DeepClone();
+            return Results.Ok(new { locale = request.Locale, revision = (string?)null, cv = CvRedactor.Redact(draft, effective) });
         });
     }
 
