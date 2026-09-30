@@ -1,6 +1,7 @@
 bin/
 obj/
 sample-data/app.db*
+sample-data/tracking.db*
 sample-data/keys/
 TestResults/
 sample-data/pdf/

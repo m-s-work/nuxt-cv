@@ -5,6 +5,7 @@ using System.Text;
 using CvApi.Access;
 using CvApi.Redaction;
 using CvApi.Tenants;
+using CvApi.Versioning;
 
 namespace CvApi.Pdf;
 
@@ -173,8 +174,9 @@ public sealed class PdfService(
     }
 
     /// <summary>
-    /// Layout version (bump Pdf:LayoutVersion after UI changes) + locale + render URL (QR target) + redacted CV.
+    /// Build commit (a deployment can change the print layout, so its PDFs re-render on the next request) +
+    /// layout version (manual override, Pdf:LayoutVersion) + locale + template + render URL (QR target) + redacted CV.
     /// </summary>
     private string ContentHash(string redactedCv, string locale, Uri renderUrl, string? template) => Convert.ToHexStringLower(SHA256.HashData(
-        Encoding.UTF8.GetBytes($"{configuration["Pdf:LayoutVersion"]}\n{locale}\n{template}\n{renderUrl}\n{redactedCv}")));
+        Encoding.UTF8.GetBytes($"{BuildInfo.Current.Commit}\n{configuration["Pdf:LayoutVersion"]}\n{locale}\n{template}\n{renderUrl}\n{redactedCv}")));
 }

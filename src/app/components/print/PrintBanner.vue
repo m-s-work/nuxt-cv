@@ -33,11 +33,29 @@ const {
 // named page forces an extra page break before any trailing element outside it.
 useHead({ style: [{ key: 'print-banner-page', textContent: '@page { size: A4; margin: 0 0 14mm 0; }' }] })
 
+// The running footer lives in that bottom margin, outside the page content: tell the PDF renderer to
+// continue the sidebar there (pdf/server.mjs). Width = --side-w below, height = the bottom margin above.
+type FooterWindow = { __CV_PDF_FOOTER_SIDE__?: { width: string, height: string, background: string, color: string } }
+watchEffect(() => {
+  if (!import.meta.client) return
+  ;(window as unknown as FooterWindow).__CV_PDF_FOOTER_SIDE__ = {
+    width: '68mm',
+    height: '14mm',
+    background: typeof v.value.sidebar === 'string' ? v.value.sidebar : '#1f3864',
+    color: typeof v.value.sidebarText === 'string' ? v.value.sidebarText : '#e8edf6'
+  }
+})
+onBeforeUnmount(() => { delete (window as unknown as FooterWindow).__CV_PDF_FOOTER_SIDE__ })
+
 const nameParts = computed(() => {
   const words = (profile.value.name ?? '').trim().split(/\s+/).filter(Boolean)
   const last = words.pop() ?? ''
   return { first: words.join(' '), last }
 })
+
+// Stand-in for the round photo when there is none or the profile hides it (hidePhoto): initials.
+const initials = computed(() =>
+  [nameParts.value.first.charAt(0), nameParts.value.last.charAt(0)].filter(Boolean).join('').toUpperCase())
 
 const degrees = computed(() =>
   [profile.value.academicTitlePrefix, profile.value.academicTitleSuffix].filter(Boolean).join('  ·  '))
@@ -76,6 +94,9 @@ const birthDate = computed(() => {
     <div class="body">
       <aside class="sidebar">
         <img v-if="photo" :src="getAssetPath(photo)" :alt="profile.name" class="photo">
+        <div v-else-if="initials" class="photo monogram" aria-hidden="true">
+          <span class="first">{{ initials.slice(0, -1) }}</span><b>{{ initials.slice(-1) }}</b>
+        </div>
         <div v-else class="photo-spacer" />
 
         <section v-if="contactLines.length" class="side">
@@ -311,6 +332,17 @@ const birthDate = computed(() => {
     border: 1.2mm solid var(--band);
     box-shadow: 0 0 0 0.5mm rgba(255, 255, 255, 0.85);
   }
+  .monogram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--sidebar);
+    color: var(--sidebar-text);
+    font-size: 30pt;
+    font-weight: 300;
+    letter-spacing: 0.04em;
+  }
+  .monogram b { font-weight: 700; color: var(--accent); }
   .photo-spacer { height: 0; margin-top: 0; }
 
   .side { break-inside: avoid; margin-top: 7mm; --chapter: var(--accent); }
