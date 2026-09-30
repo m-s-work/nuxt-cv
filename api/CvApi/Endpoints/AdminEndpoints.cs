@@ -535,13 +535,11 @@ public static partial class AdminEndpoints
             : null;
     }
 
-    private static string BuildLink(Tenant tenant, IConfiguration config, string code)
-    {
-        var baseUrl = tenant.Config.Hosts.FirstOrDefault() is { } host
-            ? $"https://{TenantStore.NormalizeHost(host)}"
-            : config["Cv:SharedBaseUrl"]?.TrimEnd('/');
-        return string.IsNullOrEmpty(baseUrl) ? $"/?c={code}" : $"{baseUrl}/?c={code}";
-    }
+    /// <summary>Invite link (R4.4): "/" on the tenant's own host, "/cv" on the shared host ("/" is the showcase there).</summary>
+    private static string BuildLink(Tenant tenant, IConfiguration config, string code) =>
+        tenant.Config.Hosts.FirstOrDefault() is { } host
+            ? $"https://{TenantStore.NormalizeHost(host)}/?c={code}"
+            : $"{config["Cv:SharedBaseUrl"]?.TrimEnd('/')}/cv?c={code}";
 
     internal static async ValueTask<object?> RequireAdminKey(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {

@@ -30,7 +30,7 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 | Tenant host, no invite | Tenant from host. Visitor gets the tenant's *public profile* if one is configured, otherwise **no access**. |
 | Tenant host + valid invite of the **same** tenant | Tenant from host, profile from invite. |
 | Tenant host + invite of **another** tenant | Invite is rejected (treated as invalid). |
-| Shared host + valid invite | Tenant and profile from invite. |
+| Shared host + valid invite | Tenant and profile from invite. The CV is shown at `/cv`; `/` stays the showcase (R2.5). |
 | Shared host, no (valid) invite | **Showcase page** (§11) with invite-code entry. No tenant is revealed, not even its existence. |
 
 - R2.1 Hostnames MUST be matched case-insensitively and without port.
@@ -39,8 +39,13 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 - R2.4 Examples:
   - `https://bob-cv.velarix.space` → tenant `bob`, public profile (if enabled).
   - `https://bob-cv.velarix.space/?c=K3x...` → tenant `bob`, profile of that invite.
-  - `https://cv.velarix.space/?c=23gfiuash...` → tenant and profile of that invite.
-  - `https://cv.velarix.space` → showcase page (§11).
+  - `https://cv.velarix.space/cv?c=23gfiuash...` → tenant and profile of that invite, CV at `/cv`.
+  - `https://cv.velarix.space/?c=23gfiuash...` (links created before R2.5) → redeemed, then redirected to `/cv`.
+  - `https://cv.velarix.space` → showcase page (§11), also for visitors with an invite.
+- R2.5 **Paths.** On a tenant host the CV is shown at `/` (and `/cv`). On the shared host `/` is always the
+  showcase and the CV lives at `/cv` (`/de/cv` etc.), so the main page stays reachable without dropping the
+  invite cookie. Visitors with access see a "Continue to the CV" link on the showcase. `/api/cv` returns
+  `host: "shared" | "tenant"` on success as well, so the frontend can decide; it never names a tenant.
 
 ---
 
@@ -73,8 +78,8 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 - R4.3 An invite has: `tenant`, `profile`, `label` (who it is for), optional `expiresAt`,
   optional `maxUses`, optional `viewOnceMinutes` + `viewOnceUntil` (R4.9), optional `overrides` (see §5.4),
   `createdAt`, `revokedAt`, `useCount`, `lastUsedAt`, and for derived invites `parentId` + `source` (§12, R12.10).
-- R4.4 The invite link format is `https://<host>/?c=<code>`. `<host>` is the tenant's primary host
-  if it has one, otherwise the shared host.
+- R4.4 The invite link format is `https://<tenant host>/?c=<code>` if the tenant has a primary host,
+  otherwise `https://<shared host>/cv?c=<code>` (R2.5).
 - R4.5 Redemption: the frontend sends the code once (`POST /api/access/redeem`); the API sets an
   `HttpOnly; Secure; SameSite=Lax` cookie containing a signed reference to the invite and the
   frontend removes `c` from the URL. The code MUST NOT be stored in browser storage.
@@ -216,7 +221,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 |---|---|---|
 | `POST /api/access/redeem` `{ code }` | – (rate-limited) | Validate invite, set access cookie. `204` or `400 { error: "invalid_invite" }`. A used view-once code only succeeds for the browser that redeemed it, within its window (R4.9). |
 | `POST /api/access/logout` | – | Clear access cookie. |
-| `GET /api/cv?locale=de` | cookie / host | `200 { access, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page; it never names a tenant. |
+| `GET /api/cv?locale=de` | cookie / host | `200 { access, host, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page and `/` vs. `/cv` (R2.5); it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/favicon.svg` | cookie / host (optional) | Favicon of the visitor's tenant, else the default (§7.1). `Cache-Control: private, no-cache`. |
@@ -296,8 +301,12 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 11. Showcase (shared host without invite)
 
-- R11.1 Visitors of the shared host without a valid invite see a showcase page: what the product does,
-  example screenshots, the public feature list and an invite-code form.
+- R11.1 Visitors of the shared host see a showcase page at `/`: what the product does,
+  example screenshots, the public feature list and an invite-code form. Visitors who already have access
+  additionally get a "Continue to the CV" link to `/cv` (R2.5); the invite is never dropped for this.
+  Below it, "Not your invitation? Remove it from this browser" (for shared computers) clears the access cookie
+  via `POST /api/access/logout` after a confirmation ("you need the invite link again"). The invite is not revoked;
+  the text never says whether it is view-once (R4.9).
 - R11.2 Screenshots MUST only show the sample tenant (`api/sample-data`), never a real CV. They are static
   files in `src/public/showcase/` and are regenerated from the sample tenant when the UI changes.
 - R11.3 The feature list MUST only contain **public** features (e.g. JSON-based CV, field-level gating,
@@ -319,7 +328,8 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
 - R12.1 **Rendering container.** `docker-compose.yml` contains the internal service `pdf` (`pdf/server.mjs`,
   Playwright/Chromium). It has no public domain; only the API calls it (`POST /render`).
 - R12.2 **Render ticket.** The API gives the renderer a signed, 2-minute cookie (`cv_render`) naming tenant,
-  profile and invite. The renderer opens the app via the internal host (`http://web/?print=1`); the API
+  profile and invite. The renderer opens the app via the internal host (`http://web/cv?print=1`, `/de/cv` for German; the
+  internal host is no tenant host, so the CV is at `/cv`, R2.5); the API
   resolves access from the ticket exactly like for the invitee (revoked/expired invites are refused).
 - R12.3 **Render on invite creation.** Creating an invite renders its PDF for every locale of the tenant
   **synchronously**, and the create response contains the per-locale outcome
@@ -335,7 +345,7 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   message that the PDF is being generated for the current version of the CV and may take a few seconds.
 - R12.7 **Print mode.** With `?print=1` the frontend skips the splash screen and sets
   `window.__CV_READY__` to `ready` / `no-access` / `error` once the page is complete; the renderer waits for it.
-  The QR code in the PDF points to the public URL (tenant host or shared base URL), passed as `?qr=`.
+  The QR code in the PDF points to the public URL (tenant host `/`, or shared base URL `/cv`, R2.5), passed as `?qr=`.
 - R12.10 **QR invite.** For an invite's PDF (except view-once invites, R4.9), the QR code contains a **linked invite** (`?c=<code>`):
   - created on the first rendering, reused for all later renderings and locales;
   - same tenant, profile, overrides and expiry as its parent; revoked together with its parent, and only
@@ -389,7 +399,7 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
 - R13.6 Analytics tab (visitor tracking, `VISITOR_SESSION_TRACKING.md`): tracking settings and consent rate,
   per invite reach, time and interest score, attention per section/entry, technology intent, networks, visitors
   (with erasure), sessions with their event timeline, and heatmaps rendered on the CV snapshot a version's visitors
-  saw (`/?heatmap=1`, uses the admin key of the tab). The invite form can switch the consent modal and tracking
+  saw (`/cv?heatmap=1`, uses the admin key of the tab). The invite form can switch the consent modal and tracking
   on or off per invite.
 - R13.7 Favicon picker (top of the "Design" tab): symbol, symbol colour and background (named swatches or any
   hex colour) with a preview at real sizes and in a mock browser tab. The previews come from

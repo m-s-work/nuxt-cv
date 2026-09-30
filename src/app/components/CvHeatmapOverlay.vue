@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Heatmap overlay of the owner's heatmap view (/?heatmap=1, docs/VISITOR_SESSION_TRACKING.md R6.8): looks up every
+ * Heatmap overlay of the owner's heatmap view (/cv?heatmap=1, docs/VISITOR_SESSION_TRACKING.md R6.8): looks up every
  * anchor (`data-track`) in the rendered CV and paints the aggregated cells into it, so the heatmap fits the layout
  * even though visitors had different screen sizes. Only reachable with the admin key; never tracked.
  */
