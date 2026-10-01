@@ -114,7 +114,7 @@ seedData()
 if (!fs.existsSync(path.join(root, 'pdf/node_modules'))) run('npm', ['ci'], path.join(root, 'pdf'))
 start('pdf', 'node', ['server.mjs'], {
   cwd: path.join(root, 'pdf'),
-  env: { PORT: String(PORTS.pdf), CHROMIUM_PATH: process.env.CHROMIUM_PATH || chromium.executablePath() }
+  env: { PORT: String(PORTS.pdf), ALLOWED_ORIGIN: webUrl, CHROMIUM_PATH: process.env.CHROMIUM_PATH || chromium.executablePath() }
 })
 
 start('api', 'dotnet', ['run', '--project', 'CvApi/CvApi.csproj', '-c', 'Release', '--no-launch-profile'], {

@@ -218,7 +218,7 @@ without any provider the platform works as before (super-admin only). Account da
 cd api/CvApi && dotnet run                 # http://localhost:5080/api
 
 # optional: PDF renderer (needs a Chromium; then start the API with the two Pdf__ variables)
-cd pdf && npm install && PORT=3100 CHROMIUM_PATH=/path/to/chromium node server.mjs
+cd pdf && npm install && PORT=3100 ALLOWED_ORIGIN=http://localhost:3000 CHROMIUM_PATH=/path/to/chromium node server.mjs
 #   Pdf__RendererUrl=http://localhost:3100 Pdf__AppBaseUrl=http://localhost:3000 dotnet run
 
 # Frontend (proxies /api to the API, keeps the Host header)
