@@ -45,7 +45,8 @@ function navigateTo(event: Event, sectionId: string) {
 .header-menu {
   position: absolute;
   top: 2rem;
-  right: 2rem;
+  /* Leaves room for the fixed language switcher (top right), which would otherwise be covered. */
+  right: 8.5rem;
   z-index: 50;
 }
 

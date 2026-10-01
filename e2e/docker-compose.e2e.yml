@@ -1,0 +1,31 @@
+# Override for running the e2e tests against the real containers (docker-compose.yml):
+#
+#   docker compose -p cv-e2e -f docker-compose.yml -f e2e/docker-compose.e2e.yml up -d --build --wait
+#   cd e2e && E2E_BASE_URL=http://localhost:8080 npx playwright test
+#   docker compose -p cv-e2e -f docker-compose.yml -f e2e/docker-compose.e2e.yml down -v
+#
+# Paths are relative to the repository root (the directory of the first compose file).
+services:
+  # Copies the sample tenants into the (fresh) data volume, owned by the API's non-root user (APP_UID 1654).
+  seed:
+    image: alpine:3.20
+    volumes:
+      - cv-data:/data
+      - ./api/sample-data/tenants:/seed:ro
+    command: sh -c 'mkdir -p /data/tenants && { [ -n "$$(ls -A /data/tenants)" ] || cp -r /seed/. /data/tenants/; } && chown -R 1654 /data'
+
+  web:
+    ports:
+      - "8080:80"
+
+  api:
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      Admin__ApiKey: e2e-admin-key
+      # "localhost" is the demo tenant's host; 127.0.0.1 is the shared host (invite links of tenants without host).
+      Cv__SharedBaseUrl: http://127.0.0.1:8080
+      Cv__ConfigCacheSeconds: "0"
+      Cv__RedeemPerMinute: "10000"
+      Tracking__EventsPerMinute: "100000"
