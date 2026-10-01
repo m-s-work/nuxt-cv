@@ -175,7 +175,19 @@ LinkedIn's API does not give third parties positions, education or skills, so th
 
 ---
 
-## 9. API summary
+## 9. E-mail notifications to owners
+
+Sent through the e-mail provider of §2.2 (nothing is sent without one), only to owners with an account.
+
+- S9.1 **Invite opened.** On the first redemption of an invite (or the first scan of its PDF's QR code) the owner gets
+  "Your CV was opened" with the invite's label. Later redemptions send nothing. Users can turn it off
+  (`PATCH /api/account { notifyOnOpen: false }`); default on. The visitor is not told.
+- S9.2 **Pro ends soon.** 3 days before `proUntil` the owner gets one reminder per pass (not for "forever" plans).
+- S9.3 Sending runs in the background; a failing e-mail provider never delays or breaks a visitor's request.
+
+---
+
+## 10. API summary
 
 | Method & path | Auth | Purpose |
 |---|---|---|
@@ -185,14 +197,17 @@ LinkedIn's API does not give third parties positions, education or skills, so th
 | `GET /api/auth/magic?token=` | – | Redeem sign-in link. |
 | `GET /api/auth/me` · `POST /api/auth/logout` | session | Current user · sign out. |
 | `POST /api/account/tenant` `{ handle, locale, name? }` | session | Create the user's tenant (§3). |
-| `GET /api/account` · `PATCH /api/account` `{ name, hideCredit }` | session | Account, plan, usage and limits. |
+| `GET /api/account` · `PATCH /api/account` `{ name, hideCredit, notifyOnOpen }` | session | Account, plan, usage and limits. |
 | `POST /api/account/import/linkedin` | session | LinkedIn ZIP import (§7). |
 | `PUT/DELETE /api/account/domain` | session, Pro | Own domain (§5.4). |
 | `GET /api/account/payments` | session | Own payments. |
-| `GET /api/account/export` · `DELETE /api/account` | session | GDPR export · deletion (§8). |
+| `GET /api/account/export` · `DELETE /api/account` `{ confirm: <handle> }` | session | GDPR export · deletion (§8). |
+| `POST /api/account/sessions/revoke` | session | Sign out on all other devices (§2 S2.4). |
+| `GET /api/account/handle/{handle}` | session | Is a handle available (`error`: `invalid_handle`, `handle_reserved`, `handle_taken`)? |
 | `GET /api/billing/config` | – | Passes and Paddle client config. |
 | `POST /api/billing/paddle/webhook` | Paddle signature | Payment events (§5.3). |
 | `GET /api/admin/users` · `GET/DELETE /api/admin/users/{id}` | admin key | User management (§6). |
 | `PUT /api/admin/users/{id}/plan` · `POST …/block` · `POST …/unblock` | admin key | Plan / block (§6). |
 | `GET /api/admin/payments` | admin key | All payments (§6). |
+| `GET /api/admin/stats?days=30` | admin key | Users, Pro users, active invites, sign-ups per day, revenue per currency, refunds, unmatched payments. |
 | `/api/admin/tenants/{tenant}/…` (existing) | admin key **or** session of the tenant's owner | Tenant admin API; other tenants answer `404`. |

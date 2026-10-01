@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using CvApi.Access;
-using CvApi.Redaction;
 using CvApi.Tenants;
 using CvApi.Versioning;
 using Microsoft.EntityFrameworkCore;
@@ -21,11 +20,13 @@ public sealed record EventBatch(string SessionId, int Seq, string? TabId, string
 
 public enum IngestResult { Stored, Ignored }
 
+/// <summary>The server's own view of the CV of a new session: version, redacted JSON and locale (R6.10, R6.12).</summary>
+public sealed record ServerCv(string Version, string Json, string Locale);
+
 /// <summary>Consent handling and event ingest (docs/VISITOR_SESSION_TRACKING.md §3–§6, §8.1, §9.1).</summary>
 public sealed partial class TrackingService(
     TrackingDbContext db,
     ConsentCookies cookies,
-    TenantStore tenants,
     GeoLookup geo,
     TimeProvider time)
 {
@@ -128,7 +129,7 @@ public sealed partial class TrackingService(
 
     /// <summary>Stores a batch. Requires accepted consent for the current policy and a valid cv_vid (R8.1, R8.2).</summary>
     public async Task<IngestResult> IngestAsync(HttpContext context, AccessGrant grant, TrackingDecision decision, EventBatch batch,
-        string cvVersion, string cvSourceSha, CancellationToken ct)
+        ServerCv? serverCv, string cvSourceSha, CancellationToken ct)
     {
         if (!decision.Enabled || cookies.State(context, decision.PolicyVersion) != "accept") return IngestResult.Ignored;
         if (cookies.ReadVisitorKey(context) is not { } browserKey) return IngestResult.Ignored;
@@ -145,15 +146,15 @@ public sealed partial class TrackingService(
             if (session is null)
             {
                 if (batch.Start is null) return IngestResult.Ignored;
-                session = await CreateSessionAsync(context, grant, decision, batch, visitorId, cvVersion, cvSourceSha, now, ct);
+                session = await CreateSessionAsync(context, grant, decision, batch, visitorId, serverCv, cvSourceSha, now, ct);
             }
             // A session belongs to one visitor and tenant; ids of other visitors cannot be written to.
             else if (session.VisitorId != visitorId || session.TenantId != tenantId)
             {
                 return IngestResult.Ignored;
             }
-            if (batch.Seq <= session.LastSeq) return IngestResult.Ignored; // retry of a stored batch
-            session.LastSeq = batch.Seq;
+            // Retry of a stored batch; batches arriving out of order (slow fetch after a beacon) are still applied (R8.3).
+            if (!AcceptSeq(session, batch.Seq)) return IngestResult.Ignored;
             session.LastSeenAt = now;
             TrackIp(session, context.Connection.RemoteIpAddress, now);
 
@@ -174,7 +175,7 @@ public sealed partial class TrackingService(
     }
 
     private async Task<TrackSession> CreateSessionAsync(HttpContext context, AccessGrant grant, TrackingDecision decision, EventBatch batch,
-        Guid visitorId, string serverCvVersion, string cvSourceSha, DateTimeOffset now, CancellationToken ct)
+        Guid visitorId, ServerCv? serverCv, string cvSourceSha, DateTimeOffset now, CancellationToken ct)
     {
         var start = batch.Start!;
         var tenantId = grant.Tenant.Id;
@@ -217,7 +218,16 @@ public sealed partial class TrackingService(
             previous.EndedAt ??= now;
         }
 
+        // Heat data must be stored under a version with a CV snapshot (R6.12). When the client's version differs from
+        // the server's (e.g. a CV deploy between /api/cv and the first batch), the client's version is kept only if a
+        // snapshot of it already exists; otherwise the session is recorded under the server's version, which is
+        // snapshotted below, and the client's version is kept for reference (R6.10).
         var clientCv = Short(start.CvVersion);
+        var serverVersion = serverCv?.Version;
+        var mismatch = clientCv is not null && clientCv != (serverVersion ?? "unknown");
+        var cvVersion = !mismatch ? serverVersion ?? clientCv ?? "unknown"
+            : serverVersion is null || await db.CvSnapshots.AnyAsync(s => s.TenantId == tenantId && s.CvVersion == clientCv, ct) ? clientCv!
+            : serverVersion;
         var g = await geo.LookupAsync(ip, ct);
         var session = new TrackSession
         {
@@ -249,33 +259,69 @@ public sealed partial class TrackingService(
             AppSha = Short(start.AppSha) ?? "unknown",
             ApiSha = BuildInfo.Current.Commit,
             CvSourceSha = cvSourceSha,
-            CvVersion = clientCv ?? serverCvVersion,
-            VersionMismatch = clientCv is not null && clientCv != serverCvVersion,
+            CvVersion = cvVersion,
+            ClientCvVersion = clientCv != cvVersion ? clientCv : null,
+            VersionMismatch = mismatch,
         };
         db.Sessions.Add(session);
         if (session.Ip is not null)
             db.SessionIps.Add(new SessionIp { SessionId = session.Id, Ip = session.Ip, FirstSeen = now, LastSeen = now });
 
-        await SnapshotAsync(grant, session, now, ct);
+        await SnapshotAsync(session, serverCv, now, ct);
         return session;
     }
 
-    /// <summary>Stores the redacted CV of this session's version once (R6.12).</summary>
-    private async Task SnapshotAsync(AccessGrant grant, TrackSession session, DateTimeOffset now, CancellationToken ct)
+    /// <summary>
+    /// Stores the redacted CV of this session's version once (R6.12): the JSON the server computed the version from, so
+    /// the snapshot always matches its key.
+    /// </summary>
+    private async Task SnapshotAsync(TrackSession session, ServerCv? serverCv, DateTimeOffset now, CancellationToken ct)
     {
-        if (session.VersionMismatch || session.CvVersion is null) return;
-        var existing = await db.CvSnapshots.SingleOrDefaultAsync(s => s.TenantId == session.TenantId && s.CvVersion == session.CvVersion, ct);
+        if (session.CvVersion is null) return;
+        var existing = db.CvSnapshots.Local.FirstOrDefault(s => s.TenantId == session.TenantId && s.CvVersion == session.CvVersion)
+            ?? await db.CvSnapshots.SingleOrDefaultAsync(s => s.TenantId == session.TenantId && s.CvVersion == session.CvVersion, ct);
         if (existing is not null)
         {
             existing.LastUsed = now;
             return;
         }
-        if (tenants.LoadCv(grant.Tenant, session.Locale, grant.Policy.Revision) is not { } loaded) return;
+        if (serverCv is null || serverCv.Version != session.CvVersion) return;
         db.CvSnapshots.Add(new CvSnapshot
         {
-            TenantId = session.TenantId, CvVersion = session.CvVersion, Locale = loaded.Locale, CvSourceSha = session.CvSourceSha,
-            Json = CvRedactor.Redact(loaded.Cv, grant.Policy).ToJsonString(), FirstSeen = now, LastUsed = now,
+            TenantId = session.TenantId, CvVersion = session.CvVersion, Locale = serverCv.Locale, CvSourceSha = session.CvSourceSha,
+            Json = serverCv.Json, FirstSeen = now, LastUsed = now,
         });
+    }
+
+    /// <summary>Width of the window of batch numbers below the highest one that are still accepted.</summary>
+    public const int SeqWindowSize = 64;
+
+    /// <summary>
+    /// Marks batch <paramref name="seq"/> as applied; false when it was applied before (retry) or is too old to tell.
+    /// Batches may arrive out of order (a slow fetch after the page-hide beacon, R8.3), so every seq not applied yet is
+    /// accepted within <see cref="SeqWindowSize"/> of the highest.
+    /// </summary>
+    public static bool AcceptSeq(TrackSession session, int seq)
+    {
+        if (seq < 0) return false;
+        // Sessions stored before the window existed: everything up to LastSeq counts as applied.
+        var window = session.SeqWindow is { } w ? unchecked((ulong)w) : session.LastSeq >= 0 ? ulong.MaxValue : 0UL;
+        if (seq > session.LastSeq)
+        {
+            var shift = (long)seq - session.LastSeq;
+            window = (shift >= SeqWindowSize ? 0UL : window << (int)shift) | 1UL;
+            session.LastSeq = seq;
+        }
+        else
+        {
+            var back = session.LastSeq - seq;
+            if (back >= SeqWindowSize) return false;
+            var bit = 1UL << back;
+            if ((window & bit) != 0) return false;
+            window |= bit;
+        }
+        session.SeqWindow = unchecked((long)window);
+        return true;
     }
 
     /// <summary>
@@ -406,12 +452,15 @@ public sealed partial class TrackingService(
             });
         }
 
-        if (cells.Count == 0 || session.Breakpoint is null) return;
+        // Heat cells use the layout of this batch: a resized window or rotated tablet changes it mid-session (R6.5).
+        var breakpoint = Breakpoints.Contains(batch.Bp) ? batch.Bp! : session.Breakpoint;
+        session.Breakpoint ??= breakpoint;
+        if (cells.Count == 0 || breakpoint is null) return;
         var appSha = session.AppSha ?? "unknown";
         var cvVersion = session.CvVersion ?? "unknown";
         var anchors = cells.Keys.Select(k => k.Anchor).Distinct().ToList();
         var existing = await db.HeatCells
-            .Where(c => c.TenantId == session.TenantId && c.GroupKey == session.GroupKey && c.Breakpoint == session.Breakpoint
+            .Where(c => c.TenantId == session.TenantId && c.GroupKey == session.GroupKey && c.Breakpoint == breakpoint
                         && c.AppSha == appSha && c.CvVersion == cvVersion && anchors.Contains(c.Anchor))
             .ToListAsync(ct);
         var byKey = existing.ToDictionary(c => (c.Type, c.Anchor, c.Cx, c.Cy));
@@ -426,7 +475,7 @@ public sealed partial class TrackingService(
             {
                 db.HeatCells.Add(new HeatCell
                 {
-                    TenantId = session.TenantId, GroupKey = session.GroupKey, Breakpoint = session.Breakpoint, AppSha = appSha,
+                    TenantId = session.TenantId, GroupKey = session.GroupKey, Breakpoint = breakpoint, AppSha = appSha,
                     CvVersion = cvVersion, Type = key.Type, Anchor = key.Anchor, Cx = key.X, Cy = key.Y, Weight = weight, LastAt = now,
                 });
             }

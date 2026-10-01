@@ -430,4 +430,273 @@ public sealed class TrackingTests : IDisposable
         Assert.Equal(new UserAgentInfo("mobile", "Safari", "iOS"),
             UserAgentInfo.Parse("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"));
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Audit fixes (heatmap / ingest) and the overview
+    // ---------------------------------------------------------------------------------------------
+
+    private HttpClient Admin()
+    {
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        return admin;
+    }
+
+    private static object Pointer(string anchor, int dt) =>
+        new { e = "pointer", t = 1000, s = new object[] { new object[] { anchor, 10, 20, dt } } };
+
+    [Fact]
+    public async Task Attention_heatmap_is_offered_for_touch_only_layouts()
+    {
+        var phone = await InvitedClient();
+        await Accept(phone);
+        var cvVersion = (await Cv(phone))["cvVersion"]!.GetValue<string>();
+        // A phone: sections read, no cursor samples at all.
+        await Send(phone, new
+        {
+            sessionId = "s-phone-00000000001", seq = 0, bp = "sm", start = Start(cvVersion),
+            events = new object[] { new { e = "section_view", t = 9000, a = "section:experiences", ms = 9000 } },
+        });
+
+        var heat = (await Admin().GetFromJsonAsync<JsonObject>("/api/admin/tenants/alice/analytics/heatmap?type=attention"))!;
+        var facet = Assert.Single(heat["facets"]!.AsArray())!;
+        Assert.Equal("sm", facet["breakpoint"]!.GetValue<string>());
+        Assert.Equal(cvVersion, facet["cvVersion"]!.GetValue<string>());
+        Assert.Equal(9000, facet["attentionMs"]!.GetValue<long>());
+        Assert.Equal(0, facet["move"]!.GetValue<long>());
+        Assert.True(facet["snapshot"]!.GetValue<bool>());
+
+        var attention = (await Admin().GetFromJsonAsync<JsonObject>(
+            $"/api/admin/tenants/alice/analytics/heatmap?type=attention&bp=sm&cvVersion={cvVersion}"))!;
+        Assert.Equal(9000, attention["anchors"]![0]!["weight"]!.GetValue<long>());
+    }
+
+    [Fact]
+    public async Task Version_mismatch_stores_heat_data_under_a_version_with_snapshot()
+    {
+        var client = await InvitedClient();
+        await Accept(client);
+        var serverVersion = (await Cv(client))["cvVersion"]!.GetValue<string>();
+        const string clientVersion = "0123456789abcdef";   // e.g. the CV was deployed after the tab loaded it
+
+        await Send(client, new
+        {
+            sessionId = "s-mismatch-0000001", seq = 0, bp = "lg", start = Start(clientVersion),
+            events = new object[] { Pointer("section:experiences", 500) },
+        });
+
+        var session = Db(db => db.Sessions.Single());
+        Assert.Equal(serverVersion, session.CvVersion);
+        Assert.Equal(clientVersion, session.ClientCvVersion);
+        Assert.True(session.VersionMismatch);
+        Assert.Equal(serverVersion, Db(db => db.HeatCells.Single()).CvVersion);
+
+        var admin = Admin();
+        Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync($"/api/admin/tenants/alice/analytics/cv-snapshots/{serverVersion}")).StatusCode);
+        var missing = await admin.GetAsync($"/api/admin/tenants/alice/analytics/cv-snapshots/{clientVersion}");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        var heat = (await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/alice/analytics/heatmap"))!;
+        Assert.True(heat["facets"]![0]!["snapshot"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Version_mismatch_keeps_the_client_version_when_its_snapshot_exists()
+    {
+        var client = await InvitedClient();
+        await Accept(client);
+        await Cv(client);
+        const string clientVersion = "fedcba9876543210";
+        Db(db =>
+        {
+            db.CvSnapshots.Add(new CvSnapshot
+            {
+                TenantId = "alice", CvVersion = clientVersion, Locale = "en", Json = "{}", FirstSeen = DateTimeOffset.UtcNow, LastUsed = DateTimeOffset.UtcNow,
+            });
+            return db.SaveChanges();
+        });
+
+        await Send(client, new
+        {
+            sessionId = "s-mismatch-0000002", seq = 0, bp = "lg", start = Start(clientVersion),
+            events = new object[] { Pointer("section:experiences", 500) },
+        });
+
+        var session = Db(db => db.Sessions.Single());
+        Assert.Equal(clientVersion, session.CvVersion);
+        Assert.Null(session.ClientCvVersion);
+        Assert.True(session.VersionMismatch);
+        Assert.Equal(clientVersion, Db(db => db.HeatCells.Single()).CvVersion);
+    }
+
+    [Fact]
+    public async Task Out_of_order_batches_are_applied_once()
+    {
+        var client = await InvitedClient();
+        await Accept(client);
+        var cvVersion = (await Cv(client))["cvVersion"]!.GetValue<string>();
+        const string id = "s-order-00000000001";
+        await Send(client, new { sessionId = id, seq = 0, bp = "lg", start = Start(cvVersion), events = new object[] { new { e = "heartbeat", vis = 1000, act = 1000 } } });
+        // The page-hide beacon (seq 2) overtakes a slow fetch (seq 1).
+        await Send(client, new { sessionId = id, seq = 2, bp = "lg", events = new object[] { new { e = "heartbeat", vis = 2000, act = 2000 } } });
+        await Send(client, new { sessionId = id, seq = 1, bp = "lg", events = new object[] { new { e = "heartbeat", vis = 4000, act = 4000 } } });
+        // Retries of applied batches are ignored.
+        await Send(client, new { sessionId = id, seq = 1, bp = "lg", events = new object[] { new { e = "heartbeat", vis = 4000, act = 4000 } } });
+        await Send(client, new { sessionId = id, seq = 2, bp = "lg", events = new object[] { new { e = "heartbeat", vis = 2000, act = 2000 } } });
+
+        var session = Db(db => db.Sessions.Single());
+        Assert.Equal(7000, session.ActiveMs);
+        Assert.Equal(2, session.LastSeq);
+    }
+
+    [Fact]
+    public void Seq_window_accepts_each_batch_once()
+    {
+        var session = new TrackSession { Id = "s", TenantId = "t", GroupKey = "g" };
+        Assert.True(TrackingService.AcceptSeq(session, 3));
+        Assert.True(TrackingService.AcceptSeq(session, 0));
+        Assert.False(TrackingService.AcceptSeq(session, 0));
+        Assert.False(TrackingService.AcceptSeq(session, 3));
+        Assert.True(TrackingService.AcceptSeq(session, 100));
+        Assert.True(TrackingService.AcceptSeq(session, 37));                // within the window
+        Assert.False(TrackingService.AcceptSeq(session, 36));               // too old to tell
+        Assert.False(TrackingService.AcceptSeq(session, -1));
+
+        // Sessions stored before the window: everything up to LastSeq counts as applied.
+        var legacy = new TrackSession { Id = "s", TenantId = "t", GroupKey = "g", LastSeq = 5 };
+        Assert.False(TrackingService.AcceptSeq(legacy, 4));
+        Assert.True(TrackingService.AcceptSeq(legacy, 6));
+        Assert.False(TrackingService.AcceptSeq(legacy, 5));
+    }
+
+    [Fact]
+    public void Existing_tracking_databases_get_new_columns()
+    {
+        var file = Path.Combine(_factory.DataPath, $"old-tracking-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<TrackingDbContext>().UseSqlite($"Data Source={file}").Options;
+        using (var old = new TrackingDbContext(options))
+        {
+            old.Database.EnsureCreated();
+            // A database created before these columns existed.
+            old.Database.ExecuteSqlRaw("ALTER TABLE Sessions DROP COLUMN SeqWindow");
+            old.Database.ExecuteSqlRaw("ALTER TABLE Sessions DROP COLUMN ClientCvVersion");
+        }
+        using (var db = new TrackingDbContext(options))
+        {
+            db.Sessions.Add(new TrackSession { Id = "s-upgrade-000000001", TenantId = "alice", GroupKey = "g", SeqWindow = 3, ClientCvVersion = "x" });
+            db.SaveChanges();
+        }
+        using (var db = new TrackingDbContext(options))
+            Assert.Equal(3, db.Sessions.Single().SeqWindow);
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    [Fact]
+    public async Task Heat_cells_use_the_breakpoint_of_each_batch()
+    {
+        var client = await InvitedClient();
+        await Accept(client);
+        var cvVersion = (await Cv(client))["cvVersion"]!.GetValue<string>();
+        const string id = "s-resize-0000000001";
+        await Send(client, new { sessionId = id, seq = 0, bp = "lg", start = Start(cvVersion), events = new object[] { Pointer("section:hero", 100) } });
+        await Send(client, new { sessionId = id, seq = 1, bp = "sm", events = new object[] { Pointer("section:hero", 200) } });
+        await Send(client, new { sessionId = id, seq = 2, bp = "huge", events = new object[] { Pointer("section:hero", 400) } });  // invalid: session's
+
+        var cells = Db(db => db.HeatCells.ToList()).ToDictionary(c => c.Breakpoint, c => c.Weight);
+        Assert.Equal(500, cells["lg"]);
+        Assert.Equal(200, cells["sm"]);
+        Assert.Equal(2, cells.Count);
+        Assert.Equal("lg", Db(db => db.Sessions.Single()).Breakpoint);
+    }
+
+    [Theory]
+    [InlineData("GET", "cv-snapshots/0123456789abcdef")]
+    [InlineData("GET", "consent")]
+    [InlineData("GET", "persons")]
+    [InlineData("GET", "overview")]
+    [InlineData("GET", "heatmap")]
+    [InlineData("DELETE", "visitors/6f9619ff-8b86-d011-b42d-00cf4fc964ff")]
+    public async Task Analytics_of_unknown_tenants_are_not_found(string method, string path)
+    {
+        var response = await Admin().SendAsync(new HttpRequestMessage(new HttpMethod(method), $"/api/admin/tenants/nobody/analytics/{path}"));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Overview_sums_up_a_period()
+    {
+        var first = await InvitedClient(ip: "198.51.100.10");
+        await Accept(first);
+        var cvVersion = (await Cv(first))["cvVersion"]!.GetValue<string>();
+        await Send(first, new
+        {
+            sessionId = "s-over-000000000001", seq = 0, bp = "lg", start = Start(cvVersion),
+            events = new object[]
+            {
+                new { e = "heartbeat", vis = 30000, act = 20000 },
+                new { e = "section_view", t = 9000, a = "section:experiences", ms = 9000 },
+            },
+        });
+        var second = await InvitedClient(ip: "192.0.2.1");
+        second.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1");
+        await Accept(second);
+        await Send(second, new
+        {
+            sessionId = "s-over-000000000002", seq = 0, bp = "sm", start = Start(cvVersion, fp: new string('b', 64), parts: [new string('b', 64)]),
+            events = new object[] { new { e = "heartbeat", vis = 10000, act = 10000 } },
+        });
+
+        var admin = Admin();
+        var overview = (await admin.GetFromJsonAsync<JsonObject>("/api/admin/tenants/alice/analytics/overview?tz=-120"))!;
+        var totals = overview["totals"]!;
+        Assert.Equal(2, totals["visitors"]!.GetValue<int>());
+        Assert.Equal(2, totals["sessions"]!.GetValue<int>());
+        Assert.Equal(2, totals["groups"]!.GetValue<int>());
+        Assert.Equal(30000, totals["activeMs"]!.GetValue<long>());
+        Assert.Equal(15000, totals["avgActiveMs"]!.GetValue<long>());
+        Assert.Equal(2, overview["consent"]!["accept"]!.GetValue<int>());
+        var today = overview["perDay"]!.AsArray().Last()!;
+        Assert.Equal(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(2)).ToString("yyyy-MM-dd"), today["date"]!.GetValue<string>());
+        Assert.Equal(2, today["sessions"]!.GetValue<int>());
+        Assert.Contains(overview["devices"]!.AsArray(), d => d!["key"]!.GetValue<string>() == "mobile");
+        Assert.Contains(overview["browsers"]!.AsArray(), d => d!["key"]!.GetValue<string>() == "Safari");
+        Assert.Equal(2, overview["countries"]!.AsArray().Sum(c => c!["sessions"]!.GetValue<int>()));
+
+        // A period without sessions.
+        var from = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(1).ToString("O"));
+        var empty = (await admin.GetFromJsonAsync<JsonObject>($"/api/admin/tenants/alice/analytics/overview?from={from}"))!;
+        Assert.Equal(0, empty["totals"]!["sessions"]!.GetValue<int>());
+        Assert.Empty((await admin.GetFromJsonAsync<JsonArray>($"/api/admin/tenants/alice/analytics/groups?from={from}"))!);
+
+        var to = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(1).ToString("O"));
+        var groups = (await admin.GetFromJsonAsync<JsonArray>($"/api/admin/tenants/alice/analytics/groups?to={to}"))!;
+        Assert.Equal(2, groups.Count);
+        var withSections = groups.Single(g => g!["sessions"]!.GetValue<int>() == 1 && g["sectionsSeen"]!.GetValue<int>() == 1)!;
+        Assert.Equal(1, withSections["sectionsKnown"]!.GetValue<int>());
+
+        // Never visible without the admin key (R11.4).
+        var visitor = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.False((await visitor.GetAsync("/api/admin/tenants/alice/analytics/overview")).IsSuccessStatusCode);
+    }
+
+    [Fact]
+    public async Task Group_detail_lists_recent_sessions_and_counts_all()
+    {
+        var client = await InvitedClient();
+        await Accept(client);
+        var cvVersion = (await Cv(client))["cvVersion"]!.GetValue<string>();
+        await Send(client, new { sessionId = "s-limit-00000000001", seq = 0, bp = "lg", start = Start(cvVersion),
+            events = new object[] { new { e = "heartbeat", vis = 1000, act = 1000 }, new { e = "pdf", t = 1 } } });
+        _factory.Clock.Advance(TimeSpan.FromMinutes(1));
+        await Send(client, new { sessionId = "s-limit-00000000002", seq = 0, bp = "lg", start = Start(cvVersion),
+            events = new object[] { new { e = "heartbeat", vis = 2000, act = 2000 }, new { e = "pdf", t = 1 } } });
+
+        var group = Db(db => db.Sessions.First().GroupKey);
+        var detail = (await Admin().GetFromJsonAsync<JsonObject>($"/api/admin/tenants/alice/analytics/groups/{group}?limit=1"))!;
+        Assert.Equal(2, detail["sessionsTotal"]!.GetValue<int>());
+        Assert.Equal("s-limit-00000000002", Assert.Single(detail["sessions"]!.AsArray())!["id"]!.GetValue<string>());
+        Assert.Equal(2, detail["actions"]!["pdf"]!.GetValue<int>());
+        Assert.Equal(3000, detail["visitors"]![0]!["activeMs"]!.GetValue<long>());
+        Assert.Equal(15, detail["score"]!["parts"]!["intent"]!.GetValue<double>());
+    }
 }

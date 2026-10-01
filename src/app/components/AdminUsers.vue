@@ -3,8 +3,8 @@
  * Super-admin user management (docs/REQUIREMENTS_SAAS.md §6): search users, set the plan manually, block / unblock,
  * delete; all payments incl. unmatched webhook payments. Admin key only (the API answers 404 to users).
  */
-import { errorMessage, type AdminUser, type Payment } from '~/composables/useAdmin'
-import { endOfDayIso, formatMoney } from '~/utils/account'
+import { errorMessage, type AdminUser, type Payment, type PlatformStats } from '~/composables/useAdmin'
+import { endOfDayIso, fillDays, formatMoney } from '~/utils/account'
 
 const admin = useAdmin()
 
@@ -89,6 +89,7 @@ async function act(fn: () => Promise<unknown>) {
     replace(detail.user)
     selectedPayments.value = detail.payments
     note.value = ''
+    loadStats()
   } catch (e) {
     detailError.value = errorMessage(e)
   } finally {
@@ -161,7 +162,37 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral' | 
   completed: 'success', manual: 'info', unmatched: 'warning', refunded: 'neutral', chargeback: 'error'
 }
 
+// --- Platform stats (GET /admin/stats) ----------------------------------------------------------
+
+const stats = ref<PlatformStats | null>(null)
+const statsError = ref('')
+async function loadStats() {
+  statsError.value = ''
+  try {
+    stats.value = await admin.stats(30)
+  } catch (e) {
+    statsError.value = errorMessage(e)
+  }
+}
+const signups = computed(() => stats.value ? fillDays(stats.value.signupsPerDay, stats.value.days) : [])
+const signupTotal = computed(() => signups.value.reduce((sum, d) => sum + d.count, 0))
+const signupMax = computed(() => Math.max(1, ...signups.value.map(d => d.count)))
+const revenueText = computed(() => stats.value?.revenue.length
+  ? stats.value.revenue.map(r => formatMoney(r.amount, r.currency)).join(' + ')
+  : '–')
+const tiles = computed(() => stats.value
+  ? [
+      { label: 'Users', value: stats.value.users, hint: `${stats.value.withTenant} with a CV` },
+      { label: 'Pro', value: stats.value.pro, hint: stats.value.users ? `${Math.round(stats.value.pro / stats.value.users * 100)} % of users` : '' },
+      { label: 'Tenants', value: stats.value.tenants, hint: 'incl. managed' },
+      { label: 'Active invites', value: stats.value.activeInvites, hint: 'all tenants' },
+      { label: `Revenue (${stats.value.days} d)`, value: revenueText.value, hint: `${stats.value.revenue.reduce((n, r) => n + r.count, 0)} payments` },
+      { label: 'Refunds / unmatched', value: `${stats.value.refunds} / ${stats.value.unmatchedPayments}`, hint: stats.value.blocked ? `${stats.value.blocked} blocked users` : 'no blocked users' }
+    ]
+  : [])
+
 onMounted(() => {
+  loadStats()
   search()
   loadPayments()
 })
@@ -169,6 +200,31 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4" data-testid="admin-users">
+    <section v-if="stats" class="space-y-3" data-testid="platform-stats">
+      <div class="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <div v-for="tile in tiles" :key="tile.label" class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3">
+          <div class="text-xs text-gray-500">{{ tile.label }}</div>
+          <div class="text-xl font-semibold tabular-nums truncate" :title="String(tile.value)">{{ tile.value }}</div>
+          <div class="text-xs text-gray-500 truncate">{{ tile.hint }}</div>
+        </div>
+      </div>
+      <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3">
+        <div class="flex text-xs text-gray-500 mb-2">
+          <span>Sign-ups per day, last {{ stats.days }} days</span>
+          <span class="ml-auto font-medium text-gray-700 dark:text-gray-300">{{ signupTotal }} total</span>
+        </div>
+        <div class="flex items-end gap-px h-12" role="img" :aria-label="`${signupTotal} sign-ups in the last ${stats.days} days`">
+          <div
+            v-for="d in signups" :key="d.day" class="flex-1 rounded-t-sm min-h-px"
+            :class="d.count ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-800'"
+            :style="{ height: `${d.count ? Math.max(8, d.count / signupMax * 100) : 2}%` }"
+            :title="`${d.day}: ${d.count}`"
+          />
+        </div>
+      </div>
+    </section>
+    <p v-else-if="statsError" class="text-sm text-red-600 dark:text-red-400">Stats: {{ statsError }}</p>
+
     <div class="flex items-center gap-2 flex-wrap">
       <UTabs v-model="view" :items="views" :content="false" size="sm" variant="link" />
       <UBadge v-if="unmatchedCount" :label="`${unmatchedCount} unmatched payment${unmatchedCount === 1 ? '' : 's'}`" color="warning" variant="subtle" class="cursor-pointer" @click="view = 'payments'; onlyUnmatched = true" />

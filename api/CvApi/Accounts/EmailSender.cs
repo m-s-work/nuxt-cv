@@ -2,11 +2,17 @@ using System.Net.Http.Json;
 
 namespace CvApi.Accounts;
 
+public interface IEmailSender
+{
+    bool Enabled { get; }
+    Task<bool> SendAsync(string to, string subject, string text, string html, CancellationToken ct);
+}
+
 /// <summary>
 /// Sends transactional e-mail through the Resend HTTP API (no SMTP server needed). Without an API key, e-mail is
 /// disabled; with <c>Email:LogLinks</c> (development only) the message is written to the log instead.
 /// </summary>
-public sealed class EmailSender(IHttpClientFactory http, IConfiguration config, ILogger<EmailSender> logger)
+public sealed class EmailSender(IHttpClientFactory http, IConfiguration config, ILogger<EmailSender> logger) : IEmailSender
 {
     public const string HttpClientName = "email";
 

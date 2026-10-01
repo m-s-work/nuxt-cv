@@ -443,6 +443,13 @@ onMounted(load)
                   </div>
                   <div v-else-if="invite.source !== 'pdf-qr'" class="text-xs text-gray-400 mt-1">code not stored (created before codes were kept)</div>
                   <div v-if="overridesSummary(invite)" class="text-xs text-gray-500 mt-0.5">{{ overridesSummary(invite) }}</div>
+                  <ul v-if="invite.linkClicks?.length" class="mt-1 text-xs text-gray-500 space-y-0.5" :data-testid="`link-clicks-${invite.id}`">
+                    <li v-for="click in invite.linkClicks" :key="click.url" class="flex items-center gap-1" :title="click.lastAt ? `last ${new Date(click.lastAt).toLocaleString()}` : undefined">
+                      <UIcon name="i-lucide-mouse-pointer-click" class="shrink-0" />
+                      <span class="truncate max-w-56">{{ click.url.replace(/^https?:\/\/(www\.)?/, '') }}</span>
+                      <span>· {{ click.count }}×</span>
+                    </li>
+                  </ul>
                   <div v-if="invite.revision && !invite.depth" class="mt-1 flex items-center gap-1 flex-wrap" :data-testid="`pin-${invite.id}`">
                     <UBadge
                       size="sm" variant="subtle" icon="i-lucide-pin" :color="pinColor[pinOf(invite)!]"

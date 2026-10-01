@@ -34,6 +34,7 @@ async function load() {
     billing.value = b
     payments.value = p
     hideCredit.value = !!a.usage?.hideCredit
+    notifyOnOpen.value = a.user.notifyOnOpen !== false
   } catch (e) {
     error.value = errorMessage(e)
   }
@@ -131,6 +132,25 @@ async function setHideCredit(value: boolean) {
     creditError.value = code?.error === 'plan_limit' ? upgradeText({ feature: 'hideCredit' }) : errorMessage(e)
   } finally {
     creditBusy.value = false
+  }
+}
+
+// --- Notifications -------------------------------------------------------------------------------
+
+const notifyOnOpen = ref(props.user.notifyOnOpen !== false)
+const notifyBusy = ref(false)
+const notifyError = ref('')
+async function setNotify(value: boolean) {
+  notifyBusy.value = true
+  notifyError.value = ''
+  try {
+    await admin.updateAccount({ notifyOnOpen: value })
+    notifyOnOpen.value = value
+  } catch (e) {
+    notifyOnOpen.value = !value
+    notifyError.value = errorMessage(e)
+  } finally {
+    notifyBusy.value = false
   }
 }
 
@@ -310,9 +330,17 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral' | 
     </section>
 
     <div class="grid gap-6 lg:grid-cols-2">
-      <!-- PDF credit -->
+      <!-- Notifications & PDF credit -->
       <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 space-y-2">
-        <h3 class="font-semibold">PDF credit</h3>
+        <h3 class="font-semibold">Notifications</h3>
+        <USwitch
+          :model-value="notifyOnOpen" :disabled="notifyBusy" :loading="notifyBusy"
+          label="E-mail me when an invite is opened for the first time" data-testid="notify-on-open"
+          @update:model-value="setNotify"
+        />
+        <p class="text-xs text-gray-500">Sent to {{ user.email }}.</p>
+        <p v-if="notifyError" class="text-sm text-red-600 dark:text-red-400">{{ notifyError }}</p>
+        <h3 class="font-semibold pt-3">PDF credit</h3>
         <USwitch
           :model-value="hideCredit" :disabled="!plan.limits.hideCredit || creditBusy" :loading="creditBusy"
           label="Remove the &quot;Created with&quot; credit from PDFs" data-testid="hide-credit"

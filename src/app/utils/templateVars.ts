@@ -10,7 +10,7 @@ export type TemplateVarDef =
   | { type: 'color', default: string, label: string, suggestions?: string[] }
   | { type: 'boolean', default: boolean, label: string }
   | { type: 'palette', default: string[], label: string }
-  | { type: 'enum', default: string, label: string, options: readonly string[] }
+  | { type: 'enum', default: string, label: string, options: readonly string[], optionLabels?: Record<string, string> }
 
 export type TemplateVarValue = string | boolean | string[]
 

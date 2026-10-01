@@ -13,6 +13,9 @@ interface Props {
     endDate: string  // Override to make non-nullable for studies
     focus: string
     technologies?: string[]
+    url?: string
+    urlLabel?: string
+    urlHost?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -46,6 +49,9 @@ const filteredStudies = computed(() => {
         :key="study.id"
         :id="study.id"
         :title="study.degree"
+        :url="study.url"
+        :url-label="study.urlLabel"
+        :url-host="study.urlHost"
         :subtitle="study.institution"
         :period="study.period"
         :description="`${t('studies.focus')}: ${study.focus}`"

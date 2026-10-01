@@ -183,3 +183,15 @@ export function endOfDayIso(date: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
   return `${date}T23:59:59Z`
 }
+
+/** Sign-ups per day for the last `days` days up to `today` (UTC, yyyy-mm-dd), missing days as 0. */
+export function fillDays(counts: Array<{ day: string, count: number }>, days: number, today: Date = new Date()): Array<{ day: string, count: number }> {
+  const byDay = new Map(counts.map(c => [c.day, c.count]))
+  const end = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  const result: Array<{ day: string, count: number }> = []
+  for (let i = days - 1; i >= 0; i--) {
+    const day = new Date(end - i * 86_400_000).toISOString().slice(0, 10)
+    result.push({ day, count: byDay.get(day) ?? 0 })
+  }
+  return result
+}

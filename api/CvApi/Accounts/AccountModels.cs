@@ -32,6 +32,12 @@ public sealed class User
     /// <summary>Own domain (Pro, §5.4); only resolves while the plan is Pro.</summary>
     public string? CustomDomain { get; set; }
 
+    /// <summary>E-mail the user when an invite is opened for the first time (null = on).</summary>
+    public bool? NotifyOnOpen { get; set; }
+
+    /// <summary>The Pro end date a "Pro ends soon" e-mail was sent for (so it is sent once per pass).</summary>
+    public DateTimeOffset? ProReminderSentFor { get; set; }
+
     public List<ExternalLogin> Logins { get; set; } = [];
 
     public bool IsPro(DateTimeOffset now) => ProForever || ProUntil > now;
@@ -136,4 +142,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
                      .Where(p => p.ClrType == typeof(DateTimeOffset) || p.ClrType == typeof(DateTimeOffset?)))
             property.SetValueConverter(converter);
     }
+
+    /// <summary>EnsureCreated does not touch existing databases: adds nullable columns introduced later.</summary>
+    public void AddMissingColumns() => Access.AppDbContext.AddMissingColumns(this);
 }

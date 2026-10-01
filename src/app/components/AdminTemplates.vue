@@ -298,8 +298,8 @@ onBeforeUnmount(() => {
           </div>
 
           <USelect
-            v-else-if="def.type === 'enum'" :model-value="String(values[key])" size="xs" class="w-40"
-            :items="def.options.map(o => ({ label: o, value: o }))" :aria-label="def.label"
+            v-else-if="def.type === 'enum'" :model-value="String(values[key])" size="xs" class="w-56"
+            :items="def.options.map(o => ({ label: def.optionLabels?.[o] ?? o, value: o }))" :aria-label="def.label"
             @update:model-value="setValue(key, String($event))"
           />
         </div>

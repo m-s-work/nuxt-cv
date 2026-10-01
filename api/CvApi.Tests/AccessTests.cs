@@ -210,6 +210,37 @@ public sealed class AccessTests : IDisposable
         await Cv(client);
     }
 
+    [Fact]
+    public async Task Admin_preview_of_an_unsaved_draft_is_redacted_and_not_stored()
+    {
+        var before = File.ReadAllText(Path.Combine(_factory.DataPath, "tenants", "alice", "cv.en.json"));
+        var draft = JsonNode.Parse("""
+            {
+              "profile": { "name": "Draft Alice", "photoUrl": "/api/assets/p.jpg" },
+              "experiences": [
+                { "id": 1, "company": "Secret Corp", "companyAlias": "A company", "startDate": "2020-03-01", "endDate": null },
+                { "id": 2, "company": "Hidden", "startDate": "2019", "endDate": "2020", "requires": ["private"] }
+              ]
+            }
+            """);
+
+        var response = await Admin().PostAsJsonAsync("/api/admin/tenants/alice/preview", new { profile = "public", locale = "en", cv = draft });
+        response.EnsureSuccessStatusCode();
+        var cv = (await response.Content.ReadFromJsonAsync<JsonObject>())!["cv"]!;
+        Assert.Equal("Draft Alice", cv["profile"]!["name"]!.GetValue<string>());
+        Assert.Null(cv["profile"]!["photoUrl"]);
+        var experience = Assert.Single(cv["experiences"]!.AsArray())!;
+        Assert.Equal("A company", experience["company"]!.GetValue<string>());
+        Assert.DoesNotContain("Secret Corp", cv.ToJsonString());
+
+        var full = await Admin().PostAsJsonAsync("/api/admin/tenants/alice/preview", new { profile = "full", cv = draft });
+        Assert.Equal(2, (await full.Content.ReadFromJsonAsync<JsonObject>())!["cv"]!["experiences"]!.AsArray().Count);
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Admin().PostAsJsonAsync("/api/admin/tenants/alice/preview", new { profile = "nope", cv = draft })).StatusCode);
+        Assert.Equal(before, File.ReadAllText(Path.Combine(_factory.DataPath, "tenants", "alice", "cv.en.json")));
+    }
+
     private HttpClient Admin()
     {
         var admin = _factory.ClientFor(ApiFactory.SharedHost);
@@ -293,6 +324,35 @@ public sealed class AccessTests : IDisposable
 
         Assert.Equal(HttpStatusCode.BadRequest, (await UpdateSettings(code, new { maxUses = 0 })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await UpdateSettings(code, new { viewOnceMinutes = 0 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Sessions_ended_by_view_once_stay_ended_when_it_is_turned_off()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        var before = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(before, code);
+        await Cv(before);
+
+        // On: the earlier browser loses access. Off again before anyone opened it: still no access.
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = 30 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await before.GetAsync("/api/cv")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = (int?)null })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await before.GetAsync("/api/cv")).StatusCode);
+
+        // New redemptions work and keep working.
+        var after = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(after, code)).StatusCode);
+        await Cv(after);
+    }
+
+    [Fact]
+    public async Task Parallel_redemptions_do_not_exceed_max_uses()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", maxUses = 1 });
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, (await Invite(code))["useCount"]!.GetValue<int>());
     }
 
     [Fact]

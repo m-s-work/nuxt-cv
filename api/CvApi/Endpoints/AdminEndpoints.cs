@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using CvApi.Access;
 using CvApi.Accounts;
@@ -27,6 +28,9 @@ public static partial class AdminEndpoints
     public sealed record RegisterRevisionRequest(string Sha, string? Message, DateTimeOffset? CommittedAt, string? Repo, string? Path);
 
     public sealed record FetchRevisionRequest(string Ref);
+
+    /// <summary>Unsaved CV draft to redact for a profile (admin editor preview).</summary>
+    public sealed record DraftPreviewRequest(string Profile, string? Locale, JsonObject? Cv);
 
     /// <summary>Revision: SHA/prefix = pin, "" = current CV even if the profile is pinned, null = follow the profile.</summary>
     public sealed record PinRequest(string? Revision);
@@ -271,6 +275,9 @@ public static partial class AdminEndpoints
                     // Turned on: earlier sessions end and the next opening is the one. The printed QR code
                     // must not outlive it either.
                     invite.Rearm();
+                    // A fresh token that no browser has yet: earlier sessions stay ended even if view once is
+                    // turned off again before anyone opened it.
+                    invite.ViewOnceToken = InviteCodes.Generate();
                     foreach (var child in children)
                     {
                         child.RevokedAt = now;
@@ -284,10 +291,10 @@ public static partial class AdminEndpoints
             }
             else if (invite.IsViewOnce)
             {
-                // Turned off: the browser that opened it keeps access like with a normal invite.
+                // Turned off: the browser that opened it keeps access like with a normal invite. The token stays,
+                // so sessions that ended when view once was turned on do not come back.
                 invite.ViewOnceMinutes = null;
                 invite.ViewOnceUntil = null;
-                invite.ViewOnceToken = null;
                 pdf.DeleteCached(tenantId, id);
             }
 
@@ -495,6 +502,20 @@ public static partial class AdminEndpoints
             if (tenants.LoadCv(tenant, locale, effective.Revision) is not { } loaded) return Results.NotFound();
             return Results.Ok(new { locale = loaded.Locale, revision = effective.Revision, cv = CvRedactor.Redact(loaded.Cv, effective) });
         });
+
+        // Unsaved draft of a CV file (admin editor): redacted exactly as the profile would see it, nothing is stored.
+        // Pins are ignored – a draft is always a change of the current CV.
+        admin.MapPost("/tenants/{tenantId}/preview", (string tenantId, DraftPreviewRequest request, TenantStore tenants) =>
+        {
+            var tenant = tenants.Get(tenantId);
+            if (tenant is null) return Results.NotFound();
+            if (!tenant.Config.Profiles.ContainsKey(request.Profile))
+                return Results.BadRequest(new { error = "unknown_profile" });
+            if (request.Cv is null) return Results.BadRequest(new { error = "invalid_cv" });
+            var effective = AccessService.GrantForProfile(tenant, request.Profile, revision: "")!.Policy;
+            var draft = (JsonObject)request.Cv.DeepClone();
+            return Results.Ok(new { locale = request.Locale, revision = (string?)null, cv = CvRedactor.Redact(draft, effective) });
+        });
     }
 
     private static readonly Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider ContentTypes = new();
@@ -526,6 +547,9 @@ public static partial class AdminEndpoints
         viewOnceUntil = i.ViewOnceUntil,
         parentId = i.ParentId,
         source = i.Source,
+        // Clicks on website links printed into this PDF (pdf-qr invites, §7.2).
+        linkClicks = LinkClicks.Parse(i.LinkClicksJson).Values.OrderByDescending(e => e.Count)
+            .Select(e => new { url = e.Url, count = e.Count, lastAt = e.LastAt }),
     };
 
     /// <summary>

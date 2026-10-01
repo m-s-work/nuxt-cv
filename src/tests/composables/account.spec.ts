@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  accountErrorText, adminAuthHeaders, completeLink, endOfDayIso, formatMoney, loginErrorKey, passName, passPricing, proChanged,
+  accountErrorText, adminAuthHeaders, completeLink, endOfDayIso, fillDays, formatMoney, loginErrorKey, passName, passPricing, proChanged,
   upgradeReason, upgradeText, usagePercent
 } from '~/utils/account'
 
@@ -140,5 +140,14 @@ describe('misc', () => {
   it('turns a date input into the end of that day', () => {
     expect(endOfDayIso('2026-12-31')).toBe('2026-12-31T23:59:59Z')
     expect(endOfDayIso('')).toBeNull()
+  })
+})
+
+describe('fillDays', () => {
+  it('fills missing days with zero, oldest first', () => {
+    const result = fillDays([{ day: '2026-09-30', count: 2 }, { day: '2026-09-28', count: 1 }], 4, new Date('2026-09-30T15:00:00Z'))
+    expect(result).toEqual([
+      { day: '2026-09-27', count: 0 }, { day: '2026-09-28', count: 1 }, { day: '2026-09-29', count: 0 }, { day: '2026-09-30', count: 2 }
+    ])
   })
 })
