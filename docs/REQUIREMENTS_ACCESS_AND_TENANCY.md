@@ -70,7 +70,8 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
   Exception: the admin MAY choose a code (`code`, 4–64 characters `A-Z a-z 0-9 - _`), e.g. `demo`.
   Such codes are guessable and MUST only be used for demo or otherwise public content. A code can be in use
-  by one active invite at a time; revoking the invite releases the code.
+  by one active invite at a time; revoking the invite releases the code. An expired (not revoked) invite releases it only
+  for its own tenant.
 - R4.2 Codes are looked up by their SHA-256 hash. The plain code is additionally stored encrypted
   (ASP.NET data protection, keys in `/data/keys`) so the owner can view and copy code and link again at any
   time in the admin API/UI; codes are not secret towards the admin. They MUST NOT be sent to anyone else.

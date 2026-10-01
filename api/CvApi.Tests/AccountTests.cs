@@ -163,8 +163,53 @@ public class AccountTests : IDisposable
     [InlineData("/\\evil.example", "/admin")]
     [InlineData("https://evil.example", "/admin")]
     [InlineData("/admin?tab=account", "/admin?tab=account")]
+    [InlineData("/\t/evil.example", "/admin")]
+    [InlineData("/\n/evil.example", "/admin")]
+    [InlineData("/ /evil.example", "/admin")]
     public void Return_url_must_be_local(string input, string expected) =>
         Assert.Equal(expected, AuthSetup.SafeReturnUrl(input));
+
+    [Fact]
+    public async Task An_unverified_address_cannot_be_preregistered_to_take_over_an_account()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var accounts = scope.ServiceProvider.GetRequiredService<AccountService>();
+            // An attacker's Microsoft login claims the victim's address (not verified).
+            var (attacker, error) = await accounts.SignInAsync("microsoft", "ms-attacker", "victim@example.org", "Mallory", null,
+                emailVerified: false, CancellationToken.None);
+            Assert.Equal(SignInError.None, error);
+            Assert.NotNull(attacker);
+
+            // The real owner signs in with a verified provider: not joined into the attacker's account.
+            var (joined, joinError) = await accounts.SignInAsync("google", "g-victim", "victim@example.org", "Victim", null,
+                emailVerified: true, CancellationToken.None);
+            Assert.Null(joined);
+            Assert.Equal(SignInError.AccountExists, joinError);
+        }
+
+        // Same for the magic link.
+        var client = _factory.SessionClient();
+        (await client.PostAsJsonAsync("/api/auth/magic-link", new { email = "victim@example.org" })).EnsureSuccessStatusCode();
+        var link = Regex.Match(_factory.Email.Sent[^1].Text, @"https?://\S+").Value;
+        Assert.Contains("error=account_exists", (await client.GetAsync(new Uri(link).PathAndQuery)).Headers.Location!.ToString());
+    }
+
+    [Fact]
+    public async Task Expired_custom_codes_of_another_tenant_are_not_taken_over()
+    {
+        var admin = _factory.AdminClient();
+        var created = await admin.PostAsJsonAsync("/api/admin/tenants/alice/invites",
+            new { profile = "full", code = "alice-recruiter-2026", expiresAt = _factory.Clock.GetUtcNow().AddDays(1) });
+        created.EnsureSuccessStatusCode();
+        _factory.Clock.Advance(TimeSpan.FromDays(2));
+
+        var client = await _factory.SignUpWithTenantAsync("squat@example.org", "squatter");
+        var taken = await client.PostAsJsonAsync("/api/admin/tenants/squatter/invites", new { profile = "full", code = "alice-recruiter-2026" });
+        Assert.Equal(HttpStatusCode.Conflict, taken.StatusCode);
+        // The owning tenant may reuse its own expired code.
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/admin/tenants/alice/invites", new { profile = "full", code = "alice-recruiter-2026" })).StatusCode);
+    }
 
     [Fact]
     public async Task Onboarding_creates_the_tenant_and_validates_the_handle()

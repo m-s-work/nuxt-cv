@@ -32,6 +32,12 @@ public sealed class User
     /// <summary>Own domain (Pro, §5.4); only resolves while the plan is Pro.</summary>
     public string? CustomDomain { get; set; }
 
+    /// <summary>
+    /// False when the account was created by a login whose e-mail address is not verified (e.g. Microsoft). Such an account
+    /// is never joined by other logins with the same address, so nobody can pre-register someone else's address (null = verified).
+    /// </summary>
+    public bool? EmailVerified { get; set; }
+
     /// <summary>E-mail the user when an invite is opened for the first time (null = on).</summary>
     public bool? NotifyOnOpen { get; set; }
 

@@ -141,7 +141,10 @@ public static class AuthSetup
 
     /// <summary>Only local paths ("/x", not "//x" or "/\x") are accepted as return URL (§2 S2.6).</summary>
     public static string SafeReturnUrl(string? returnUrl) =>
-        returnUrl is { Length: > 0 } r && r[0] == '/' && (r.Length == 1 || (r[1] != '/' && r[1] != '\\')) && !r.Contains("://")
+        returnUrl is { Length: > 0 and <= 512 } r && r[0] == '/' && (r.Length == 1 || (r[1] != '/' && r[1] != '\\'))
+        && !r.Contains("://") && !r.Contains('\\')
+        // Browsers drop tabs and line breaks, so "/\t/evil.com" would become "//evil.com".
+        && !r.Any(c => char.IsControl(c) || char.IsWhiteSpace(c))
             ? r
             : "/admin";
 }

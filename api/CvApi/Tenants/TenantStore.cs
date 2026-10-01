@@ -60,6 +60,9 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
         return owners.IsBlocked(tenant.Id) || owners.IsSuspendedHost(tenant.Id, normalized) ? null : tenant;
     }
 
+    /// <summary>Tenant a host is configured for, regardless of blocking or plan (for uniqueness checks).</summary>
+    public Tenant? ConfiguredOwnerOfHost(string host) => Current().ByHost.GetValueOrDefault(NormalizeHost(host));
+
     /// <summary>Host for public and invite links: the first configured host that currently resolves to the tenant.</summary>
     public string? PrimaryHost(Tenant tenant) =>
         tenant.Config.Hosts.Select(NormalizeHost).FirstOrDefault(h => !owners.IsSuspendedHost(tenant.Id, h));

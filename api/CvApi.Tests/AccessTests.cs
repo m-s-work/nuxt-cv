@@ -347,6 +347,24 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Rearming_does_not_bring_back_sessions_ended_by_view_once()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        var before = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(before, code);
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = 30 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = (int?)null })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Rearm(code)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await before.GetAsync("/api/cv")).StatusCode);
+
+        // Normal sessions opened after that survive a rearm.
+        var after = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(after, code);
+        Assert.Equal(HttpStatusCode.OK, (await Rearm(code)).StatusCode);
+        await Cv(after);
+    }
+
+    [Fact]
     public async Task Parallel_redemptions_do_not_exceed_max_uses()
     {
         var code = await _factory.CreateInviteAsync("alice", new { profile = "full", maxUses = 1 });

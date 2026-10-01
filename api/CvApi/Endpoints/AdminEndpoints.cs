@@ -204,7 +204,9 @@ public static partial class AdminEndpoints
                     return Results.BadRequest(new { error = "invalid_code", rule = "4-64 characters: A-Z a-z 0-9 - _" });
                 var hash = InviteCodes.Hash(code);
                 var existing = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
-                if (existing is not null && existing.IsActive(time.GetUtcNow()))
+                // Codes share one namespace across tenants. Revoking releases a code for everyone; an expired code stays
+                // with its tenant (its owner may extend it again, and links already sent must not open another CV).
+                if (existing is not null && (existing.IsActive(time.GetUtcNow()) || (existing.RevokedAt is null && existing.TenantId != tenant.Id)))
                     return Results.Conflict(new { error = "code_taken" });
                 // A revoked or expired invite releases its code (R4.1, e.g. re-create "demo" with other settings).
                 if (existing is not null) existing.CodeHash = $"released:{existing.Id:N}";

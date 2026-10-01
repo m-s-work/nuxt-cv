@@ -127,7 +127,9 @@ public static class AccountEndpoints
             if (!IsValidDomain(domain)) return Results.BadRequest(new { error = "invalid_domain" });
 
             var shared = SharedHost(config);
-            if (domain == shared || tenants.FindByHost(domain) is { } other && other.Id != tenant.Id
+            // Configured hosts of all tenants count, also of blocked users and lapsed Pro plans (FindByHost skips those).
+            if (domain == shared || tenants.ConfiguredOwnerOfHost(domain) is { } other && other.Id != tenant.Id
+                || await db.Users.AnyAsync(u => u.CustomDomain == domain && u.Id != user.Id, ct)
                 || (config["Saas:TenantHostSuffix"] is { Length: > 0 } suffix && domain.EndsWith("." + suffix.Trim('.'), StringComparison.Ordinal)))
                 return Results.BadRequest(new { error = "domain_taken" });
 

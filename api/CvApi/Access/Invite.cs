@@ -59,7 +59,9 @@ public sealed class Invite
     {
         UseCount = 0;
         ViewOnceUntil = null;
-        ViewOnceToken = null;
+        // View once: a fresh token nobody holds ends the session of the browser that opened it. Normal invites keep
+        // their token (if any), so their sessions stay valid and sessions ended earlier stay ended (R4.10, R4.11).
+        if (IsViewOnce) ViewOnceToken = InviteCodes.Generate();
     }
 
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && (ExpiresAt is null || ExpiresAt > now)

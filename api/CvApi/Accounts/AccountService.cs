@@ -64,12 +64,17 @@ public sealed partial class AccountService(
             var existing = await db.Users.SingleOrDefaultAsync(u => u.Email == normalized, ct);
             if (existing is not null)
             {
-                if (!VerifiedEmailProviders.Contains(provider) || !emailVerified) return (null, SignInError.AccountExists);
+                if (!VerifiedEmailProviders.Contains(provider) || !emailVerified || existing.EmailVerified == false)
+                    return (null, SignInError.AccountExists);
                 user = existing;
             }
             else
             {
-                user = new User { Email = normalized, Name = (name ?? "").Trim(), AvatarUrl = avatarUrl, CreatedAt = now };
+                user = new User
+                {
+                    Email = normalized, Name = (name ?? "").Trim(), AvatarUrl = avatarUrl, CreatedAt = now,
+                    EmailVerified = VerifiedEmailProviders.Contains(provider) && emailVerified ? null : false,
+                };
                 db.Users.Add(user);
             }
             user.Logins.Add(new ExternalLogin { Provider = provider, Subject = subject, CreatedAt = now });
