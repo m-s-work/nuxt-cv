@@ -68,14 +68,14 @@ public static class AnalyticsEndpoints
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var t = type is "click" or "attention" ? type : "move";
             return Results.Ok(await analytics.HeatmapAsync(tenant.Id, group, bp, appSha, cvVersion, t, ct));
-        });
+        }).AddEndpointFilter(RequireHeatmaps);
 
         // The redacted CV exactly as visitors of this version saw it (R6.12), for rendering heatmaps.
         admin.MapGet("/cv-snapshots/{cvVersion}", async (string tenantId, string cvVersion, TenantStore tenants, AnalyticsService analytics,
             CancellationToken ct) =>
             tenants.Get(tenantId) is { } tenant && await analytics.SnapshotAsync(tenant.Id, cvVersion, ct) is { } s
                 ? Results.Ok(new { s.CvVersion, s.Locale, s.CvSourceSha, s.FirstSeen, s.LastUsed, cv = System.Text.Json.Nodes.JsonNode.Parse(s.Json) })
-                : Results.NotFound(new { error = "no_snapshot" }));
+                : Results.NotFound(new { error = "no_snapshot" })).AddEndpointFilter(RequireHeatmaps);
 
         admin.MapGet("/consent", async (string tenantId, TenantStore tenants, AnalyticsService analytics, CancellationToken ct) =>
             tenants.Get(tenantId) is { } tenant ? Results.Ok(await analytics.ConsentAsync(tenant.Id, ct)) : Results.NotFound());
@@ -110,5 +110,16 @@ public static class AnalyticsEndpoints
                 policyVersion = TrackingPolicy.PolicyVersionOf(c.Privacy?.Controller?.Trim(), c.Privacy?.Contact?.Trim(), retention),
             });
         });
+    }
+
+    /// <summary>Heatmaps are a Pro feature for users (SaaS §4); the super-admin and managed tenants always have them.</summary>
+    private static async ValueTask<object?> RequireHeatmaps(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var http = context.HttpContext;
+        if (AdminCaller.Of(http).IsSuperAdmin) return await next(context);
+        var tenantId = http.GetRouteValue("tenantId") as string ?? "";
+        return http.RequestServices.GetRequiredService<Accounts.TenantOwners>().For(tenantId).Heatmaps
+            ? await next(context)
+            : Accounts.AccountEndpoints.PlanLimit("heatmaps", null);
     }
 }

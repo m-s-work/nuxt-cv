@@ -375,6 +375,25 @@ public class AccountTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/account/import/linkedin", notZip)).StatusCode);
     }
 
+    [Fact]
+    public async Task Heatmaps_need_pro_but_basic_statistics_do_not()
+    {
+        var client = await _factory.SignUpWithTenantAsync("heat@example.org", "heater");
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/admin/tenants/heater/analytics/groups")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/admin/tenants/heater/analytics/overview")).StatusCode);
+        var locked = await client.GetAsync("/api/admin/tenants/heater/analytics/heatmap");
+        Assert.Equal(HttpStatusCode.PaymentRequired, locked.StatusCode);
+        Assert.Equal("heatmaps", (await locked.Content.ReadFromJsonAsync<JsonObject>())!["feature"]!.GetValue<string>());
+        Assert.Equal(HttpStatusCode.PaymentRequired, (await client.GetAsync("/api/admin/tenants/heater/analytics/cv-snapshots/abc")).StatusCode);
+
+        // The super-admin and managed tenants are not limited.
+        Assert.Equal(HttpStatusCode.OK, (await _factory.AdminClient().GetAsync("/api/admin/tenants/heater/analytics/heatmap")).StatusCode);
+
+        var userId = await _factory.UserIdAsync(client);
+        (await _factory.AdminClient().PutAsJsonAsync($"/api/admin/users/{userId}/plan", new { addDays = 7 })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/admin/tenants/heater/analytics/heatmap")).StatusCode);
+    }
+
     [Theory]
     [InlineData("example.com", true)]
     [InlineData("cv.jane-doe.at", true)]
