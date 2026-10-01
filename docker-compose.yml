@@ -40,6 +40,8 @@ services:
       Pdf__LayoutVersion: ${CV_PDF_LAYOUT_VERSION:-1}
       # Read access to a private CV repository (fetches pinned CV versions again). Empty for public repos.
       Git__Token: ${CV_GIT_TOKEN:-}
+      # Repository hosts the token is sent to (comma separated); never sent to other hosts.
+      Git__TokenHosts: ${CV_GIT_TOKEN_HOSTS:-github.com}
       # Visitor tracking: IP -> location / network via the internal geo service. Empty = no location data.
       Tracking__GeoUrl: ${CV_GEO_URL-http://geo:3100}
     volumes:
