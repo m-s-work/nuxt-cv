@@ -56,6 +56,7 @@ docker compose -p cv-e2e -f docker-compose.yml -f e2e/docker-compose.e2e.yml dow
 | `admin.spec.ts` | Admin login, invites (create, open, revoke), file editor, preview per profile, favicon + PDF template, analytics |
 | `api.spec.ts` | Health/version, no access on the shared host, redeem/logout, asset access rule, admin key |
 | `mobile.spec.ts` | Phone layout |
+| `public-pages.spec.ts` | Showcase sign-up / pricing / legal links, `/pricing` (Free, Pro, four passes), legal pages |
 
 Tests run one after another (`workers: 1`) because they share one backend. Use `unique()` labels and data that does
 not depend on other tests; restore files you change (see the file editor test).

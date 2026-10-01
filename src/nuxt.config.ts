@@ -43,7 +43,14 @@ export default defineNuxtConfig({
       // Base path of the C# API. Same origin in production (nginx proxies /api to the API container).
       apiBase,
       // Invite code of a public demo CV (e.g. "demo"); the showcase links to it when set. Build time.
-      demoInviteCode: process.env.NUXT_PUBLIC_DEMO_INVITE_CODE || ''
+      demoInviteCode: process.env.NUXT_PUBLIC_DEMO_INVITE_CODE || '',
+      // Operator details for /legal/imprint, /legal/privacy and /legal/terms (utils/legal.ts). Build time.
+      // Address lines are separated by "|" (or a newline); the VAT id is optional.
+      legalName: process.env.NUXT_PUBLIC_LEGAL_NAME || '',
+      legalAddress: process.env.NUXT_PUBLIC_LEGAL_ADDRESS || '',
+      legalEmail: process.env.NUXT_PUBLIC_LEGAL_EMAIL || '',
+      legalVatId: process.env.NUXT_PUBLIC_LEGAL_VAT_ID || '',
+      legalCountry: process.env.NUXT_PUBLIC_LEGAL_COUNTRY || 'Austria'
     }
   },
 

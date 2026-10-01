@@ -330,8 +330,10 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 11. Showcase (shared host without invite)
 
-- R11.1 Visitors of the shared host see a showcase page at `/`: what the product does,
-  example screenshots, the public feature list and an invite-code form. Visitors who already have access
+- R11.1 Visitors of the shared host see a showcase page at `/`: the product landing page with a top bar
+  ("Pricing", "Sign in" → `/login`), the primary call to action "Create your CV – free" (→ `/login`, localized),
+  example screenshots, the public feature list, a pricing section (Free vs Pro, details on `/pricing`, see
+  `REQUIREMENTS_SAAS.md` §4), the demo link (`NUXT_PUBLIC_DEMO_INVITE_CODE`) and an invite-code form. Visitors who already have access
   additionally get a "Continue to the CV" link to `/cv` (R2.5); the invite is never dropped for this.
   Below it, "Not your invitation? Remove it from this browser" (for shared computers) clears the access cookie
   via `POST /api/access/logout` after a confirmation ("you need the invite link again"). The invite is not revoked;
@@ -346,6 +348,15 @@ A sample tenant lives in `api/sample-data/`.
   feature presentation and is allowed; it describes the recorded data plainly, without marketing it as a feature.
 - R11.5 On a tenant host the showcase is never shown (the neutral page is used), so tenant hosts do not
   advertise the platform.
+- R11.6 **Public pricing and legal pages.** `/pricing` shows Free vs Pro and the prepaid passes from
+  `GET /api/billing/config` (price per week large, total and saving vs the weekly pass small; default prices when the
+  API fails); every button leads to `/login`. `/legal/imprint`, `/legal/privacy` and `/legal/terms` take the operator
+  details from the build variables `NUXT_PUBLIC_LEGAL_NAME`, `_ADDRESS`, `_EMAIL`, `_VAT_ID` (optional) and `_COUNTRY`
+  (default Austria); their texts are templates the operator must review. Showcase and `/pricing` link all three in
+  the footer. R11.4 applies to these pages too; the privacy policy describes the processing of visit data for CV
+  owners who switch it on factually (required disclosure, like the consent modal), without presenting it as a feature.
+- R11.7 `src/scripts/showcase-screenshots.mjs` regenerates the screenshots of R11.2 from the sample tenant
+  (`docs/DEPLOYMENT_COOLIFY.md`, "Showcase screenshots").
 
 ---
 

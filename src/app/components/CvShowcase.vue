@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { LightboxImage } from '~/composables/useLightbox'
 
-// Landing page of the shared host (e.g. cv.velarix.space) for visitors without an invite.
+// Landing page of the shared host (e.g. cv.velarix.space): product page with sign-up CTA (/login), pricing and the
+// invite-code form for visitors with an invite.
 // Screenshots show the sample tenant only (api/sample-data), never a real CV.
 //
 // Only PUBLIC features may be listed here. Analytics / tracking features (e.g. heatmap tracking,
@@ -80,7 +81,8 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
   <div class="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
     <!-- Hero with invite entry -->
     <section class="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-      <div class="mx-auto max-w-6xl px-4 py-16 lg:py-24 grid gap-10 lg:grid-cols-[1fr_22rem] items-center">
+      <PublicTopBar dark />
+      <div class="mx-auto max-w-6xl px-4 pt-8 pb-16 lg:pt-12 lg:pb-24 grid gap-10 lg:grid-cols-[1fr_22rem] items-center">
         <div class="space-y-5">
           <p class="text-sm font-semibold uppercase tracking-widest text-blue-200">
             {{ t('showcase.eyebrow') }}
@@ -91,14 +93,21 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
           <p class="text-lg text-blue-100 max-w-2xl">
             {{ t('showcase.subtitle') }}
           </p>
-          <div class="flex flex-wrap gap-3">
-            <a v-if="demoLink" :href="demoLink" class="inline-block rounded-lg bg-white px-4 py-2 font-medium text-blue-700 hover:bg-blue-50">
+          <div class="flex flex-wrap items-center gap-3">
+            <NuxtLink
+              :to="localePath('/login')" data-testid="showcase-create"
+              class="inline-block rounded-lg bg-white px-5 py-3 text-lg font-semibold text-blue-700 shadow-lg hover:bg-blue-50"
+            >
+              {{ t('showcase.create') }}
+            </NuxtLink>
+            <a v-if="demoLink" :href="demoLink" class="inline-block rounded-lg bg-white/15 px-4 py-3 font-medium ring-1 ring-white/40 hover:bg-white/25" data-testid="showcase-demo">
               {{ t('showcase.tryDemo') }}
             </a>
-            <a href="#showcase-features" class="inline-block rounded-lg bg-white/10 px-4 py-2 font-medium hover:bg-white/20">
+            <a href="#showcase-features" class="inline-block rounded-lg px-4 py-3 font-medium text-blue-100 hover:text-white hover:underline">
               {{ t('showcase.seeFeatures') }}
             </a>
           </div>
+          <p class="text-sm text-blue-200">{{ t('showcase.createNote') }}</p>
         </div>
 
         <div class="rounded-xl bg-white p-6 text-gray-900 shadow-xl dark:bg-gray-800 dark:text-white">
@@ -216,9 +225,14 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
       </div>
     </section>
 
-    <footer class="mx-auto max-w-6xl px-4 py-8 text-sm text-gray-500 dark:text-gray-400">
-      {{ t('showcase.footer') }}
-    </footer>
+    <!-- Pricing (public features only, R11.4); details on /pricing -->
+    <section id="showcase-pricing" class="mx-auto max-w-6xl px-4 py-16">
+      <h2 class="text-3xl font-bold mb-2">{{ t('showcase.pricingTitle') }}</h2>
+      <p class="text-gray-600 dark:text-gray-400 mb-8 max-w-3xl">{{ t('showcase.pricingText') }}</p>
+      <PricingPlans compact />
+    </section>
+
+    <PublicFooter />
   </div>
 </template>
 
@@ -230,7 +244,7 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
       "metaDescription": "Share your CV with exactly the people you choose – and decide per invite what they see.",
       "eyebrow": "Invite-only CVs",
       "title": "One CV. Every recipient sees exactly what they should.",
-      "subtitle": "CV as Code: maintain your CV once as JSON, versioned in Git, and share it through personal invite links. Each invite decides which details are visible – online and in its own PDF.",
+      "subtitle": "Write your CV once – in the editor or as JSON – and share it through personal invite links. Each invite decides which details are visible – online and in its own PDF.",
       "seeFeatures": "See the features",
       "inviteTitle": "Got an invitation?",
       "inviteText": "Enter the code from your invite link to open the CV.",
@@ -316,7 +330,10 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
           "text": "The link unlocks exactly the parts of the CV that the invite allows – online and as matching PDF."
         }
       },
-      "footer": "Invite-only CV hosting · self-hosted",
+      "create": "Create your CV – free",
+      "createNote": "Free forever. No credit card needed.",
+      "pricingTitle": "Pricing",
+      "pricingText": "Free forever for your CV. Pro as a prepaid pass when you need more – no subscription, no automatic renewal.",
       "tryDemo": "Try the demo CV",
       "continueTitle": "Your invitation",
       "continueText": "You have already opened an invitation in this browser.",
@@ -333,7 +350,7 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
       "metaDescription": "Teile deinen Lebenslauf mit genau den Personen, die du auswählst – und entscheide pro Einladung, was sie sehen.",
       "eyebrow": "Lebensläufe nur auf Einladung",
       "title": "Ein Lebenslauf. Jede:r sieht genau das Richtige.",
-      "subtitle": "CV as Code: Pflege deinen Lebenslauf einmal als JSON, versioniert in Git, und teile ihn über persönliche Einladungslinks. Jede Einladung legt fest, welche Details sichtbar sind – online und im eigenen PDF.",
+      "subtitle": "Schreib deinen Lebenslauf einmal – im Editor oder als JSON – und teile ihn über persönliche Einladungslinks. Jede Einladung legt fest, welche Details sichtbar sind – online und im eigenen PDF.",
       "seeFeatures": "Funktionen ansehen",
       "inviteTitle": "Eingeladen?",
       "inviteText": "Gib den Code aus deinem Einladungslink ein, um den Lebenslauf zu öffnen.",
@@ -419,7 +436,10 @@ function openImages(list: ReadonlyArray<{ src: string, key: string }>, prefix: s
           "text": "Der Link schaltet genau die Teile des Lebenslaufs frei, die die Einladung erlaubt – online und als passendes PDF."
         }
       },
-      "footer": "Lebensläufe nur auf Einladung · selbst gehostet",
+      "create": "Lebenslauf erstellen – gratis",
+      "createNote": "Für immer gratis. Ohne Kreditkarte.",
+      "pricingTitle": "Preise",
+      "pricingText": "Für deinen Lebenslauf für immer gratis. Pro als vorausbezahlter Pass, wenn du mehr brauchst – kein Abo, keine automatische Verlängerung.",
       "tryDemo": "Demo-Lebenslauf ansehen",
       "continueTitle": "Deine Einladung",
       "continueText": "Du hast in diesem Browser bereits eine Einladung geöffnet.",
