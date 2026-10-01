@@ -123,6 +123,40 @@ public class AccountTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/auth/magic-link", new { email = "not-an-email" })).StatusCode);
     }
 
+    [Fact]
+    public async Task Magic_link_uses_the_shared_base_url_not_the_host_header()
+    {
+        var client = _factory.SessionClient("evil.example");
+        (await client.PostAsJsonAsync("/api/auth/magic-link", new { email = "victim@example.org" })).EnsureSuccessStatusCode();
+        Assert.Contains("https://cv.example.org/api/auth/magic?token=", _factory.Email.Sent[^1].Text);
+        Assert.DoesNotContain("evil.example", _factory.Email.Sent[^1].Text);
+    }
+
+    [Fact]
+    public async Task Configured_providers_are_listed_and_redirect_to_the_provider()
+    {
+        _factory.Settings["Auth:Google:ClientId"] = "gid";
+        _factory.Settings["Auth:Google:ClientSecret"] = "gsecret";
+        var client = _factory.SessionClient();
+        var providers = await client.GetFromJsonAsync<JsonObject>("/api/auth/providers");
+        Assert.Equal(["google"], providers!["providers"]!.AsArray().Select(p => p!.GetValue<string>()));
+        Assert.True(providers["magicLink"]!.GetValue<bool>());
+
+        var login = await client.GetAsync("/api/auth/login/google?returnUrl=/admin");
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        var location = login.Headers.Location!.ToString();
+        Assert.StartsWith("https://accounts.google.com/", location);
+        Assert.Contains(Uri.EscapeDataString("http://cv.example.org/api/signin-google"), location);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/auth/login/github")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Completing_without_provider_login_fails()
+    {
+        var response = await _factory.SessionClient().GetAsync("/api/auth/complete?provider=google");
+        Assert.Contains("error=provider_failed", response.Headers.Location!.ToString());
+    }
+
     [Theory]
     [InlineData("/admin", "/admin")]
     [InlineData("//evil.example", "/admin")]

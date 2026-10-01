@@ -37,8 +37,11 @@ public static class AuthEndpoints
         {
             var external = await ctx.AuthenticateAsync(AuthSetup.ExternalScheme);
             await ctx.SignOutAsync(AuthSetup.ExternalScheme);
-            if (!external.Succeeded || provider is null || !AuthSetup.Providers.ContainsKey(provider))
-                return Results.Redirect("/login?error=provider_failed");
+            // The provider is taken from the authenticated identity, not from the query: a login of one provider must
+            // never be stored under another provider's name.
+            var scheme = external.Succeeded ? external.Principal?.Identity?.AuthenticationType : null;
+            provider = AuthSetup.Providers.FirstOrDefault(x => x.Value == scheme).Key;
+            if (provider is null) return Results.Redirect("/login?error=provider_failed");
 
             var p = external.Principal!;
             var subject = p.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -54,7 +57,7 @@ public static class AuthEndpoints
 
         // Always 204, so the response does not tell whether an account exists (S2.2).
         auth.MapPost("/magic-link", async (MagicLinkRequest body, HttpContext ctx, AccountsDbContext db, IEmailSender email,
-            TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
+            TimeProvider time, ILoggerFactory loggers, IConfiguration config, CancellationToken ct) =>
         {
             if (!email.Enabled) return Results.NotFound();
             if (!AccountService.IsValidEmail(body.Email)) return Results.BadRequest(new { error = "invalid_email" });
@@ -78,7 +81,8 @@ public static class AuthEndpoints
             await db.MagicLinks.Where(m => m.ExpiresAt < now - TimeSpan.FromDays(1)).ExecuteDeleteAsync(ct);
             await db.SaveChangesAsync(ct);
 
-            var link = $"{ctx.Request.Scheme}://{ctx.Request.Host}{ctx.Request.PathBase}/auth/magic?token={token}";
+            // Never built from the Host header: a forged Host would send the victim a valid token for another site.
+            var link = $"{MagicLinkBase(ctx, config)}/auth/magic?token={token}";
             var sent = await email.SendAsync(address, "Your sign-in link",
                 $"Sign in with this link (valid for 15 minutes, can be used once):\n\n{link}\n\nIf you did not ask for it, ignore this e-mail.",
                 $"<p>Sign in with this link (valid for 15 minutes, can be used once):</p><p><a href=\"{link}\">Sign in</a></p>" +
@@ -127,6 +131,12 @@ public static class AuthEndpoints
         SignInError.NoEmail => "no_email",
         _ => "provider_failed",
     };
+
+    /// <summary>API base for e-mailed links: the shared base URL if configured (production), else the request (development).</summary>
+    private static string MagicLinkBase(HttpContext ctx, IConfiguration config) =>
+        config["Cv:SharedBaseUrl"] is { Length: > 0 } shared
+            ? $"{shared.TrimEnd('/')}/api"
+            : $"{ctx.Request.Scheme}://{ctx.Request.Host}{ctx.Request.PathBase}";
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }
