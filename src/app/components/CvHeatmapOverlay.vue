@@ -4,7 +4,7 @@
  * anchor (`data-track`) in the rendered CV and paints the aggregated cells into it, so the heatmap fits the layout
  * even though visitors had different screen sizes. Only reachable with the admin key; never tracked.
  */
-import type { HeatmapData, HeatmapType } from '~/composables/useAdmin'
+import { formatDuration, type HeatmapData, type HeatmapType } from '~/composables/useAdmin'
 
 const params = new URLSearchParams(window.location.search)
 const type = (params.get('type') ?? 'move') as HeatmapType
@@ -12,6 +12,12 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const data = ref<HeatmapData | null>(null)
 const error = ref('')
 const missing = ref(0)
+/** Highest weight on the page (legend scale): ms for cursor / attention, count for clicks. */
+const maxWeight = ref(0)
+const maxLabel = computed(() => type === 'click'
+  ? `${maxWeight.value} click${maxWeight.value === 1 ? '' : 's'}`
+  : formatDuration(maxWeight.value))
+const GRADIENT = 'linear-gradient(90deg, #2563eb 10%, #10b981 40%, #facc15 70%, #dc2626 100%)'
 
 /** First visible element of an anchor (mobile and desktop layouts both contain some anchors). */
 function elementOf(anchor: string): HTMLElement | null {
@@ -54,6 +60,7 @@ function draw() {
   if (data.value.type === 'attention') {
     const anchors = data.value.anchors ?? []
     const max = Math.max(1, ...anchors.map(a => a.weight))
+    maxWeight.value = anchors.length ? max : 0
     const colors = palette()
     for (const a of anchors) {
       const target = elementOf(a.anchor)
@@ -69,6 +76,7 @@ function draw() {
   // Move / click: intensity pass in alpha, then colourised.
   const cells = data.value.cells ?? []
   const max = Math.max(1, ...cells.map(c => c.w))
+  maxWeight.value = cells.length ? max : 0
   const radius = type === 'click' ? 18 : 28
   const rects = new Map<string, ReturnType<typeof pageRect> | null>()
   for (const cell of cells) {
@@ -116,8 +124,13 @@ onMounted(async () => {
       cvVersion: params.get('cv') ?? undefined,
       type
     })
-  } catch {
-    error.value = 'Heatmap data could not be loaded (admin key missing in this tab?).'
+  } catch (e) {
+    const status = (e as { statusCode?: number })?.statusCode
+    error.value = status === 401 || status === 403
+      ? 'Heatmap data could not be loaded: the admin key is missing or wrong in this tab.'
+      : status === 404
+        ? 'Heatmap data could not be loaded: unknown tenant.'
+        : `Heatmap data could not be loaded (${status ? `HTTP ${status}` : 'network error'}).`
     return
   }
   // Let fonts, images and the intro animation settle before measuring.
@@ -136,6 +149,11 @@ onUnmounted(() => window.removeEventListener('resize', redraw))
       <template v-else>
         Heatmap · {{ type }} · {{ data?.cells?.length ?? data?.anchors?.length ?? 0 }} {{ type === 'attention' ? 'anchors' : 'cells' }}
         <span v-if="missing"> · {{ missing }} anchors not in this layout</span>
+        <div v-if="maxWeight" class="mt-1 flex items-center gap-2" data-testid="heatmap-scale">
+          <span>0</span>
+          <span class="h-2 w-28 rounded" :style="{ background: GRADIENT }" />
+          <span>{{ maxLabel }}{{ type === 'attention' ? ' in view' : type === 'move' ? ' dwell' : '' }}</span>
+        </div>
       </template>
     </div>
   </div>
