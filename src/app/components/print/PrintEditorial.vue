@@ -2,6 +2,7 @@
 // Print/PDF template "editorial": typeset A4 document – serif name, labelled contact grid,
 // sidebar (skills, languages, licences, QR) and a main column with a date gutter.
 import type { TemplateVarValue } from '~/utils/templateVars'
+import type { PrintLinkMode } from '~/composables/usePrintLinks'
 
 const props = defineProps<{ vars?: Record<string, TemplateVarValue> }>()
 const style = computed(() => (props.vars?.accent ? { '--accent': props.vars.accent as string } : {}))
@@ -10,6 +11,9 @@ const {
   locale, label, getAssetPath, qrDataUrl, qrUrl, onlineHost, platformUrl, platformHost, profile, intro, photo, contact, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries
 } = usePrintData()
+
+// Website links of entries (template variable "links", composables/usePrintLinks.ts).
+const { link } = usePrintLinks(() => (props.vars?.links as PrintLinkMode | undefined) ?? 'qr')
 </script>
 
 <template>
@@ -93,6 +97,7 @@ const {
               <p v-if="exp.company" class="entry-org">{{ exp.company }}</p>
               <p v-if="exp.description" class="entry-text">{{ exp.description }}</p>
               <p v-if="exp.technologies?.length" class="entry-tech">{{ exp.technologies.join(' · ') }}</p>
+              <PrintEntryLink :link="link(exp)" />
             </div>
           </div>
         </section>
@@ -106,6 +111,7 @@ const {
               <p v-if="study.institution" class="entry-org">{{ study.institution }}</p>
               <p v-if="study.focus" class="entry-text">{{ study.focus }}</p>
               <p v-if="study.technologies?.length" class="entry-tech">{{ study.technologies.join(' · ') }}</p>
+              <PrintEntryLink :link="link(study)" />
             </div>
           </div>
         </section>
@@ -119,6 +125,7 @@ const {
               <p v-if="project.type || project.client" class="entry-org">{{ [project.type, project.client].filter(Boolean).join(' · ') }}</p>
               <p v-if="project.description" class="entry-text">{{ project.description }}</p>
               <p v-if="project.technologies?.length" class="entry-tech">{{ project.technologies.join(' · ') }}</p>
+              <PrintEntryLink :link="link(project)" />
             </div>
           </div>
         </section>
@@ -130,6 +137,7 @@ const {
             <div class="entry-body">
               <h3 class="entry-title">{{ entry.title }}</h3>
               <p v-if="entry.institution" class="entry-org">{{ entry.institution }}</p>
+              <PrintEntryLink :link="link(entry)" />
             </div>
           </div>
         </section>

@@ -12,6 +12,9 @@ interface Props {
     description?: string
     showPeriod?: boolean
     images?: string[]
+    url?: string
+    urlLabel?: string
+    urlHost?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -36,6 +39,9 @@ const props = withDefaults(defineProps<Props>(), {
         :key="entry.id"
         :id="entry.id"
         :title="entry.title"
+        :url="entry.url"
+        :url-label="entry.urlLabel"
+        :url-host="entry.urlHost"
         :subtitle="entry.institution"
         :period="entry.period"
         :description="entry.description"

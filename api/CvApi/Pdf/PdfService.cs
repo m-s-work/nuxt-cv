@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using CvApi.Access;
+using CvApi.Links;
 using CvApi.Redaction;
 using CvApi.Tenants;
 using CvApi.Versioning;
@@ -147,10 +148,22 @@ public sealed class PdfService(
         // For invites it carries a linked QR invite code, so scanning the printed PDF opens the same view;
         // not for view-once invites, whose view must not outlive its one visit.
         var publicUrl = PublicUrl(grant.Tenant, prefix);
+        string? code = null;
         if (publicUrl is not null && grant.Invite is { IsViewOnce: false } invite)
-            publicUrl += "?c=" + await access.GetOrCreateQrCodeAsync(invite, ct);
+        {
+            code = await access.GetOrCreateQrCodeAsync(invite, ct);
+            publicUrl += "?c=" + code;
+        }
+        // Tracked website links (§7.2): /api/go on the public site with the same QR code, so a click from the
+        // printed PDF works without cookie and is counted for this PDF. "{key}" is filled in per link.
+        // Without a code (public profile, view-once invite) the PDF prints the links untracked.
+        var go = publicUrl is not null && code is not null
+            ? $"{new Uri(publicUrl).GetLeftPart(UriPartial.Authority)}{ExternalLinks.GoPrefix}{{key}}?c={code}"
+            : null;
         // The internal host is no tenant host, so the CV is rendered from /cv ("/" is the showcase there).
-        return new Uri($"{appBase}{prefix}/cv?print=1" + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}"));
+        return new Uri($"{appBase}{prefix}/cv?print=1"
+            + (publicUrl is null ? "" : $"&qr={Uri.EscapeDataString(publicUrl)}")
+            + (go is null ? "" : $"&go={Uri.EscapeDataString(go)}"));
     }
 
     private async Task<byte[]> RenderAsync(AccessGrant grant, Uri url, CancellationToken ct)

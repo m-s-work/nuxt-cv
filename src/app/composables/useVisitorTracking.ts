@@ -249,7 +249,8 @@ function onClick(event: MouseEvent) {
   }
   const link = el.closest('a[href]') as HTMLAnchorElement | null
   if (link) {
-    const lk = linkKind(link.getAttribute('href') ?? '', location.host)
+    // Website links go through /api/go/…: classified by the host they lead to.
+    const lk = linkKind(link.dataset.linkHost ? `https://${link.dataset.linkHost}/` : link.getAttribute('href') ?? '', location.host)
     if (lk === 'mailto' || lk === 'tel') trackEvent('contact', { a: anchor, kind: lk })
     else if (lk) trackEvent('link_out', { a: anchor, kind: lk })
   }

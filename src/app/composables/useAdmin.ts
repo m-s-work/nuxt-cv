@@ -111,6 +111,8 @@ export interface AdminInvite {
   viewOnceUntil?: string
   parentId?: string
   source?: string
+  /** Clicks on website links printed into this PDF (pdf-qr invites), most clicked first. */
+  linkClicks?: Array<{ url: string, count: number, lastAt?: string }>
   /** Effective CV pin (the invite's own or its profile's); undefined = follows the current CV. */
   revision?: string
   pinnedBy?: 'invite' | 'profile'
@@ -549,6 +551,9 @@ export function useAdmin() {
       request<void>(`${t(tenant)}/files/${path}`, { method: 'DELETE' }),
     preview: (tenant: string, profile: string, locale?: string, revision?: string) =>
       request<{ locale: string, revision?: string, cv: unknown }>(`${t(tenant)}/preview`, { query: { profile, locale, revision } }),
+    /** Unsaved CV draft redacted for a profile (nothing is stored; pins are ignored). */
+    previewDraft: (tenant: string, profile: string, cv: unknown, locale?: string) =>
+      request<{ locale?: string, revision?: string | null, cv: unknown }>(`${t(tenant)}/preview`, { method: 'POST', body: { profile, locale, cv } }),
     /** PDF of a profile in any template (not cached); revision as for preview. Needs the PDF renderer. */
     pdfPreview: (tenant: string, query: { profile: string, locale?: string, template?: string, vars?: string, revision?: string }) =>
       request<Blob>(`${t(tenant)}/pdf-preview`, { query, responseType: 'blob' }),

@@ -218,6 +218,28 @@ public sealed class AccessService(
         catch (System.Security.Cryptography.CryptographicException) { return null; }
     }
 
+    /// <summary>
+    /// Active invite of a code without redeeming it (no use counted, no cookie): website links printed into a PDF
+    /// carry the PDF's QR code (§7.2). View-once codes never qualify.
+    /// </summary>
+    public async Task<Invite?> FindActiveByCodeAsync(string? code, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code) || code.Length > 128) return null;
+        var hash = InviteCodes.Hash(code);
+        var invite = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
+        return invite is { IsViewOnce: false } && await IsActiveAsync(invite, time.GetUtcNow(), ct) ? invite : null;
+    }
+
+    /// <summary>Counts a click on a website link printed into the PDF of <paramref name="invite"/> (§7.2).</summary>
+    public async Task CountLinkClickAsync(Invite invite, string key, string url, CancellationToken ct)
+    {
+        var clicks = LinkClicks.Parse(invite.LinkClicksJson);
+        var entry = clicks.TryGetValue(key, out var existing) ? existing : new LinkClicks.Entry(url, 0, null);
+        clicks[key] = entry with { Url = url, Count = entry.Count + 1, LastAt = time.GetUtcNow() };
+        invite.LinkClicksJson = JsonSerializer.Serialize(clicks);
+        await db.SaveChangesAsync(ct);
+    }
+
     /// <summary>Grant of an invite (ignores expiry/revocation; callers check <see cref="IsActiveAsync"/>).</summary>
     public AccessGrant? GrantFor(Invite invite)
     {

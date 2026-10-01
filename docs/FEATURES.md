@@ -18,6 +18,8 @@ Catalogue of the product's features. **Visibility** says where a feature may be 
 | Selectable PDF templates (per person, profile or invite) | public | ✅ `editorial`, `classic`, `banner` |
 | Template variables: colour sets, colours, toggles (e.g. chapter colours) | public | ✅ |
 | Template builder UI (admin "Design" tab, live PDF preview) | owner | ✅ |
+| Graphical CV editor with live web / data / PDF preview per profile (admin "Edit" tab) | owner | ✅ |
+| Website links on entries (web and PDF: address, tracked link or QR code, selectable per template) | public | ✅ |
 | Selectable web templates | public | 📝 planned (#77) |
 | Multilingual content and UI (EN/DE) | public | ✅ |
 | Interactive timeline, technology filter | public | ✅ |

@@ -210,6 +210,37 @@ public sealed class AccessTests : IDisposable
         await Cv(client);
     }
 
+    [Fact]
+    public async Task Admin_preview_of_an_unsaved_draft_is_redacted_and_not_stored()
+    {
+        var before = File.ReadAllText(Path.Combine(_factory.DataPath, "tenants", "alice", "cv.en.json"));
+        var draft = JsonNode.Parse("""
+            {
+              "profile": { "name": "Draft Alice", "photoUrl": "/api/assets/p.jpg" },
+              "experiences": [
+                { "id": 1, "company": "Secret Corp", "companyAlias": "A company", "startDate": "2020-03-01", "endDate": null },
+                { "id": 2, "company": "Hidden", "startDate": "2019", "endDate": "2020", "requires": ["private"] }
+              ]
+            }
+            """);
+
+        var response = await Admin().PostAsJsonAsync("/api/admin/tenants/alice/preview", new { profile = "public", locale = "en", cv = draft });
+        response.EnsureSuccessStatusCode();
+        var cv = (await response.Content.ReadFromJsonAsync<JsonObject>())!["cv"]!;
+        Assert.Equal("Draft Alice", cv["profile"]!["name"]!.GetValue<string>());
+        Assert.Null(cv["profile"]!["photoUrl"]);
+        var experience = Assert.Single(cv["experiences"]!.AsArray())!;
+        Assert.Equal("A company", experience["company"]!.GetValue<string>());
+        Assert.DoesNotContain("Secret Corp", cv.ToJsonString());
+
+        var full = await Admin().PostAsJsonAsync("/api/admin/tenants/alice/preview", new { profile = "full", cv = draft });
+        Assert.Equal(2, (await full.Content.ReadFromJsonAsync<JsonObject>())!["cv"]!["experiences"]!.AsArray().Count);
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await Admin().PostAsJsonAsync("/api/admin/tenants/alice/preview", new { profile = "nope", cv = draft })).StatusCode);
+        Assert.Equal(before, File.ReadAllText(Path.Combine(_factory.DataPath, "tenants", "alice", "cv.en.json")));
+    }
+
     private HttpClient Admin()
     {
         var admin = _factory.ClientFor(ApiFactory.SharedHost);

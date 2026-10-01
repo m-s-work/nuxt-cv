@@ -44,6 +44,10 @@ export interface CvDated {
   endDate: string | null
   period?: string
   icon?: string
+  /** Website of the entry: "/api/go/<key>" (redirect through the API), in the admin preview the URL itself. */
+  url?: string
+  urlLabel?: string
+  urlHost?: string
 }
 
 export interface CvExperience extends CvDated {
@@ -171,12 +175,27 @@ export function isHeatmapView(): boolean {
   return import.meta.client && new URLSearchParams(window.location.search).has('heatmap')
 }
 
-/** Replaces "/api/assets/<file>" URLs with object URLs of files loaded by `load` (admin heatmap view). */
-export async function inlineAssets<T>(data: T, load: (path: string) => Promise<Blob>): Promise<T> {
+/** Owner preview in the admin's Edit tab (/cv?preview=1 in an iframe): CV data is posted in by the admin page. */
+export function isAdminPreview(): boolean {
+  return import.meta.client && new URLSearchParams(window.location.search).has('preview')
+}
+
+/** Message the admin page posts into the preview iframe (same origin only). */
+export interface CvPreviewMessage {
+  type: 'cv-preview'
+  tenant: string
+  locale: string
+  cv: CvData
+}
+
+/**
+ * Replaces "/api/assets/<file>" URLs with object URLs of files loaded by `load` (admin heatmap view and preview).
+ * `urls` caches object URLs across calls (the preview re-renders on every edit).
+ */
+export async function inlineAssets<T>(data: T, load: (path: string) => Promise<Blob>, urls = new Map<string, string>()): Promise<T> {
   const json = JSON.stringify(data)
   const files = [...new Set(json.match(/\/api\/assets\/[A-Za-z0-9._-]+/g) ?? [])]
-  const urls = new Map<string, string>()
-  await Promise.all(files.map(async (file) => {
+  await Promise.all(files.filter(file => !urls.has(file)).map(async (file) => {
     try { urls.set(file, URL.createObjectURL(await load(`assets/${file.slice('/api/assets/'.length)}`))) } catch { /* missing asset */ }
   }))
   return JSON.parse(json.replace(/\/api\/assets\/[A-Za-z0-9._-]+/g, m => urls.get(m) ?? m)) as T
@@ -315,6 +334,30 @@ export function useCv() {
   }
 
   /**
+   * Owner preview (/cv?preview=1, iframe in the admin's Edit tab): shows the CV the admin page posts in – already
+   * redacted by the API for the chosen profile, possibly an unsaved draft. No tracking, no consent, no PDF button.
+   */
+  function initPreview() {
+    status.value = 'loading'
+    const admin = useAdmin()
+    const urls = new Map<string, string>()
+    let latest = 0
+    window.addEventListener('message', async (event: MessageEvent<CvPreviewMessage>) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent || event.data?.type !== 'cv-preview') return
+      const { tenant, locale, cv: data } = event.data
+      const request = ++latest
+      const inlined = await inlineAssets(data, path => admin.readBlob(tenant, path), urls)
+      if (request !== latest) return
+      cv.value = withPeriods(inlined, presentLabel(locale))
+      access.value = { tenant, profile: 'preview', viaInvite: false }
+      consent.value = { required: false }
+      features.value = { pdf: false }
+      status.value = 'ready'
+    })
+    window.parent.postMessage({ type: 'cv-preview-ready' }, window.location.origin)
+  }
+
+  /**
    * Redeems an invite code from the URL (?c=...), removes it from the address bar
    * so it does not end up in bookmarks/history/screenshots, then loads the CV.
    */
@@ -322,6 +365,7 @@ export function useCv() {
     if (import.meta.client) {
       const url = new URL(window.location.href)
       if (url.searchParams.has('heatmap')) return initHeatmap(url.searchParams)
+      if (url.searchParams.has('preview')) return initPreview()
       const code = url.searchParams.get(INVITE_PARAM)
       if (code) {
         arrivedViaLink.value = true
@@ -336,7 +380,7 @@ export function useCv() {
   /** Initializes once, afterwards reloads only when the locale changed. */
   async function ensure(locale: string) {
     if (status.value === 'idle') await init(locale)
-    else if (loadedLocale.value !== locale && !isHeatmapView()) await load(locale)
+    else if (loadedLocale.value !== locale && !isHeatmapView() && !isAdminPreview()) await load(locale)
   }
 
   /** Records the visitor's choice in the consent modal (§9.1). */

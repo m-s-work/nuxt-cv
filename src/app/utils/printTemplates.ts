@@ -1,10 +1,24 @@
 import type { Component } from 'vue'
-import type { TemplateVarsSchema } from '~/utils/templateVars'
+import type { TemplateVarDef, TemplateVarsSchema } from '~/utils/templateVars'
 import PrintEditorial from '~/components/print/PrintEditorial.vue'
 import PrintClassic from '~/components/print/PrintClassic.vue'
 import PrintBanner from '~/components/print/PrintBanner.vue'
 
 const accentSuggestions = ['#1d4ed8', '#29a8e0', '#0f766e', '#b45309', '#be123c', '#6d28d9']
+
+/** Website links of entries, shared by all templates (composables/usePrintLinks.ts). */
+const links = {
+  type: 'enum',
+  default: 'qr',
+  label: 'Website links',
+  options: ['qr', 'tracked', 'clear', 'off'],
+  optionLabels: {
+    qr: 'Address + QR code (tracked)',
+    tracked: 'Address, tracked link',
+    clear: 'Address, untracked',
+    off: 'Not shown'
+  }
+} as const satisfies TemplateVarDef
 
 /**
  * Registry of print/PDF templates. To add one: create components/print/Print<Name>.vue
@@ -22,7 +36,8 @@ export const printTemplates = {
     component: PrintEditorial as Component,
     vars: {
       vars: {
-        accent: { type: 'color', default: '#1d4ed8', label: 'Accent colour', suggestions: accentSuggestions }
+        accent: { type: 'color', default: '#1d4ed8', label: 'Accent colour', suggestions: accentSuggestions },
+        links
       }
     } satisfies TemplateVarsSchema
   },
@@ -32,7 +47,7 @@ export const printTemplates = {
     description: 'Single column, black and white, no photo – compact and ATS-friendly.',
     preview: '/templates/classic.jpg',
     component: PrintClassic as Component,
-    vars: undefined as TemplateVarsSchema | undefined
+    vars: { vars: { links } } satisfies TemplateVarsSchema
   },
   banner: {
     name: 'banner',
@@ -48,7 +63,8 @@ export const printTemplates = {
         band: { type: 'color', default: '#3b3b3d', label: 'Header band', suggestions: ['#3b3b3d', '#26282b', '#1f3864', '#444444'] },
         chapterColors: { type: 'boolean', default: false, label: 'Different accent colour per chapter' },
         chapterPalette: { type: 'palette', default: ['#29a8e0', '#e8639a', '#f0b429', '#3fb68b', '#8b6cd9'], label: 'Chapter colours' },
-        degreesStyle: { type: 'enum', default: 'accent', options: ['accent', 'gradient', 'plain'], label: 'Academic degrees' }
+        degreesStyle: { type: 'enum', default: 'accent', options: ['accent', 'gradient', 'plain'], label: 'Academic degrees' },
+        links
       },
       presets: {
         navy: { label: 'Navy', values: { sidebar: '#1f3864', sidebarText: '#e8edf6', band: '#3b3b3d', accent: '#29a8e0' } },
