@@ -18,5 +18,7 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/.output/public /usr/share/nginx/html
 # Where to reach the API (compose service name by default)
 ENV API_UPSTREAM=http://api:8080
+# Shared host whose landing/pricing/legal pages may be indexed (empty: nothing is indexed). See nginx.conf.template.
+ENV PUBLIC_INDEX_HOST=
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1/healthz || exit 1

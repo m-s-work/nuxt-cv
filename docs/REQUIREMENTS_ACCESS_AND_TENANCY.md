@@ -250,8 +250,10 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/events` | cookie / host + consent | Tracking events of one session; always `204`. |
 | `GET/DELETE /api/admin/tenants/{tenant}/analytics/…` | admin key | Tracking reports, heatmap data, CV snapshots, erasure (VISITOR_SESSION_TRACKING.md §8.2). |
 
-- Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
-  admin endpoints are disabled (`404`).
+- Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey` (super-admin), **or** the account session of
+  the tenant's owner (`REQUIREMENTS_SAAS.md` §1–§2): a user reaches only their own tenant; other tenants and
+  super-admin-only endpoints (git revisions, user management) answer `404`. Without a configured key and without a
+  session, admin endpoints answer `404`. Plan limits answer `402 { error: "plan_limit", feature, limit }`.
 
 `access` object in `/api/cv`:
 
@@ -271,6 +273,7 @@ the CV, `<sha>-dirty` / `unversioned`) and `consent: { required, state, policyVe
 ```
 /data
 ├── app.db                       # SQLite: invites (all tenants)
+├── accounts.db                  # SQLite: users, sign-in methods, magic links, payments (REQUIREMENTS_SAAS.md)
 ├── tracking.db                  # SQLite: visitor tracking (consents, visitors, sessions, events, heat cells, CV snapshots)
 ├── geo/                         # optional fallback: city.mmdb + asn.mmdb when no geo service is configured
 ├── pdf/<tenant>/                # rendered PDFs: invite-<id>.<locale>.pdf / public-<profile>.<locale>.pdf (+ .sha256)
@@ -293,7 +296,7 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 10. Non-goals (for now)
 
-- No user accounts or passwords for visitors.
+- No user accounts or passwords for **visitors** (CV owners have accounts, see `REQUIREMENTS_SAAS.md`).
 - No analytics without consent: visitor & session tracking ([`VISITOR_SESSION_TRACKING.md`](VISITOR_SESSION_TRACKING.md))
   only runs after the visitor accepted the consent modal; it is owner-only and never shown to invitees (R11.4).
 
@@ -378,8 +381,9 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
 ## 13. Admin UI
 
 - R13.1 The SPA contains an owner-only admin page at `/admin`. It is a client of the admin API (§8) and
-  has no privileges of its own: without a valid `X-Admin-Key` it shows only a sign-in form, and if the
-  server has no admin key configured it reports that the admin API is disabled.
+  has no privileges of its own: a signed-in user (account session, `/login`) manages their own tenant there; without
+  session it shows the admin-key sign-in form for the super-admin, and if the server has no admin key configured it
+  reports that the admin API is disabled.
 - R13.2 The admin key is entered by the owner and kept in `sessionStorage` of that tab only (never in
   cookies or `localStorage`, never in the URL). "Log out" clears it.
 - R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted,

@@ -13,6 +13,8 @@ services:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       API_UPSTREAM: http://api:8080
+      # Shared host whose landing, pricing and legal pages may be indexed by search engines (empty = none).
+      PUBLIC_INDEX_HOST: ${CV_PUBLIC_INDEX_HOST:-}
     expose:
       - "80"
     depends_on:
@@ -44,6 +46,36 @@ services:
       Git__TokenHosts: ${CV_GIT_TOKEN_HOSTS:-github.com}
       # Visitor tracking: IP -> location / network via the internal geo service. Empty = no location data.
       Tracking__GeoUrl: ${CV_GEO_URL-http://geo:3100}
+      # --- Accounts (docs/REQUIREMENTS_SAAS.md). Each sign-in provider is enabled when id and secret are set.
+      # Redirect URIs to register at the provider: https://<shared host>/api/signin-google (…-microsoft, -github, -linkedin).
+      Auth__Google__ClientId: ${CV_AUTH_GOOGLE_ID:-}
+      Auth__Google__ClientSecret: ${CV_AUTH_GOOGLE_SECRET:-}
+      Auth__Microsoft__ClientId: ${CV_AUTH_MICROSOFT_ID:-}
+      Auth__Microsoft__ClientSecret: ${CV_AUTH_MICROSOFT_SECRET:-}
+      Auth__GitHub__ClientId: ${CV_AUTH_GITHUB_ID:-}
+      Auth__GitHub__ClientSecret: ${CV_AUTH_GITHUB_SECRET:-}
+      Auth__LinkedIn__ClientId: ${CV_AUTH_LINKEDIN_ID:-}
+      Auth__LinkedIn__ClientSecret: ${CV_AUTH_LINKEDIN_SECRET:-}
+      # Magic-link sign-in by e-mail via the Resend HTTP API (no SMTP). Empty = e-mail sign-in disabled.
+      Email__ResendApiKey: ${CV_RESEND_API_KEY:-}
+      Email__From: ${CV_EMAIL_FROM:-}
+      # Tenant hosts <handle>.<suffix> for new users (needs wildcard DNS + wildcard domain on "web"). Empty = shared host only.
+      Saas__TenantHostSuffix: ${CV_TENANT_HOST_SUFFIX:-}
+      # Own domains (Pro) must resolve to this host's addresses (default: the shared host).
+      Saas__DomainTarget: ${CV_DOMAIN_TARGET:-}
+      # --- Billing: Paddle (merchant of record). Empty = no online payment; plans can still be set by the super-admin.
+      Billing__Paddle__Environment: ${CV_PADDLE_ENVIRONMENT:-sandbox}
+      Billing__Paddle__ClientToken: ${CV_PADDLE_CLIENT_TOKEN:-}
+      Billing__Paddle__WebhookSecret: ${CV_PADDLE_WEBHOOK_SECRET:-}
+      # Paddle price ids (one-time prices) of the Pro passes; amounts/days default to 5 € / 7 d, 17 € / 30 d, 78 € / 182 d, 104 € / 365 d.
+      Billing__Passes__0__Id: week
+      Billing__Passes__0__PaddlePriceId: ${CV_PADDLE_PRICE_WEEK:-}
+      Billing__Passes__1__Id: month
+      Billing__Passes__1__PaddlePriceId: ${CV_PADDLE_PRICE_MONTH:-}
+      Billing__Passes__2__Id: halfyear
+      Billing__Passes__2__PaddlePriceId: ${CV_PADDLE_PRICE_HALFYEAR:-}
+      Billing__Passes__3__Id: year
+      Billing__Passes__3__PaddlePriceId: ${CV_PADDLE_PRICE_YEAR:-}
     volumes:
       - cv-data:/data
     expose:
