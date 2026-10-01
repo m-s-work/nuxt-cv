@@ -23,15 +23,53 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
     }
 
     public sealed record GroupSummary(string GroupKey, int Visitors, int Persons, int Sessions, int Visits, long ActiveMs,
-        long VisibleMs, DateTimeOffset? FirstVisit, DateTimeOffset? LastVisit, ConsentCounts Consent, int Score);
+        long VisibleMs, DateTimeOffset? FirstVisit, DateTimeOffset? LastVisit, ConsentCounts Consent, int Score,
+        int SectionsSeen, int SectionsKnown);
 
     public sealed record ConsentCounts(int Accept, int Decline, int Withdraw, Dictionary<string, int> DeclineBySource);
 
-    /// <summary>Per visitor group (invite / public profile): reach, time, consent and interest score.</summary>
-    public async Task<List<GroupSummary>> GroupsAsync(string tenantId, CancellationToken ct)
+    /// <summary>Optional time range of reports: sessions started (consents given) in [From, To).</summary>
+    public readonly record struct Period(DateTimeOffset? From, DateTimeOffset? To);
+
+    /// <summary>Most recent sessions listed in a group detail by default; aggregates always cover all sessions.</summary>
+    public const int DefaultSessionLimit = 200;
+    public const int MaxSessionLimit = 1000;
+
+    /// <summary>Events read for the technology intent of a group (most recent first); other counts are aggregated in SQL.</summary>
+    public const int MaxTechEvents = 5000;
+
+    private IQueryable<TrackSession> Sessions(string tenantId, Period period)
     {
-        var sessions = await db.Sessions.Where(s => s.TenantId == tenantId).ToListAsync(ct);
-        var consents = await db.Consents.Where(c => c.TenantId == tenantId).ToListAsync(ct);
+        var q = db.Sessions.Where(s => s.TenantId == tenantId);
+        if (period.From is { } from) q = q.Where(s => s.StartedAt >= from);
+        if (period.To is { } to) q = q.Where(s => s.StartedAt < to);
+        return q;
+    }
+
+    private IQueryable<ConsentRecord> Consents(string tenantId, Period period)
+    {
+        var q = db.Consents.Where(c => c.TenantId == tenantId);
+        if (period.From is { } from) q = q.Where(c => c.CreatedAt >= from);
+        if (period.To is { } to) q = q.Where(c => c.CreatedAt < to);
+        return q;
+    }
+
+    /// <summary>Sessions without the large fingerprint / network columns, for aggregates.</summary>
+    private static IQueryable<TrackSession> Slim(IQueryable<TrackSession> q) => q.Select(s => new TrackSession
+    {
+        Id = s.Id, TenantId = s.TenantId, GroupKey = s.GroupKey, VisitorId = s.VisitorId, VisitId = s.VisitId,
+        StartedAt = s.StartedAt, LastSeenAt = s.LastSeenAt, EndedAt = s.EndedAt, ActiveMs = s.ActiveMs, VisibleMs = s.VisibleMs,
+        Breakpoint = s.Breakpoint, AppSha = s.AppSha, CvSourceSha = s.CvSourceSha, CvVersion = s.CvVersion,
+        IpCountry = s.IpCountry, IpCity = s.IpCity, AsOrg = s.AsOrg,
+    });
+
+    /// <summary>Per visitor group (invite / public profile): reach, time, consent, coverage and interest score.</summary>
+    public async Task<List<GroupSummary>> GroupsAsync(string tenantId, CancellationToken ct) => await GroupsAsync(tenantId, default, ct);
+
+    public async Task<List<GroupSummary>> GroupsAsync(string tenantId, Period period, CancellationToken ct)
+    {
+        var sessions = await Slim(Sessions(tenantId, period)).ToListAsync(ct);
+        var consents = await Consents(tenantId, period).ToListAsync(ct);
         var visitorPersons = await db.Visitors.Where(v => v.TenantId == tenantId).ToDictionaryAsync(v => v.Id, v => v.PersonId, ct);
         var sectionCount = await KnownSectionCountAsync(tenantId, ct);
 
@@ -40,7 +78,7 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
         foreach (var group in groups)
         {
             var gs = sessions.Where(s => s.GroupKey == group).ToList();
-            var score = gs.Count == 0 ? new ScoreParts(0, 0, 0, 0, 0, 0) : await ScoreAsync(gs, sectionCount, includeSpread: true, ct);
+            var score = gs.Count == 0 ? EmptyScore : await ScoreDetailAsync(gs, sectionCount, includeSpread: true, ct);
             result.Add(new GroupSummary(
                 group,
                 gs.Select(s => s.VisitorId).Distinct().Count(),
@@ -52,7 +90,9 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
                 gs.Count == 0 ? null : gs.Min(s => s.StartedAt),
                 gs.Count == 0 ? null : gs.Max(s => s.EndOrLast),
                 Count(consents.Where(c => c.GroupKey == group)),
-                score.Total));
+                score.Parts.Total,
+                score.SectionsSeen,
+                sectionCount));
         }
         return result.OrderByDescending(r => r.LastVisit).ToList();
     }
@@ -67,34 +107,53 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
             list.Where(c => c.Choice == "decline").GroupBy(c => c.Source).ToDictionary(g => g.Key, g => g.Count()));
     }
 
-    /// <summary>Detail of one visitor group: visitors, sessions, attention per anchor, intent signals, networks, versions.</summary>
-    public async Task<object> GroupAsync(Tenant tenant, string groupKey, CancellationToken ct)
+    /// <summary>
+    /// Detail of one visitor group: visitors, sessions, attention per anchor, intent signals, networks, versions.
+    /// Aggregates cover every session of the period (events are counted in SQL); the session list holds the most
+    /// recent <paramref name="limit"/> sessions.
+    /// </summary>
+    public async Task<object> GroupAsync(Tenant tenant, string groupKey, CancellationToken ct) =>
+        await GroupAsync(tenant, groupKey, default, DefaultSessionLimit, ct);
+
+    public async Task<object> GroupAsync(Tenant tenant, string groupKey, Period period, int limit, CancellationToken ct)
     {
-        var sessions = await db.Sessions.Where(s => s.TenantId == tenant.Id && s.GroupKey == groupKey)
-            .OrderByDescending(s => s.StartedAt).ToListAsync(ct);
+        limit = Math.Clamp(limit, 1, MaxSessionLimit);
+        var query = Sessions(tenant.Id, period).Where(s => s.GroupKey == groupKey);
+        var sessions = await Slim(query).ToListAsync(ct);
+        var listed = await query.OrderByDescending(s => s.StartedAt).Take(limit).ToListAsync(ct);
         var sessionIds = sessions.Select(s => s.Id).ToList();
         var visitorIds = sessions.Select(s => s.VisitorId).Distinct().ToList();
         var visitors = await db.Visitors.Where(v => visitorIds.Contains(v.Id)).ToListAsync(ct);
-        var stats = await db.SectionStats.Where(s => sessionIds.Contains(s.SessionId)).ToListAsync(ct);
-        var events = await db.Events.Where(e => sessionIds.Contains(e.SessionId)).ToListAsync(ct);
-        var consents = await db.Consents.Where(c => c.TenantId == tenant.Id && c.GroupKey == groupKey).ToListAsync(ct);
+        var stats = await db.SectionStats.Where(s => sessionIds.Contains(s.SessionId))
+            .GroupBy(s => s.Anchor)
+            .Select(g => new
+            {
+                Anchor = g.Key, VisibleMs = g.Sum(s => s.VisibleMs), HoverMs = g.Sum(s => s.HoverMs), Clicks = g.Sum(s => s.Clicks),
+                Views = g.Sum(s => s.Views), Sessions = g.Count(),
+            })
+            .ToListAsync(ct);
+        var events = db.Events.Where(e => sessionIds.Contains(e.SessionId));
+        var actions = await events.Where(e => e.Type != "visibility" && e.Type != "click" && e.Type != "session_end")
+            .GroupBy(e => e.Type).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count, ct);
+        var techEvents = await events.Where(e => e.Type == "tech_filter" || (e.Type == "click" && e.Anchor != null && e.Anchor.StartsWith("tech:")))
+            .OrderByDescending(e => e.Id).Take(MaxTechEvents).ToListAsync(ct);
+        var consents = await Consents(tenant.Id, period).Where(c => c.GroupKey == groupKey).ToListAsync(ct);
         var sectionCount = await KnownSectionCountAsync(tenant.Id, ct);
         var labels = AnchorLabels(tenant);
         var words = await WordCountsAsync(tenant.Id, sessions, ct);
 
-        var anchors = stats.GroupBy(s => s.Anchor).Select(g =>
+        var anchors = stats.Select(g =>
         {
-            var visible = g.Sum(s => s.VisibleMs);
-            double? ratio = words.TryGetValue(g.Key, out var w) && w > 0 ? Math.Round(visible / (w / WordsPerMinute * 60_000.0), 2) : null;
+            double? ratio = words.TryGetValue(g.Anchor, out var w) && w > 0 ? Math.Round(g.VisibleMs / (w / WordsPerMinute * 60_000.0), 2) : null;
             return new
             {
-                anchor = g.Key,
-                label = labels.GetValueOrDefault(g.Key),
-                visibleMs = visible,
-                hoverMs = g.Sum(s => s.HoverMs),
-                clicks = g.Sum(s => s.Clicks),
-                views = g.Sum(s => s.Views),
-                sessions = g.Select(s => s.SessionId).Distinct().Count(),
+                anchor = g.Anchor,
+                label = labels.GetValueOrDefault(g.Anchor),
+                visibleMs = g.VisibleMs,
+                hoverMs = g.HoverMs,
+                clicks = g.Clicks,
+                views = g.Views,
+                sessions = g.Sessions,
                 // Reading ratio (R7.1): < 0.2 skimmed, 0.2–0.8 scanned, > 0.8 read.
                 readingRatio = ratio,
                 reading = ratio is null ? null : ratio < 0.2 ? "skimmed" : ratio <= 0.8 ? "scanned" : "read",
@@ -102,19 +161,20 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
         }).OrderByDescending(a => a.visibleMs).ToList();
 
         // Technology intent (R7.2): what was filtered for and which tech badges were clicked.
-        var techIntent = events.Where(e => e.Type == "tech_filter" && Payload(e)?["on"]?.GetValue<bool>() != false)
+        var techIntent = techEvents.Where(e => e.Type == "tech_filter" && Payload(e)?["on"]?.GetValue<bool>() != false)
             .Select(e => Payload(e)?["tech"]?.GetValue<string>() ?? e.Anchor?.Split(':', 2)[1])
-            .Concat(events.Where(e => e.Type == "click" && e.Anchor?.StartsWith("tech:") == true).Select(e => e.Anchor![5..]))
+            .Concat(techEvents.Where(e => e.Type == "click" && e.Anchor?.StartsWith("tech:") == true).Select(e => e.Anchor![5..]))
             .OfType<string>()
             .GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
             .Select(g => new { tech = g.Key, count = g.Count() })
             .OrderByDescending(t => t.count).ToList();
 
-        var score = sessions.Count == 0 ? new ScoreParts(0, 0, 0, 0, 0, 0) : await ScoreAsync(sessions, sectionCount, includeSpread: true, ct);
+        var score = sessions.Count == 0 ? EmptyScore : await ScoreDetailAsync(sessions, sectionCount, includeSpread: true, ct);
         return new
         {
             groupKey,
-            score = new { total = score.Total, parts = score },
+            score = new { total = score.Parts.Total, parts = score.Parts },
+            coverage = new { seen = score.SectionsSeen, known = sectionCount },
             consent = Count(consents),
             visitors = visitors.Select(v =>
             {
@@ -126,13 +186,14 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
                     sessions = vs.Count,
                     visits = vs.Select(s => s.VisitId).Distinct().Count(),
                     activeMs = vs.Sum(s => s.ActiveMs),
+                    visibleMs = vs.Sum(s => s.VisibleMs),
                 };
             }).OrderByDescending(v => v.LastSeen),
-            sessions = sessions.Select(SessionSummary),
+            sessionsTotal = sessions.Count,
+            sessions = listed.Select(SessionSummary),
             anchors,
             techIntent,
-            actions = events.Where(e => e.Type is not ("visibility" or "click" or "session_end"))
-                .GroupBy(e => e.Type).ToDictionary(g => g.Key, g => g.Count()),
+            actions,
             networks = sessions.GroupBy(s => new { s.AsOrg, s.IpCity, s.IpCountry })
                 .Select(g => new
                 {
@@ -156,7 +217,7 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
         openMs = (long)(s.EndOrLast - s.StartedAt).TotalMilliseconds, s.VisibleMs, s.ActiveMs, s.MaxScroll,
         s.Locale, s.Breakpoint, s.ViewportW, s.ViewportH, s.Referrer, s.LocalHour, s.ColorScheme, s.Signals,
         s.Ip, s.IpTruncated, s.IpCountry, s.IpRegion, s.IpCity, s.Asn, s.AsOrg,
-        s.Fp, s.FpServer, s.AppSha, s.ApiSha, s.CvSourceSha, s.CvVersion, s.VersionMismatch,
+        s.Fp, s.FpServer, s.AppSha, s.ApiSha, s.CvSourceSha, s.CvVersion, s.ClientCvVersion, s.VersionMismatch,
     };
 
     /// <summary>A session with its IPs, attention per anchor and event timeline.</summary>
@@ -179,18 +240,24 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
         };
     }
 
+    /// <summary>A breakpoint / version combination with heatmap data, for the filters of the heatmap view.</summary>
+    public sealed record HeatmapFacet(string Breakpoint, string AppSha, string CvVersion, long Weight, long Move, long Click,
+        long AttentionMs, bool Snapshot);
+
     /// <summary>
     /// Heatmap cells for rendering (R6.8): move / click cells summed per anchor and 1 % cell, or attention per anchor.
-    /// Also returns which breakpoints and versions have data, for the filters.
+    /// Also returns which breakpoints and versions have data – cursor / click cells and attention (section dwell, which
+    /// touch-only visitors produce too, R6.9) – and whether a CV snapshot exists to render them on (R6.12).
+    /// Without a group: tenant-wide.
     /// </summary>
     public async Task<object> HeatmapAsync(string tenantId, string? group, string? bp, string? appSha, string? cvVersion, string type,
         CancellationToken ct)
     {
         var cells = db.HeatCells.Where(c => c.TenantId == tenantId);
         if (!string.IsNullOrEmpty(group)) cells = cells.Where(c => c.GroupKey == group);
-        var facets = await cells.GroupBy(c => new { c.Breakpoint, c.AppSha, c.CvVersion })
-            .Select(g => new { g.Key.Breakpoint, g.Key.AppSha, g.Key.CvVersion, weight = g.Sum(c => c.Weight) })
-            .ToListAsync(ct);
+        var sessions = db.Sessions.Where(s => s.TenantId == tenantId);
+        if (!string.IsNullOrEmpty(group)) sessions = sessions.Where(s => s.GroupKey == group);
+        var facets = await FacetsAsync(tenantId, cells, sessions, ct);
 
         if (!string.IsNullOrEmpty(bp)) cells = cells.Where(c => c.Breakpoint == bp);
         if (!string.IsNullOrEmpty(appSha)) cells = cells.Where(c => c.AppSha == appSha);
@@ -198,8 +265,7 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
 
         if (type == "attention")
         {
-            var sessions = db.Sessions.Where(s => s.TenantId == tenantId);
-            if (!string.IsNullOrEmpty(group)) sessions = sessions.Where(s => s.GroupKey == group);
+            // Attention is per session; a session counts for the breakpoint it started with.
             if (!string.IsNullOrEmpty(bp)) sessions = sessions.Where(s => s.Breakpoint == bp);
             if (!string.IsNullOrEmpty(appSha)) sessions = sessions.Where(s => s.AppSha == appSha);
             if (!string.IsNullOrEmpty(cvVersion)) sessions = sessions.Where(s => s.CvVersion == cvVersion);
@@ -215,6 +281,33 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
             .Select(g => new { anchor = g.Key.Anchor, x = g.Key.Cx, y = g.Key.Cy, w = g.Sum(c => c.Weight) })
             .ToListAsync(ct);
         return new { type, facets, cells = list };
+    }
+
+    private async Task<List<HeatmapFacet>> FacetsAsync(string tenantId, IQueryable<HeatCell> cells, IQueryable<TrackSession> sessions,
+        CancellationToken ct)
+    {
+        var cellFacets = await cells.GroupBy(c => new { c.Breakpoint, c.AppSha, c.CvVersion, c.Type })
+            .Select(g => new { g.Key.Breakpoint, g.Key.AppSha, g.Key.CvVersion, g.Key.Type, Weight = g.Sum(c => c.Weight) })
+            .ToListAsync(ct);
+        var attention = await db.SectionStats
+            .Join(sessions.Where(s => s.Breakpoint != null), st => st.SessionId, s => s.Id,
+                (st, s) => new { s.Breakpoint, s.AppSha, s.CvVersion, st.VisibleMs })
+            .GroupBy(x => new { x.Breakpoint, x.AppSha, x.CvVersion })
+            .Select(g => new { g.Key.Breakpoint, g.Key.AppSha, g.Key.CvVersion, Ms = g.Sum(x => x.VisibleMs) })
+            .ToListAsync(ct);
+        var snapshots = (await db.CvSnapshots.Where(s => s.TenantId == tenantId).Select(s => s.CvVersion).ToListAsync(ct)).ToHashSet();
+
+        var keys = cellFacets.Select(f => (Bp: f.Breakpoint, App: f.AppSha, Cv: f.CvVersion))
+            .Concat(attention.Where(a => a.Ms > 0).Select(a => (Bp: a.Breakpoint!, App: a.AppSha ?? "unknown", Cv: a.CvVersion ?? "unknown")))
+            .Distinct();
+        return keys.Select(k =>
+        {
+            var c = cellFacets.Where(f => f.Breakpoint == k.Bp && f.AppSha == k.App && f.CvVersion == k.Cv).ToList();
+            var ms = attention.Where(a => a.Breakpoint == k.Bp && (a.AppSha ?? "unknown") == k.App && (a.CvVersion ?? "unknown") == k.Cv)
+                .Sum(a => a.Ms);
+            return new HeatmapFacet(k.Bp, k.App, k.Cv, c.Sum(f => f.Weight), c.Where(f => f.Type == "move").Sum(f => f.Weight),
+                c.Where(f => f.Type == "click").Sum(f => f.Weight), ms, snapshots.Contains(k.Cv));
+        }).OrderByDescending(f => f.Weight + f.AttentionMs).ToList();
     }
 
     /// <summary>Consent rate per policy version and per group (R9.15).</summary>
@@ -282,28 +375,103 @@ public sealed partial class AnalyticsService(TrackingDbContext db, TenantStore t
     public async Task<CvSnapshot?> SnapshotAsync(string tenantId, string cvVersion, CancellationToken ct) =>
         await db.CvSnapshots.SingleOrDefaultAsync(s => s.TenantId == tenantId && s.CvVersion == cvVersion, ct);
 
+    /// <summary>Interest score with the number of sections the sessions saw (coverage).</summary>
+    public sealed record ScoreDetail(ScoreParts Parts, int SectionsSeen);
+
+    private static readonly ScoreDetail EmptyScore = new(new ScoreParts(0, 0, 0, 0, 0, 0), 0);
+
     /// <summary>
     /// Interest score 0–100 (R7.5): active time, coverage, returns, detail seeking, contact/keep intent and (for groups)
     /// spread over several visitors. Always reported with its parts.
     /// </summary>
-    public async Task<ScoreParts> ScoreAsync(IReadOnlyList<TrackSession> sessions, int knownSections, bool includeSpread, CancellationToken ct)
+    public async Task<ScoreParts> ScoreAsync(IReadOnlyList<TrackSession> sessions, int knownSections, bool includeSpread, CancellationToken ct) =>
+        (await ScoreDetailAsync(sessions, knownSections, includeSpread, ct)).Parts;
+
+    public async Task<ScoreDetail> ScoreDetailAsync(IReadOnlyList<TrackSession> sessions, int knownSections, bool includeSpread, CancellationToken ct)
     {
         var ids = sessions.Select(s => s.Id).ToList();
         var seenSections = await db.SectionStats.Where(s => ids.Contains(s.SessionId) && s.Anchor.StartsWith("section:") && s.VisibleMs > 0)
             .Select(s => s.Anchor).Distinct().CountAsync(ct);
-        var types = await db.Events.Where(e => ids.Contains(e.SessionId)).Select(e => e.Type).ToListAsync(ct);
+        var types = await db.Events.Where(e => ids.Contains(e.SessionId))
+            .GroupBy(e => e.Type).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count, ct);
 
         var activeMinutes = sessions.Sum(s => s.ActiveMs) / 60_000.0;
         var visits = sessions.Select(s => s.VisitId).Distinct().Count();
         var visitors = sessions.Select(s => s.VisitorId).Distinct().Count();
-        var detail = types.Count(t => DetailEvents.Contains(t));
-        return new ScoreParts(
+        var detail = DetailEvents.Sum(t => types.GetValueOrDefault(t));
+        return new ScoreDetail(new ScoreParts(
             Time: Math.Round(25 * Math.Min(activeMinutes / 5, 1), 1),
             Coverage: Math.Round(20 * (knownSections == 0 ? 0 : Math.Min((double)seenSections / knownSections, 1)), 1),
             Returns: Math.Round(15 * Math.Min(visits - 1, 3) / 3.0, 1),
             Detail: Math.Round(15 * Math.Min(detail / 5.0, 1), 1),
-            Intent: types.Any(t => IntentEvents.Contains(t)) ? 15 : 0,
-            Spread: includeSpread ? Math.Round(10 * Math.Min(visitors - 1, 3) / 3.0, 1) : 0);
+            Intent: IntentEvents.Any(types.ContainsKey) ? 15 : 0,
+            Spread: includeSpread ? Math.Round(10 * Math.Min(visitors - 1, 3) / 3.0, 1) : 0), seenSections);
+    }
+
+    /// <summary>
+    /// Tenant-wide overview of a period: totals, sessions per day (in the owner's time zone; <paramref name="tzOffsetMinutes"/>
+    /// as JavaScript's getTimezoneOffset) and breakdowns by device, browser, OS and country.
+    /// </summary>
+    public async Task<object> OverviewAsync(string tenantId, Period period, int tzOffsetMinutes, DateTimeOffset now, CancellationToken ct)
+    {
+        var offset = TimeSpan.FromMinutes(-Math.Clamp(tzOffsetMinutes, -840, 840));
+        var rows = await Sessions(tenantId, period)
+            .Select(s => new { s.StartedAt, s.VisitorId, s.VisitId, s.GroupKey, s.ActiveMs, s.VisibleMs, s.IpCountry })
+            .ToListAsync(ct);
+        var visitorIds = rows.Select(r => r.VisitorId).Distinct().ToList();
+        var visitors = await db.Visitors.Where(v => v.TenantId == tenantId && visitorIds.Contains(v.Id))
+            .Select(v => new { v.Id, v.PersonId, v.Device, v.Browser, v.Os })
+            .ToDictionaryAsync(v => v.Id, ct);
+        var consents = await Consents(tenantId, period).ToListAsync(ct);
+
+        DateOnly Day(DateTimeOffset t) => DateOnly.FromDateTime(t.ToOffset(offset).DateTime);
+        var lastDay = Day(period.To is { } to && to < now ? to.AddTicks(-1) : now);
+        var firstDay = period.From is { } from ? Day(from) : rows.Count > 0 ? Day(rows.Min(r => r.StartedAt)) : lastDay;
+        if (firstDay < lastDay.AddDays(-365)) firstDay = lastDay.AddDays(-365);
+        var byDay = rows.GroupBy(r => Day(r.StartedAt)).ToDictionary(g => g.Key, g => g.ToList());
+        var perDay = new List<object>();
+        for (var d = firstDay; d <= lastDay; d = d.AddDays(1))
+        {
+            var list = byDay.GetValueOrDefault(d) ?? [];
+            perDay.Add(new
+            {
+                date = d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), sessions = list.Count,
+                visitors = list.Select(r => r.VisitorId).Distinct().Count(), activeMs = list.Sum(r => r.ActiveMs),
+            });
+        }
+
+        List<object> Breakdown(Func<Guid, string?, string?> key) => rows
+            .GroupBy(r => key(r.VisitorId, r.IpCountry) ?? "unknown")
+            .Select(g => new { key = g.Key, visitors = g.Select(r => r.VisitorId).Distinct().Count(), sessions = g.Count() })
+            .OrderByDescending(b => b.visitors).ThenByDescending(b => b.sessions).ThenBy(b => b.key)
+            .Cast<object>().ToList();
+
+        var sessions = rows.Count;
+        var activeMs = rows.Sum(r => r.ActiveMs);
+        var visibleMs = rows.Sum(r => r.VisibleMs);
+        return new
+        {
+            from = period.From,
+            to = period.To,
+            totals = new
+            {
+                visitors = visitorIds.Count,
+                persons = visitors.Values.Select(v => v.PersonId).Distinct().Count(),
+                sessions,
+                visits = rows.Select(r => r.VisitId).Distinct().Count(),
+                groups = rows.Select(r => r.GroupKey).Distinct().Count(),
+                activeMs,
+                visibleMs,
+                avgActiveMs = sessions == 0 ? 0 : activeMs / sessions,
+                avgVisibleMs = sessions == 0 ? 0 : visibleMs / sessions,
+            },
+            consent = Count(consents),
+            perDay,
+            devices = Breakdown((v, _) => visitors.GetValueOrDefault(v)?.Device),
+            browsers = Breakdown((v, _) => visitors.GetValueOrDefault(v)?.Browser),
+            os = Breakdown((v, _) => visitors.GetValueOrDefault(v)?.Os),
+            countries = Breakdown((_, country) => country),
+        };
     }
 
     private async Task<int> KnownSectionCountAsync(string tenantId, CancellationToken ct)
