@@ -79,6 +79,7 @@ declares, with type-valid values (colours as hex), are applied; the API addition
 
 | Template | Variables | Presets |
 |---|---|---|
+| all | `links`: website links of entries – `qr` (default: address + QR code to the tracked link), `tracked` (address, opens the tracked link), `clear` (address, untracked), `off` (§7.2 of the requirements) | – |
 | `editorial` | `accent` | – |
 | `classic` | – | – |
 | `banner` | `accent`, `sidebar`, `sidebarText`, `band` (colours), `chapterColors` (bool, default off: one accent for all chapters), `chapterPalette` (5 colours used when `chapterColors` is on), `degreesStyle` (`accent` \| `gradient` \| `plain`) | `navy` (default look), `graphite`, `forest`, `burgundy`, `light` |

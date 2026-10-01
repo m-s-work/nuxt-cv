@@ -213,6 +213,30 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   otherwise. The page links it; `favicon.ico` of the web container is the default for browsers without SVG favicons.
   The icon holds no CV data, so it is also served on a tenant host without access.
 
+### 7.2 Website links
+
+- R7.E1 Entries (experiences, studies, projects, other) MAY link to a live website: `url` (+ optional `urlLabel`).
+  The API delivers `url` as `/api/go/<key>` plus `urlHost` (shown as link text when there is no label);
+  `/api/go/<key>` redirects there (`302`, `Referrer-Policy: no-referrer`) if the visitor's redacted CV contains it.
+  The click is recorded by the visitor tracking as `link_out` (kind by the target host, only with consent,
+  `VISITOR_SESSION_TRACKING.md`).
+- R7.E2 `hideCompanies` also removes the website of experiences and of projects that name a client (it would
+  reveal the company).
+- R7.E3 `cvHash` / `cvVersion` of `/api/cv` are computed before the links are replaced (as tracking and
+  `cv-sync.sh --verify` compute them). The admin preview gets the original links.
+- R7.E5 PDF: the template variable `links` (all templates, Design tab per tenant / profile / invite) sets how links
+  are printed: `qr` (default) – the readable address (opens the website directly) plus a small QR code to the
+  tracked link; `tracked` – the readable address, opening the tracked link; `clear` – the address, untracked;
+  `off` – none. The renderer gets the original link (`urlTarget`, only for render tickets) and the tracked base
+  `https://<public host>/api/go/{key}?c=<QR code of the PDF>`.
+  - `/api/go/<key>?c=<code>` works without cookie and does not redeem the code (no use counted, no cookie set);
+    only for active, non-view-once codes whose redacted CV contains the link. Each click is counted for that PDF
+    (`Invite.LinkClicksJson` of the PDF's QR invite: url, count, last click; no visitor data, so no consent is
+    needed) and shown in the admin's invite list.
+  - Without such a code (public profile, view-once invite, admin preview) links are printed untracked.
+- R7.E4 Images are always tenant assets (versioned in git with the CV), never links to other websites, which can
+  go offline.
+
 ---
 
 ## 8. API surface
@@ -223,6 +247,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/access/logout` | – | Clear access cookie. |
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, host, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page and `/` vs. `/cv` (R2.5); it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
+| `GET /api/go/{key}[?c=<pdf code>]` | cookie / host / PDF code | Redirect to a website linked in the visitor's redacted CV (§7.2), else `404`; with the code of a printed PDF: counted per PDF, not redeemed. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/favicon.svg` | cookie / host (optional) | Favicon of the visitor's tenant, else the default (§7.1). `Cache-Control: private, no-cache`. |
 | `GET /api/health` | – | Liveness for Coolify. |
@@ -241,6 +266,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `GET /api/admin/tenants/{tenant}/files/{path}` | admin key | Download one of these files (for editing). |
 | `DELETE /api/admin/tenants/{tenant}/files/{path}` | admin key | Delete a `cv.<locale>.json` or asset. `tenant.json` cannot be deleted. |
 | `GET /api/admin/tenants/{tenant}/preview?profile=x&locale=en[&revision=<sha>\|current]` | admin key | Show redacted CV for a profile (optionally of a registered revision, §14). |
+| `POST /api/admin/tenants/{tenant}/preview` `{ profile, locale?, cv }` | admin key | Redact an unsaved CV draft for a profile (editor preview; nothing is stored, pins are ignored). |
 | `GET /api/admin/tenants/{tenant}/pdf-preview?profile=x&template=y&locale=en[&vars=…][&revision=<sha\|tag>\|current]` | admin key | Render a PDF of a profile in any template and CV version (not cached). |
 | `GET/POST /api/admin/tenants/{tenant}/revisions` | admin key | List stored CV revisions (`current`, `modified`, `source`, per revision `outdated`, `changes` (files changed since, same SHA-256 as `…/hash`), `refs`) / register the current CV files as revision `{ sha, message?, committedAt?, repo?, path? }` (§14). |
 | `POST /api/admin/tenants/{tenant}/revisions/fetch` `{ ref }` | admin key | Fetch a revision (SHA, tag or branch) from the tenant's git repo again (§14). |
@@ -388,9 +414,18 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   max. redemptions and view once later; rearm used-up codes showing code, link and PDF render outcome; code and link of every invite stay visible and
   copyable in the list; revoke; re-render PDFs; edit `tenant.json`
   and `cv.<locale>.json` (comments and trailing commas allowed, as on the server); upload, view and delete
-  assets; preview any profile, locale and stored CV version either as data (the redacted JSON exactly as
-  delivered) or as PDF in any template and colour set (`…/pdf-preview`, needs the renderer); pin invites to
-  CV versions and see outdated pins (§14).
+  assets; pin invites to CV versions and see outdated pins (§14).
+- R13.3a Edit tab: a graphical editor for `cv.<locale>.json` next to a preview of any profile, locale and stored
+  CV version. The editor shows one collapsible section per block (profile, details, intro, skills, languages,
+  experiences, …) with forms for its fields, list entries can be added, duplicated, reordered and removed; photos,
+  logos, images and screenshots are picked from the tenant's assets (with thumbnails and upload), entries can link
+  to a website (§7.2); the
+  redaction markers (`requires`, `fieldRequires`, `companyAlias`, `clientAlias`) are editable too. Keys it does not
+  know are kept unchanged; saving writes formatted JSON (comments are removed, after a warning). The preview shows
+  the CV as **Web** (the real CV page in an iframe, `/cv?preview=1`, fed by the admin page via `postMessage`, phone /
+  tablet / desktop width), as **Data** (the redacted JSON exactly as delivered) or as **PDF** in any template and
+  colour set (`…/pdf-preview`, needs the renderer). Unsaved edits appear in the web and data views while typing:
+  the draft is redacted by the API (`POST …/preview`), nothing is stored; the PDF shows the saved file.
 - R13.5 Template builder ("Design" tab): choose the PDF template, colour set and template variables for the
   tenant or a profile, generated from the template's variable schema, with a live PDF preview for any
   profile and locale. Hovering a template shows a static preview image rendered from the sample tenant

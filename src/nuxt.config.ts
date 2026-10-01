@@ -62,7 +62,12 @@ export default defineNuxtConfig({
     provider: 'none',
     clientBundle: {
       scan: true,
-      icons: ['lucide:chevron-down', 'lucide:chevron-up', 'lucide:check', 'lucide:loader-circle', 'lucide:x', 'lucide:minus']
+      icons: [
+        'lucide:chevron-down', 'lucide:chevron-up', 'lucide:check', 'lucide:loader-circle', 'lucide:x', 'lucide:minus',
+        // Block icons of the CV editor (utils/cvEditorSchema.ts – the scan only covers .vue files).
+        'lucide:user', 'lucide:id-card', 'lucide:text-quote', 'lucide:sparkles', 'lucide:heart', 'lucide:languages',
+        'lucide:car', 'lucide:briefcase', 'lucide:graduation-cap', 'lucide:folder-kanban', 'lucide:award'
+      ]
     }
   },
 

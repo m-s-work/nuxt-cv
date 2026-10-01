@@ -159,6 +159,10 @@ public static partial class CvRedactor
                 if (alias is not null) exp["company"] = alias;
                 exp.Remove("logos");
                 exp.Remove("images");
+                // The company's website would name it too.
+                exp.Remove("url");
+                exp.Remove("urlHost");
+                exp.Remove("urlLabel");
             }
         }
 
@@ -170,6 +174,13 @@ public static partial class CvRedactor
                 var alias = project["clientAlias"]?.DeepClone();
                 project.Remove("clientAlias");
                 if (!flags.HideCompanies) continue;
+                // A project website usually names the client: dropped together with the client.
+                if (project["client"] is not null)
+                {
+                    project.Remove("url");
+                    project.Remove("urlHost");
+                    project.Remove("urlLabel");
+                }
                 project.Remove("client");
                 if (alias is not null) project["client"] = alias;
             }

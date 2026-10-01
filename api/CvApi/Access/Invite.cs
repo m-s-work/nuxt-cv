@@ -46,6 +46,12 @@ public sealed class Invite
     /// <summary>Random token of the current view-once redemption, also in that browser's access cookie.</summary>
     public string? ViewOnceToken { get; set; }
 
+    /// <summary>
+    /// Clicks on website links printed into this invite's PDF (<see cref="InviteSources.PdfQr"/> invites), counted by
+    /// <c>/api/go</c> (§7.2): JSON object link key → { url, count, lastAt }. Owner-only, no visitor data.
+    /// </summary>
+    public string? LinkClicksJson { get; set; }
+
     public bool IsViewOnce => ViewOnceMinutes is not null;
 
     /// <summary>Makes the code redeemable again: resets the use count and a used view-once state (§4, R4.10).</summary>

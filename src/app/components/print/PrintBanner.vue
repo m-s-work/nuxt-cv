@@ -7,6 +7,7 @@
 // - name: first name light; last name light with only its first letter bold
 // - main column: entries with date on the right
 import type { TemplateVarValue } from '~/utils/templateVars'
+import type { PrintLinkMode } from '~/composables/usePrintLinks'
 
 // Template variables (see utils/printTemplates.ts): colours, chapterColors, chapterPalette, degreesStyle.
 const props = defineProps<{ vars?: Record<string, TemplateVarValue> }>()
@@ -27,6 +28,9 @@ const {
   profile, details, intro, photo, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries
 } = usePrintData()
+
+// Website links of entries (template variable "links", composables/usePrintLinks.ts).
+const { link } = usePrintLinks(() => (props.vars?.links as PrintLinkMode | undefined) ?? 'qr')
 
 // Full bleed: no side/top page margin while this template is used; the bottom margin keeps room for the
 // running footer. Injected via useHead (after the global @page rule) instead of a named page, because a
@@ -171,6 +175,7 @@ const birthDate = computed(() => {
               <p v-if="exp.company" class="org">{{ exp.company }}</p>
               <p v-if="exp.description" class="text">{{ exp.description }}</p>
               <p v-if="exp.technologies?.length" class="tech">{{ exp.technologies.join(' · ') }}</p>
+              <PrintEntryLink :link="link(exp)" />
             </div>
           </div>
         </section>
@@ -185,6 +190,7 @@ const birthDate = computed(() => {
               </p>
               <p v-if="study.institution" class="org">{{ study.institution }}</p>
               <p v-if="study.focus" class="text">{{ study.focus }}</p>
+              <PrintEntryLink :link="link(study)" />
             </div>
           </div>
         </section>
@@ -200,16 +206,20 @@ const birthDate = computed(() => {
               <p v-if="project.type || project.client" class="org">{{ [project.type, project.client].filter(Boolean).join(' · ') }}</p>
               <p v-if="project.description" class="text">{{ project.description }}</p>
               <p v-if="project.technologies?.length" class="tech">{{ project.technologies.join(' · ') }}</p>
+              <PrintEntryLink :link="link(project)" />
             </div>
           </div>
         </section>
 
         <section v-if="otherEntries.length" class="section">
           <h2 class="heading">{{ label('other') }}</h2>
-          <p v-for="entry in otherEntries" :key="`other-${entry.id}`" class="entry-head compact">
-            <span><strong>{{ entry.title }}</strong><span v-if="entry.institution" class="ctx"> ({{ entry.institution }})</span></span>
-            <span class="date">{{ entry.showPeriod === false ? '' : period(entry.period) }}</span>
-          </p>
+          <template v-for="entry in otherEntries" :key="`other-${entry.id}`">
+            <p class="entry-head compact">
+              <span><strong>{{ entry.title }}</strong><span v-if="entry.institution" class="ctx"> ({{ entry.institution }})</span></span>
+              <span class="date">{{ entry.showPeriod === false ? '' : period(entry.period) }}</span>
+            </p>
+            <PrintEntryLink :link="link(entry)" />
+          </template>
         </section>
 
         <p class="notice">

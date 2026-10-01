@@ -13,6 +13,9 @@ interface Props {
     description: string
     technologies?: string[]
     images?: string[]
+    url?: string
+    urlLabel?: string
+    urlHost?: string
   }>
   activeIds?: (number | string)[]
 }
@@ -46,6 +49,9 @@ const filteredExperiences = computed(() => {
         :key="exp.id"
         :id="exp.id"
         :title="exp.position"
+        :url="exp.url"
+        :url-label="exp.urlLabel"
+        :url-host="exp.urlHost"
         :subtitle="exp.company"
         :period="exp.period"
         :description="exp.description"

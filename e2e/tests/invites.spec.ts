@@ -43,7 +43,8 @@ test.describe('invites', () => {
 
   test('tenant without own host is opened via invite on the shared host', async ({ page, admin }) => {
     const invite = await admin.createInvite('bob', { profile: 'full', label: unique('bob') })
-    expect(invite.link).toContain(`${SHARED_URL}/?c=`)
+    // On the shared host "/" is the showcase: invite links open /cv (since #105).
+    expect(invite.link).toContain(`${SHARED_URL}/cv?c=`)
 
     await page.goto(invite.link)
     await waitForCv(page, 'Bob Builder')

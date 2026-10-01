@@ -20,6 +20,11 @@ interface Props {
   techClickable?: boolean
   techSelected?: (tech: string) => boolean
   imagesClickable?: boolean
+  /** Link to a live website: /api/go/… (proxied, tracked as link_out) or, in the admin preview, the URL itself. */
+  url?: string
+  urlLabel?: string
+  /** Host of the website, delivered by the API for proxied links. */
+  urlHost?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -43,6 +48,11 @@ function isActive(): boolean {
                 `other-${props.id}`
   return props.activeIds.includes(idKey)
 }
+
+const linkHost = computed(() => {
+  if (props.urlHost) return props.urlHost
+  try { return new URL(props.url ?? '').hostname.replace(/^www\./, '') } catch { return '' }
+})
 
 // Handle heading click to update URL hash
 function handleHeadingClick(elementId: string) {
@@ -165,6 +175,15 @@ function handleImageClick(index: number) {
     <p v-if="description" class="text-gray-700 dark:text-gray-300 print:text-black mb-4">
       {{ description }}
     </p>
+
+    <!-- Website (opens through the API: the visitor's click is tracked, the site gets no referrer) -->
+    <a
+      v-if="url" :href="url" target="_blank" rel="noopener noreferrer" :data-link-host="linkHost || undefined"
+      class="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4 print:hidden"
+    >
+      <UIcon name="i-lucide-external-link" class="shrink-0" />
+      {{ urlLabel || linkHost || url }}
+    </a>
 
     <!-- Technology Badges -->
     <div v-if="technologies && technologies.length > 0 && showTechnologies" class="flex flex-wrap gap-2">
