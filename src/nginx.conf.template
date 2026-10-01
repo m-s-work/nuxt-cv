@@ -12,10 +12,13 @@ server {
     # Docker's embedded DNS; resolving per request lets nginx start before the API is up.
     resolver 127.0.0.11 valid=10s ipv6=off;
 
-    # Note: add_header in a location replaces these, so locations below only use `expires`/proxy settings.
+    # Note: any add_header in a location drops ALL of these for that location, so the locations below
+    # must not use add_header (only `expires`/proxy settings, which do not affect inheritance).
     add_header Referrer-Policy "no-referrer" always;       # never leak ?c=... via Referer
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    # Same-origin framing only: the admin heatmap embeds /cv?heatmap=1 in an iframe (AdminHeatmap.vue).
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Content-Security-Policy "frame-ancestors 'self'" always;
     add_header X-Robots-Tag "noindex, nofollow" always;
 
     location = /healthz {
