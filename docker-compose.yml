@@ -34,6 +34,7 @@ services:
       # PDF rendering: the renderer opens the app via the internal "web" service.
       # Set CV_PDF_RENDERER_URL to an empty value to disable PDFs.
       Pdf__RendererUrl: ${CV_PDF_RENDERER_URL-http://pdf:3000}
+      # Must match the pdf service's ALLOWED_ORIGIN.
       Pdf__AppBaseUrl: http://web
       # Bump after layout changes so cached PDFs are re-rendered.
       Pdf__LayoutVersion: ${CV_PDF_LAYOUT_VERSION:-1}
@@ -55,6 +56,8 @@ services:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       MAX_CONCURRENT: "2"
+      # Only render URLs with this origin are accepted; must match the API's Pdf__AppBaseUrl.
+      ALLOWED_ORIGIN: http://web
     expose:
       - "3000"
     restart: unless-stopped
