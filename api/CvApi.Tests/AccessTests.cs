@@ -296,6 +296,35 @@ public sealed class AccessTests : IDisposable
     }
 
     [Fact]
+    public async Task Sessions_ended_by_view_once_stay_ended_when_it_is_turned_off()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full" });
+        var before = _factory.ClientFor(ApiFactory.SharedHost);
+        await Redeem(before, code);
+        await Cv(before);
+
+        // On: the earlier browser loses access. Off again before anyone opened it: still no access.
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = 30 })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await before.GetAsync("/api/cv")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await UpdateSettings(code, new { viewOnceMinutes = (int?)null })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await before.GetAsync("/api/cv")).StatusCode);
+
+        // New redemptions work and keep working.
+        var after = _factory.ClientFor(ApiFactory.SharedHost);
+        Assert.Equal(HttpStatusCode.NoContent, (await Redeem(after, code)).StatusCode);
+        await Cv(after);
+    }
+
+    [Fact]
+    public async Task Parallel_redemptions_do_not_exceed_max_uses()
+    {
+        var code = await _factory.CreateInviteAsync("alice", new { profile = "full", maxUses = 1 });
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Redeem(_factory.ClientFor(ApiFactory.SharedHost), code)));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        Assert.Equal(1, (await Invite(code))["useCount"]!.GetValue<int>());
+    }
+
+    [Fact]
     public async Task Changing_the_view_once_window_later_counts_from_the_opening()
     {
         var code = await _factory.CreateInviteAsync("alice", new { profile = "full", viewOnce = true, viewOnceMinutes = 10 });

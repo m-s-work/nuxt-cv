@@ -271,6 +271,9 @@ public static partial class AdminEndpoints
                     // Turned on: earlier sessions end and the next opening is the one. The printed QR code
                     // must not outlive it either.
                     invite.Rearm();
+                    // A fresh token that no browser has yet: earlier sessions stay ended even if view once is
+                    // turned off again before anyone opened it.
+                    invite.ViewOnceToken = InviteCodes.Generate();
                     foreach (var child in children)
                     {
                         child.RevokedAt = now;
@@ -284,10 +287,10 @@ public static partial class AdminEndpoints
             }
             else if (invite.IsViewOnce)
             {
-                // Turned off: the browser that opened it keeps access like with a normal invite.
+                // Turned off: the browser that opened it keeps access like with a normal invite. The token stays,
+                // so sessions that ended when view once was turned on do not come back.
                 invite.ViewOnceMinutes = null;
                 invite.ViewOnceUntil = null;
-                invite.ViewOnceToken = null;
                 pdf.DeleteCached(tenantId, id);
             }
 
