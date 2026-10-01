@@ -35,6 +35,8 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    | `CV_SHARED_BASE_URL` | `https://cv.velarix.space` | Used for invite links of tenants that have no own host. |
    | `CV_CLIENT_IP_HEADER` | `CF-Connecting-IP` | Set when traffic arrives through a Cloudflare Tunnel (see below). |
    | `CV_DEMO_INVITE_CODE` | `demo` | Build time: shows a "Try the demo CV" button on the showcase linking to `/cv?c=demo`. Create the invite with that code (below). |
+   | `CV_LEGAL_NAME`, `CV_LEGAL_ADDRESS`, `CV_LEGAL_EMAIL` | `Max Muster`, `Hauptstraße 1\|1010 Wien`, `hello@example.org` | Build time: operator details on `/legal/imprint`, `/legal/privacy` and `/legal/terms` (address lines separated by `\|`). Until all three are set, the pages show a "not configured" hint. |
+   | `CV_LEGAL_VAT_ID`, `CV_LEGAL_COUNTRY` | `ATU12345678`, *(default `Austria`)* | Build time, optional: VAT id in the imprint; country of the operator. |
    | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
    | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
    | `CV_GIT_TOKEN` | fine-grained GitHub token, *Contents: read* on the CV repo | Lets the API fetch pinned CV versions from a private CV repository again. Mark as secret. Not needed for public repos. |
@@ -192,7 +194,11 @@ without any provider the platform works as before (super-admin only). Account da
    domain before production checkouts work.
 5. **Manual plans** – users who paid another way: admin UI with the admin key → *Users* → set Pro (days, date or
    forever, with a note). The change is recorded in the payment history.
-6. **Search engines** – `CV_PUBLIC_INDEX_HOST=cv.velarix.space` lets the landing, pricing and legal pages of that host be
+6. **Legal pages** – set `CV_LEGAL_*` (section 1) and rebuild `web`. The texts of `/legal/imprint`, `/legal/privacy`
+   and `/legal/terms` (`src/app/pages/legal/`) are **templates**: review them with a lawyer before going live.
+   The showcase and `/pricing` link them in the footer. `/pricing` reads the passes from `GET /api/billing/config`
+   (falls back to the default prices when the API is unreachable).
+7. **Search engines** – `CV_PUBLIC_INDEX_HOST=cv.velarix.space` lets the landing, pricing and legal pages of that host be
    indexed; everything else stays `noindex`.
 
 ## 6. Security notes
@@ -237,3 +243,20 @@ Full stack with Docker: `docker compose up --build`, then put tenant files into 
 (set `CV_ADMIN_API_KEY` in a `.env` next to `docker-compose.yml`).
 
 Tests: `cd api && dotnet test` (API) and `cd src && npm test` (frontend).
+
+### Showcase screenshots
+
+The images on the showcase (`src/public/showcase/*.jpg`, R11.2) show the sample tenant `demo` only. Regenerate them
+after UI changes with the local stack above (API, PDF renderer, `npm run dev`):
+
+```bash
+cd src && node scripts/showcase-screenshots.mjs
+```
+
+The script creates invites for `demo` via the admin API (`full`, `recruiter` with company names hidden, `public`;
+tracking off, so no consent modal), captures `cv-desktop`, `cv-german` (projects), `cv-dark`, `cv-mobile` (three phone
+screens composed into one image), `compare-full` / `compare-public` (experiences section) and the first PDF page of
+`pdf-recruiter-en` / `pdf-full-de`, then revokes the invites. Without the PDF renderer the PDFs are printed from the
+print layout (`?print=1`) in the browser. Env: `APP` (default `http://localhost:3000`), `API` (`http://localhost:5080`),
+`ADMIN_KEY` (`dev-admin-key`), `TENANT` (`demo`), `OUT`, `CHROMIUM_PATH` (else the newest Chromium in
+`PLAYWRIGHT_BROWSERS_PATH` or `/opt/pw-browsers`). Check every image before committing.
