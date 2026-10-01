@@ -394,6 +394,63 @@ public class AccountTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/admin/tenants/heater/analytics/heatmap")).StatusCode);
     }
 
+    [Fact]
+    public async Task Owner_gets_an_email_when_an_invite_is_opened_first()
+    {
+        var client = await _factory.SignUpWithTenantAsync("notify@example.org", "notifier");
+        var code = await _factory.CreateInviteAsync("notifier", new { profile = "full", label = "ACME recruiting" });
+        var visitor = _factory.ClientFor(ApiFactory.SharedHost);
+        (await visitor.PostAsJsonAsync("/api/access/redeem", new { code })).EnsureSuccessStatusCode();
+        (await _factory.ClientFor(ApiFactory.SharedHost).PostAsJsonAsync("/api/access/redeem", new { code })).EnsureSuccessStatusCode();
+
+        await WaitForAsync(() => _factory.Email.Sent.Any(m => m.To == "notify@example.org" && m.Subject == "Your CV was opened"));
+        await Task.Delay(200);
+        var mails = _factory.Email.Sent.Where(m => m.Subject == "Your CV was opened").ToList();
+        Assert.Single(mails);     // only the first opening
+        Assert.Contains("ACME recruiting", mails[0].Text);
+
+        // Turned off: no more e-mails.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PatchAsJsonAsync("/api/account", new { notifyOnOpen = false })).StatusCode);
+        Assert.False((await client.GetFromJsonAsync<JsonObject>("/api/auth/me"))!["notifyOnOpen"]!.GetValue<bool>());
+        var second = await _factory.CreateInviteAsync("notifier", new { profile = "full", label = "Other" });
+        (await visitor.PostAsJsonAsync("/api/access/redeem", new { code = second })).EnsureSuccessStatusCode();
+        await Task.Delay(300);
+        Assert.DoesNotContain(_factory.Email.Sent, m => m.Text.Contains("Other"));
+    }
+
+    [Fact]
+    public async Task Pro_reminder_is_sent_once_three_days_before_the_end()
+    {
+        var client = await _factory.SignInAsync("remind@example.org");
+        var userId = await _factory.UserIdAsync(client);
+        (await _factory.AdminClient().PutAsJsonAsync($"/api/admin/users/{userId}/plan", new { addDays = 7 })).EnsureSuccessStatusCode();
+        var notifier = _factory.Services.GetRequiredService<OwnerNotifier>();
+
+        Assert.Equal(0, await notifier.SendProRemindersAsync(CancellationToken.None));
+        _factory.Clock.Advance(TimeSpan.FromDays(5));
+        Assert.Equal(1, await notifier.SendProRemindersAsync(CancellationToken.None));
+        Assert.Equal(0, await notifier.SendProRemindersAsync(CancellationToken.None));
+        Assert.Contains(_factory.Email.Sent, m => m.To == "remind@example.org" && m.Subject == "Your Pro pass ends soon");
+    }
+
+    [Fact]
+    public async Task Super_admin_sees_platform_stats()
+    {
+        var client = await _factory.SignUpWithTenantAsync("stats@example.org", "statsy");
+        var stats = await _factory.AdminClient().GetFromJsonAsync<JsonObject>("/api/admin/stats");
+        Assert.Equal(1, stats!["users"]!.GetValue<int>());
+        Assert.Equal(1, stats["withTenant"]!.GetValue<int>());
+        Assert.Equal(0, stats["pro"]!.GetValue<int>());
+        Assert.Single(stats["signupsPerDay"]!.AsArray());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/admin/stats")).StatusCode);
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 50 && !condition(); i++) await Task.Delay(100);
+        Assert.True(condition());
+    }
+
     [Theory]
     [InlineData("example.com", true)]
     [InlineData("cv.jane-doe.at", true)]

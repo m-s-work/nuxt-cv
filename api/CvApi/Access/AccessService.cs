@@ -26,7 +26,8 @@ public sealed class AccessService(
     AppDbContext db,
     IDataProtectionProvider dataProtection,
     TimeProvider time,
-    Accounts.TenantOwners owners)
+    Accounts.TenantOwners owners,
+    Accounts.OwnerNotifier notifier)
 {
     public const string CookieName = "cv_access";
     public const string RenderCookieName = "cv_render";
@@ -114,6 +115,15 @@ public sealed class AccessService(
             invite.LastUsedAt = now;
             // An invite that was view-once before keeps its token: new sessions carry it too (R4.11).
             token = invite.ViewOnceToken;
+        }
+
+        if (invite.UseCount == 1)
+        {
+            // First opening: tell the owner (label of the parent for scans of the printed QR code).
+            var label = invite.Label;
+            if (invite.ParentId is { } parentId && await db.Invites.AsNoTracking().SingleOrDefaultAsync(i => i.Id == parentId, ct) is { } parent)
+                label = parent.Label;
+            notifier.InviteOpened(invite.TenantId, label, invite.Source == InviteSources.PdfQr);
         }
 
         // Expiry and view-once window are enforced on every request, not by the cookie lifetime, so the

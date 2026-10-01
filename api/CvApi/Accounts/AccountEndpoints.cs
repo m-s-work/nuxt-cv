@@ -14,7 +14,7 @@ public static class AccountEndpoints
     private const long MaxImportBytes = 20 * 1024 * 1024;
 
     public sealed record CreateTenantRequest(string? Handle, string? Locale, string? Name);
-    public sealed record UpdateAccountRequest(string? Name, bool? HideCredit);
+    public sealed record UpdateAccountRequest(string? Name, bool? HideCredit, bool? NotifyOnOpen);
     public sealed record DomainRequest(string? Domain);
     public sealed record DeleteRequest(string? Confirm);
 
@@ -56,6 +56,7 @@ public static class AccountEndpoints
         {
             var user = await db.Users.SingleAsync(u => u.Id == CurrentUser(ctx).Id, ct);
             if (body.Name is { } name) user.Name = name.Trim()[..Math.Min(name.Trim().Length, 120)];
+            if (body.NotifyOnOpen is { } notify) user.NotifyOnOpen = notify;
             await db.SaveChangesAsync(ct);
             if (body.HideCredit is { } hide && user.TenantId is { } tenantId && tenants.Get(tenantId) is { } tenant)
             {
@@ -217,6 +218,7 @@ public static class AccountEndpoints
             createdAt = user.CreatedAt,
             logins,
             customDomain = user.CustomDomain,
+            notifyOnOpen = user.NotifyOnOpen != false,
             plan = new
             {
                 name = pro ? "pro" : "free",

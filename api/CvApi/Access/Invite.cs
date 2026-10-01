@@ -96,8 +96,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     /// EnsureCreated does not touch existing databases: adds nullable columns introduced after a database was
     /// created (e.g. <see cref="Invite.ViewOnceMinutes"/>), so deployments keep their invites.
     /// </summary>
-    public void AddMissingColumns()
+    public void AddMissingColumns() => AddMissingColumns(this);
+
+    /// <summary>Adds nullable columns of the model that are missing in an existing SQLite database.</summary>
+    public static void AddMissingColumns(DbContext context)
     {
+        var Database = context.Database;
+        var Model = context.Model;
         var connection = Database.GetDbConnection();
         var opened = connection.State != System.Data.ConnectionState.Open;
         if (opened) connection.Open();

@@ -80,6 +80,34 @@ public static class UserAdminEndpoints
             return Results.NoContent();
         });
 
+        // Platform figures for the super-admin (S6): users, plans, sign-ups and revenue.
+        users.MapGet("/stats", async (int? days, AccountsDbContext db, Access.AppDbContext appDb, Tenants.TenantStore tenants,
+            TimeProvider time, CancellationToken ct) =>
+        {
+            var now = time.GetUtcNow();
+            var span = Math.Clamp(days ?? 30, 1, 366);
+            var since = now.AddDays(-span);
+            var allUsers = await db.Users.AsNoTracking().ToListAsync(ct);
+            var payments = await db.Payments.AsNoTracking().ToListAsync(ct);
+            var invites = await appDb.Invites.AsNoTracking().Where(i => i.Source == null).ToListAsync(ct);
+            return Results.Ok(new
+            {
+                users = allUsers.Count,
+                withTenant = allUsers.Count(u => u.TenantId is not null),
+                pro = allUsers.Count(u => u.IsPro(now)),
+                blocked = allUsers.Count(u => u.BlockedAt is not null),
+                tenants = tenants.All.Count,
+                activeInvites = invites.Count(i => i.IsActive(now)),
+                signupsPerDay = allUsers.Where(u => u.CreatedAt >= since).GroupBy(u => u.CreatedAt.UtcDateTime.Date)
+                    .OrderBy(g => g.Key).Select(g => new { day = g.Key.ToString("yyyy-MM-dd"), count = g.Count() }),
+                revenue = payments.Where(p => p.Status == PaymentStatus.Completed && p.CreatedAt >= since && p.Currency is not null)
+                    .GroupBy(p => p.Currency!).Select(g => new { currency = g.Key, amount = g.Sum(p => p.Amount), count = g.Count() }),
+                refunds = payments.Count(p => p.Status is PaymentStatus.Refunded or PaymentStatus.Chargeback && p.CreatedAt >= since),
+                unmatchedPayments = payments.Count(p => p.Status == PaymentStatus.Unmatched),
+                days = span,
+            });
+        });
+
         users.MapGet("/payments", async (AccountsDbContext db, CancellationToken ct) =>
         {
             var payments = await db.Payments.AsNoTracking().ToListAsync(ct);
