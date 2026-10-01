@@ -3,6 +3,14 @@
 # Log paths without query strings: invite codes (?c=...) must not end up in access logs.
 log_format cv_noquery '$remote_addr [$time_local] "$request_method $uri" $status $body_bytes_sent';
 
+# Search engines may index only the marketing pages of the shared host (landing page, pricing, legal pages; host from
+# PUBLIC_INDEX_HOST, empty = nothing). CVs, invite links, tenant hosts and the dashboard are never indexed.
+# $request_uri, not $uri: the SPA fallback rewrites $uri to /index.html before the header is added.
+map "$host:$request_uri" $cv_robots {
+    default "noindex, nofollow";
+    "~^${PUBLIC_INDEX_HOST}:/(de/?)?(pricing|legal/(imprint|privacy|terms))?/?$" "index, follow";
+}
+
 server {
     listen 80;
     server_name _;
@@ -12,11 +20,14 @@ server {
     # Docker's embedded DNS; resolving per request lets nginx start before the API is up.
     resolver 127.0.0.11 valid=10s ipv6=off;
 
-    # Note: add_header in a location replaces these, so locations below only use `expires`/proxy settings.
+    # Note: any add_header in a location drops ALL of these for that location, so the locations below
+    # must not use add_header (only `expires`/proxy settings, which do not affect inheritance).
     add_header Referrer-Policy "no-referrer" always;       # never leak ?c=... via Referer
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Robots-Tag "noindex, nofollow" always;
+    # SAMEORIGIN, not DENY: the admin page embeds the CV page (Edit tab web preview, heatmap).
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Content-Security-Policy "frame-ancestors 'self'" always;
+    add_header X-Robots-Tag $cv_robots always;
 
     location = /healthz {
         access_log off;
@@ -32,7 +43,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $http_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
-        client_max_body_size 10m;
+        client_max_body_size 25m;   # uploads: assets 10 MB, LinkedIn export 20 MB
     }
 
     location /_nuxt/ {

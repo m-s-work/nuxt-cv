@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using CvApi.Access;
+using CvApi.Accounts;
 using CvApi.Endpoints;
 using CvApi.Pdf;
 using CvApi.Tenants;
@@ -37,6 +38,15 @@ builder.Services.AddHttpClient<IPdfRenderer, HttpPdfRenderer>(client =>
 builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataPath, "app.db")}"));
 // Visitor tracking: own database file, so it is created/purged independently of app.db.
 builder.Services.AddDbContext<CvApi.Tracking.TrackingDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataPath, "tracking.db")}"));
+// Accounts, plans and payments (docs/REQUIREMENTS_SAAS.md): own database file as well.
+builder.Services.AddDbContext<AccountsDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataPath, "accounts.db")}"));
+builder.Services.AddSingleton<TenantOwners>();
+builder.Services.AddScoped<AccountService>();
+builder.Services.AddSingleton<OwnerNotifier>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<OwnerNotifier>());
+builder.Services.AddSingleton<IEmailSender, EmailSender>();
+builder.Services.AddHttpClient(EmailSender.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.AddAccountAuthentication();
 builder.Services.AddScoped<CvApi.Tracking.TrackingService>();
 builder.Services.AddScoped<CvApi.Tracking.AnalyticsService>();
 builder.Services.AddSingleton<CvApi.Tracking.ConsentCookies>();
@@ -67,6 +77,10 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(PublicEndpoints.RedeemRateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1) }));
+    var magicPerMinute = builder.Configuration.GetValue("Auth:MagicLinkPerMinute", 5);
+    o.AddPolicy(AuthEndpoints.MagicLinkRateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
+        ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = magicPerMinute, Window = TimeSpan.FromMinutes(1) }));
     var eventsPerMinute = builder.Configuration.GetValue("Tracking:EventsPerMinute", 120);
     o.AddPolicy(TrackingEndpoints.EventsRateLimitPolicy, ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -84,6 +98,9 @@ using (var scope = app.Services.CreateScope())
     appDb.Database.EnsureCreated();
     appDb.AddMissingColumns();
     scope.ServiceProvider.GetRequiredService<CvApi.Tracking.TrackingDbContext>().Database.EnsureCreated();
+    var accountsDb = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
+    accountsDb.Database.EnsureCreated();
+    accountsDb.AddMissingColumns();
 }
 
 app.UseForwardedHeaders();
@@ -103,12 +120,18 @@ if (!string.IsNullOrEmpty(clientIpHeader))
 // Works whether or not the reverse proxy strips the /api prefix.
 app.UsePathBase("/api");
 app.UseRouting();
+// After the path base: provider callbacks (/api/signin-google …) match their configured "/signin-…" paths.
+app.UseAuthentication();
 app.UseRateLimiter();
 
 app.MapPublicEndpoints();
 app.MapTrackingEndpoints();
 app.MapAdminEndpoints();
 app.MapAnalyticsEndpoints();
+app.MapAuthEndpoints();
+app.MapAccountEndpoints();
+app.MapBillingEndpoints();
+app.MapUserAdminEndpoints();
 
 app.Run();
 return 0;

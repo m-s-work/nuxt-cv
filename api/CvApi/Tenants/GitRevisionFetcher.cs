@@ -13,6 +13,7 @@ public sealed record FetchResult(string? Sha, string? Error);
 /// repo URL and folder that tools/cv-sync.sh reported. Only the requested commit is fetched (shallow) into a
 /// bare cache repo under {DataPath}/git/{tenant}; the tenant folder is extracted with `git archive`.
 /// Private repos: set Git__Token (HTTPS, sent as basic auth with Git__Username, default "x-access-token").
+/// The token is only sent to the hosts in Git__TokenHosts (comma separated, default "github.com").
 /// </summary>
 public sealed partial class GitRevisionFetcher(IConfiguration configuration, TimeProvider time, ILogger<GitRevisionFetcher> logger)
 {
@@ -59,7 +60,8 @@ public sealed partial class GitRevisionFetcher(IConfiguration configuration, Tim
                 await GitAsync(repo, ct, "init", "--bare", "--quiet");
             }
 
-            await GitAsync(repo, ct, "fetch", "--depth=1", "--no-tags", "--quiet", source.Repo, reference);
+            await GitAsync(repo, ct, TokenHostFor(source.Repo, configuration["Git:TokenHosts"]),
+                ["fetch", "--depth=1", "--no-tags", "--quiet", source.Repo, reference]);
             var sha = Encoding.UTF8.GetString(await GitAsync(repo, ct, "rev-parse", "FETCH_HEAD^{commit}")).Trim();
             if (!RevisionStore.ShaRegex().IsMatch(sha) || sha.Length != 40) return new FetchResult(null, "fetch_failed");
 
@@ -118,7 +120,26 @@ public sealed partial class GitRevisionFetcher(IConfiguration configuration, Tim
         return cvFiles;
     }
 
-    private async Task<byte[]> GitAsync(string repo, CancellationToken ct, params string[] args)
+    /// <summary>
+    /// The host Git:Token may be sent to for <paramref name="repoUrl"/>: its host when the URL is HTTPS on the
+    /// default port, without user info, and the host is listed in <paramref name="tokenHosts"/> (comma separated,
+    /// case-insensitive, default "github.com"); otherwise null (no credentials).
+    /// </summary>
+    internal static string? TokenHostFor(string repoUrl, string? tokenHosts)
+    {
+        if (!Uri.TryCreate(repoUrl, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || uri.UserInfo.Length > 0)
+            return null;
+        var hosts = (string.IsNullOrWhiteSpace(tokenHosts) ? "github.com" : tokenHosts)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var host = uri.IdnHost.ToLowerInvariant();
+        return hosts.Any(h => string.Equals(h, host, StringComparison.OrdinalIgnoreCase)) ? host : null;
+    }
+
+    private Task<byte[]> GitAsync(string repo, CancellationToken ct, params string[] args) => GitAsync(repo, ct, null, args);
+
+    /// <param name="tokenHost">Host the Git:Token is scoped to (see <see cref="TokenHostFor"/>); null = no credentials.</param>
+    private async Task<byte[]> GitAsync(string repo, CancellationToken ct, string? tokenHost, string[] args)
     {
         var start = new ProcessStartInfo("git")
         {
@@ -131,12 +152,13 @@ public sealed partial class GitRevisionFetcher(IConfiguration configuration, Tim
         start.Environment["GIT_TERMINAL_PROMPT"] = "0";
         start.Environment["GIT_CONFIG_NOSYSTEM"] = "1";
         start.Environment["HOME"] = repo;
-        // Credentials go through the environment, never the command line.
-        if (configuration["Git:Token"] is { Length: > 0 } token)
+        // Credentials go through the environment, never the command line, and are scoped to the token host
+        // (http.<url>.extraHeader), so git does not send them to any other host (e.g. after a redirect).
+        if (tokenHost is not null && configuration["Git:Token"] is { Length: > 0 } token)
         {
             var user = configuration["Git:Username"] is { Length: > 0 } u ? u : "x-access-token";
             start.Environment["GIT_CONFIG_COUNT"] = "1";
-            start.Environment["GIT_CONFIG_KEY_0"] = "http.extraHeader";
+            start.Environment["GIT_CONFIG_KEY_0"] = $"http.https://{tokenHost}/.extraHeader";
             start.Environment["GIT_CONFIG_VALUE_0"] = "Authorization: Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{token}"));
         }
 

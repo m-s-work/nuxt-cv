@@ -1,0 +1,15 @@
+{
+  "name": "nuxt-cv-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests against the full stack (web + API + PDF renderer)",
+  "scripts": {
+    "test": "playwright test",
+    "stack": "node stack/start.mjs",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  },
+  "type": "module",
+  "private": true
+}

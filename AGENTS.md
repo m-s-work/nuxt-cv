@@ -73,6 +73,7 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `ci`, `build`, `chore`, `perf`
 | `api/sample-data/` | Sample tenants (`demo`, `bob`) for development and showcase screenshots |
 | `pdf/` | Internal PDF renderer (Playwright/Chromium), called by the API |
 | `geo/` | Internal IP → location / network lookup (DB-IP Lite, refreshed monthly), called by the API |
+| `e2e/` | Playwright end-to-end tests against the full stack (web + API + PDF renderer), see `e2e/README.md` |
 | `docker-compose.yml` | Deployment (Coolify): `web` (nginx + SPA), `api`, `pdf`, `geo` |
 | `docs/REQUIREMENTS_ACCESS_AND_TENANCY.md` | Source of truth for tenancy, invites, redaction, API, showcase |
 | `docs/DEPLOYMENT_COOLIFY.md` | Deployment and operations |
@@ -88,9 +89,10 @@ cd src && npm test -- --run           # frontend tests
 cd src && npm run dev                 # frontend on http://localhost:3000 (proxies /api)
 cd src && npm run generate            # production build (static)
 cd geo && npm test                    # geo lookup service
+cd e2e && npx playwright test         # e2e tests; starts web + API + PDF renderer on the sample data
 ```
 
-Run the relevant tests and the build before committing.
+Run the relevant tests and the build before committing. New core features get a happy-path e2e test in `e2e/tests/`.
 
 ## Rules
 

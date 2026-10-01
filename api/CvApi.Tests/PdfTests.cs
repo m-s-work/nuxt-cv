@@ -171,6 +171,67 @@ public sealed class PdfTests : IDisposable
         Assert.Equal(HttpStatusCode.BadGateway, (await client.GetAsync("/api/pdf?locale=en")).StatusCode);
     }
 
+    [Fact]
+    public async Task Website_links_in_the_pdf_are_tracked_per_pdf_without_redeeming_the_code()
+    {
+        const string site = "https://shop.example.com/demo";
+        _factory.WriteCv("alice", "en", $$"""
+            { "profile": { "name": "Alice" }, "experiences": [],
+              "projects": [ { "id": 1, "name": "Shop", "startDate": "2021", "endDate": null, "url": "{{site}}" } ] }
+            """);
+        var created = await CreateInvite(new { profile = "full" });
+        var call = _factory.Renderer.Calls.Last();
+        var code = QrCode(call);
+        var key = CvApi.Links.ExternalLinks.Key(site);
+
+        // The renderer gets the tracked link base (public host, the PDF's QR code) …
+        var go = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(call.Url.Query)["go"].ToString();
+        Assert.Equal($"https://alice-cv.example.org/api/go/{{key}}?c={code}", go);
+        // … and the original link to print as text.
+        var renderer = _factory.ClientFor("web");
+        renderer.DefaultRequestHeaders.Add("Cookie", $"cv_render={call.Cookies["cv_render"]}");
+        var project = (await renderer.GetFromJsonAsync<JsonObject>("/api/cv?locale=en"))!["cv"]!["projects"]![0]!;
+        Assert.Equal(site, project["urlTarget"]!.GetValue<string>());
+        Assert.Equal($"/api/go/{key}", project["url"]!.GetValue<string>());
+
+        // Visitors of the web page never get the original link.
+        var visitor = _factory.ClientFor(ApiFactory.SharedHost);
+        await visitor.PostAsJsonAsync("/api/access/redeem", new { code = created["code"]!.GetValue<string>() });
+        Assert.Null((await visitor.GetFromJsonAsync<JsonObject>("/api/cv?locale=en"))!["cv"]!["projects"]![0]!["urlTarget"]);
+
+        // A click from the printed PDF: no cookie, redirect, counted for that PDF, the code is not redeemed.
+        var reader = _factory.CreateClient(new() { BaseAddress = new Uri("http://alice-cv.example.org"), AllowAutoRedirect = false, HandleCookies = false });
+        for (var i = 0; i < 2; i++)
+        {
+            var response = await reader.GetAsync($"/api/go/{key}?c={code}");
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(site, response.Headers.Location!.ToString());
+            Assert.False(response.Headers.Contains("Set-Cookie"));
+        }
+        Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"/api/go/{CvApi.Links.ExternalLinks.Key("https://elsewhere.example.com/")}?c={code}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"/api/go/{key}?c=wrong-code")).StatusCode);
+
+        var admin = _factory.ClientFor(ApiFactory.SharedHost);
+        admin.DefaultRequestHeaders.Add("X-Admin-Key", ApiFactory.AdminKey);
+        var qrInvite = (await admin.GetFromJsonAsync<JsonArray>("/api/admin/tenants/alice/invites"))!
+            .Single(i => i!["source"]?.GetValue<string>() == "pdf-qr")!;
+        Assert.Equal(0, qrInvite["useCount"]!.GetValue<int>());
+        var clicks = Assert.Single(qrInvite["linkClicks"]!.AsArray())!;
+        Assert.Equal(site, clicks["url"]!.GetValue<string>());
+        Assert.Equal(2, clicks["count"]!.GetValue<int>());
+
+        // Revoking the invite also ends its printed links.
+        await admin.DeleteAsync($"/api/admin/tenants/alice/invites/{created["invite"]!["id"]}");
+        Assert.Equal(HttpStatusCode.NotFound, (await reader.GetAsync($"/api/go/{key}?c={code}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Pdf_of_a_view_once_invite_has_no_tracked_links()
+    {
+        await CreateInvite(new { profile = "full", viewOnce = true });
+        Assert.All(_factory.Renderer.Calls, call => Assert.DoesNotContain("go=", call.Url.Query));
+    }
+
     private static string QrUrl((Uri Url, IReadOnlyDictionary<string, string> Cookies) call) =>
         Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(call.Url.Query)["qr"].ToString();
 

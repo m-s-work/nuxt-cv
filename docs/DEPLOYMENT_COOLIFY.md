@@ -168,13 +168,43 @@ Owner-only reading statistics with a consent modal (docs/VISITOR_SESSION_TRACKIN
 5. Have the consent texts reviewed before going live; changing them (`CONSENT_TEXT_VERSION` in
    `src/app/utils/tracking.ts` and `TrackingPolicy.TextVersion` in the API) asks every visitor again.
 
+## 5a. Accounts, plans and payments (SaaS)
+
+Self-service sign-up is described in [`REQUIREMENTS_SAAS.md`](REQUIREMENTS_SAAS.md). Everything is off until configured;
+without any provider the platform works as before (super-admin only). Account data lives in `/data/accounts.db`.
+
+1. **Sign-in providers** – create an OAuth app per provider and set id + secret (`CV_AUTH_<PROVIDER>_ID` / `_SECRET`).
+   Redirect URI: `https://<shared host>/api/signin-<provider>` (`google`, `microsoft`, `github`, `linkedin`).
+   - Google: Google Cloud Console → APIs & Services → Credentials → OAuth client (Web), scopes `openid email profile`.
+   - Microsoft: Entra ID → App registrations, "Accounts in any organizational directory and personal Microsoft accounts".
+   - GitHub: Settings → Developer settings → OAuth Apps.
+   - LinkedIn: developer portal → app with the product "Sign In with LinkedIn using OpenID Connect".
+2. **E-mail sign-in (optional)** – a [Resend](https://resend.com) API key (`CV_RESEND_API_KEY`) and a verified sender
+   (`CV_EMAIL_FROM`, e.g. `CV <login@velarix.space>`). No SMTP server needed.
+3. **Tenant hosts (optional)** – `CV_TENANT_HOST_SUFFIX=cv.velarix.space` gives every new user `<handle>.cv.velarix.space`.
+   Needs a wildcard DNS record and the wildcard domain `https://*.cv.velarix.space` on the `web` service.
+   Own domains of Pro users must be added to the `web` service by hand (the dashboard tells the user to wait for it).
+4. **Paddle** – in Paddle (start with the sandbox): create a product "Pro" with four **one-time** prices (week, month,
+   6 months, year; amounts as in `REQUIREMENTS_SAAS.md` §4.1), a client-side token and a notification destination
+   `https://<shared host>/api/billing/paddle/webhook` with the events `transaction.completed`, `adjustment.created`,
+   `adjustment.updated`. Set `CV_PADDLE_ENVIRONMENT` (`sandbox` | `production`), `CV_PADDLE_CLIENT_TOKEN`,
+   `CV_PADDLE_WEBHOOK_SECRET` and `CV_PADDLE_PRICE_WEEK` / `_MONTH` / `_HALFYEAR` / `_YEAR`. Paddle must approve the
+   domain before production checkouts work.
+5. **Manual plans** – users who paid another way: admin UI with the admin key → *Users* → set Pro (days, date or
+   forever, with a note). The change is recorded in the payment history.
+6. **Search engines** – `CV_PUBLIC_INDEX_HOST=cv.velarix.space` lets the landing, pricing and legal pages of that host be
+   indexed; everything else stays `noindex`.
+
 ## 6. Security notes
 
 - The admin API is reachable through the public domain but requires `X-Admin-Key`. Use a long random key.
   To keep it off the internet entirely, leave `CV_ADMIN_API_KEY` empty and only set it temporarily when needed.
 - nginx logs requests **without** query strings and sends `Referrer-Policy: no-referrer`, so invite codes
   do not leak into logs or to third parties. The app removes `?c=` from the address bar after redeeming.
-- All pages and API responses send `X-Robots-Tag: noindex, nofollow`; CV responses are `Cache-Control: private, no-store`.
+- All pages and API responses send `X-Robots-Tag: noindex, nofollow` (except the marketing pages of `CV_PUBLIC_INDEX_HOST`);
+  CV responses are `Cache-Control: private, no-store`.
+- Users only reach their own tenant through the admin API (others answer `404`); git revision endpoints and user
+  management need the admin key. Session requests that change data need `X-Requested-With` (CSRF).
 - Invite redemption is rate-limited per client IP (`Cv__RedeemPerMinute`, default 10). The client IP is the
   right-most `X-Forwarded-For` entry set by Traefik and passed through unchanged by nginx.
 - If Cloudflare (proxy or tunnel) sits in front of Coolify, set `CV_CLIENT_IP_HEADER=CF-Connecting-IP`.
@@ -188,7 +218,7 @@ Owner-only reading statistics with a consent modal (docs/VISITOR_SESSION_TRACKIN
 cd api/CvApi && dotnet run                 # http://localhost:5080/api
 
 # optional: PDF renderer (needs a Chromium; then start the API with the two Pdf__ variables)
-cd pdf && npm install && PORT=3100 CHROMIUM_PATH=/path/to/chromium node server.mjs
+cd pdf && npm install && PORT=3100 ALLOWED_ORIGIN=http://localhost:3000 CHROMIUM_PATH=/path/to/chromium node server.mjs
 #   Pdf__RendererUrl=http://localhost:3100 Pdf__AppBaseUrl=http://localhost:3000 dotnet run
 
 # Frontend (proxies /api to the API, keeps the Host header)
@@ -197,6 +227,8 @@ cd src && npm install && npm run dev       # http://localhost:3000
 
 - `http://localhost:3000` → tenant `demo` (public profile enabled in the sample).
 - `http://localhost:3000/admin` → admin UI (key `dev-admin-key`).
+- `http://localhost:3000/login` → user sign-in. In development the magic link is printed to the API log
+  (`Email__LogLinks=true` in `launchSettings.json`).
 - `http://127.0.0.1:3000` → behaves like the shared host (no access without invite).
 - Create an invite: `curl -X POST -H "X-Admin-Key: dev-admin-key" -H "Content-Type: application/json" -d '{"profile":"full"}' http://localhost:5080/api/admin/tenants/bob/invites`
   and open the returned link, e.g. `http://127.0.0.1:3000/cv?c=<code>` (`/` stays the showcase on the shared host).

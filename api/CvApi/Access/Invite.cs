@@ -46,6 +46,12 @@ public sealed class Invite
     /// <summary>Random token of the current view-once redemption, also in that browser's access cookie.</summary>
     public string? ViewOnceToken { get; set; }
 
+    /// <summary>
+    /// Clicks on website links printed into this invite's PDF (<see cref="InviteSources.PdfQr"/> invites), counted by
+    /// <c>/api/go</c> (§7.2): JSON object link key → { url, count, lastAt }. Owner-only, no visitor data.
+    /// </summary>
+    public string? LinkClicksJson { get; set; }
+
     public bool IsViewOnce => ViewOnceMinutes is not null;
 
     /// <summary>Makes the code redeemable again: resets the use count and a used view-once state (§4, R4.10).</summary>
@@ -96,8 +102,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     /// EnsureCreated does not touch existing databases: adds nullable columns introduced after a database was
     /// created (e.g. <see cref="Invite.ViewOnceMinutes"/>), so deployments keep their invites.
     /// </summary>
-    public void AddMissingColumns()
+    public void AddMissingColumns() => AddMissingColumns(this);
+
+    /// <summary>Adds nullable columns of the model that are missing in an existing SQLite database.</summary>
+    public static void AddMissingColumns(DbContext context)
     {
+        var Database = context.Database;
+        var Model = context.Model;
         var connection = Database.GetDbConnection();
         var opened = connection.State != System.Data.ConnectionState.Open;
         if (opened) connection.Open();

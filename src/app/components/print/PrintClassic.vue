@@ -1,12 +1,17 @@
 <script setup lang="ts">
 // Print/PDF template "classic": single column, black and white, no photo. Compact and easy for
 // applicant tracking systems to parse (linear reading order, real text, no multi-column flow).
-defineProps<{ vars?: Record<string, unknown> }>()
+import type { PrintLinkMode } from '~/composables/usePrintLinks'
+
+const props = defineProps<{ vars?: Record<string, unknown> }>()
 
 const {
   locale, label, qrDataUrl, qrUrl, onlineHost, platformUrl, platformHost, profile, intro, contact, period,
   skills, liked, languages, licenses, experiences, studies, projects, otherEntries
 } = usePrintData()
+
+// Website links of entries (template variable "links", composables/usePrintLinks.ts).
+const { link } = usePrintLinks(() => (props.vars?.links as PrintLinkMode | undefined) ?? 'qr')
 
 const fullName = computed(() => [
   profile.value.academicTitlePrefix,
@@ -42,6 +47,7 @@ const fullName = computed(() => [
         <p v-if="exp.company" class="org">{{ exp.company }}</p>
         <p v-if="exp.description">{{ exp.description }}</p>
         <p v-if="exp.technologies?.length" class="tech">{{ exp.technologies.join(', ') }}</p>
+        <PrintEntryLink :link="link(exp)" />
       </div>
     </section>
 
@@ -54,6 +60,7 @@ const fullName = computed(() => [
         </p>
         <p v-if="study.institution" class="org">{{ study.institution }}</p>
         <p v-if="study.focus">{{ study.focus }}</p>
+        <PrintEntryLink :link="link(study)" />
       </div>
     </section>
 
@@ -67,6 +74,7 @@ const fullName = computed(() => [
         <p v-if="project.type || project.client" class="org">{{ [project.type, project.client].filter(Boolean).join(' · ') }}</p>
         <p v-if="project.description">{{ project.description }}</p>
         <p v-if="project.technologies?.length" class="tech">{{ project.technologies.join(', ') }}</p>
+        <PrintEntryLink :link="link(project)" />
       </div>
     </section>
 
@@ -94,10 +102,13 @@ const fullName = computed(() => [
 
     <section v-if="otherEntries.length" class="section">
       <h2 class="heading">{{ label('other') }}</h2>
-      <p v-for="entry in otherEntries" :key="`other-${entry.id}`" class="entry-line compact">
-        <span><strong>{{ entry.title }}</strong><template v-if="entry.institution">, {{ entry.institution }}</template></span>
-        <span class="date">{{ entry.showPeriod === false ? '' : period(entry.period) }}</span>
-      </p>
+      <template v-for="entry in otherEntries" :key="`other-${entry.id}`">
+        <p class="entry-line compact">
+          <span><strong>{{ entry.title }}</strong><template v-if="entry.institution">, {{ entry.institution }}</template></span>
+          <span class="date">{{ entry.showPeriod === false ? '' : period(entry.period) }}</span>
+        </p>
+        <PrintEntryLink :link="link(entry)" />
+      </template>
     </section>
 
     <footer class="end">

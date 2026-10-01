@@ -18,6 +18,9 @@ public sealed class TenantConfig
     /// <summary>Whether invites may override the template (default: allowed).</summary>
     public bool AllowInviteTemplateOverride { get; set; } = true;
 
+    /// <summary>Leave out the "Created with …" credit in PDFs (only effective on Pro or managed tenants, SaaS §4).</summary>
+    public bool HideCredit { get; set; }
+
     /// <summary>Browser tab icon (symbol and colours). Null = default.</summary>
     public FaviconConfig? Favicon { get; set; }
 

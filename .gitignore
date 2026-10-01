@@ -32,3 +32,9 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+.claude/worktrees/
+
+# End-to-end tests (e2e/)
+e2e/.stack/
+e2e/test-results/
+e2e/playwright-report/

@@ -216,3 +216,73 @@ export function collectFingerprint(): { fp: string, fpParts: string[] } {
   const fpParts = traits.map(t => sha256(t))
   return { fp: sha256(fpParts.join('|')), fpParts }
 }
+
+/** Longest dwell one cursor sample may carry (R6.5); longer rests count as this. */
+export const MAX_DWELL_MS = 2000
+
+/** A cursor sample `(anchor, xRel, yRel, dwell ms)` (R6.5). */
+export type PointerSample = [anchor: string, x: number, y: number, dt: number]
+
+/**
+ * Cursor dwell (R6.4, R6.5): samples pointer positions at most every `minMs` and after moving at least `minPx`, and
+ * attributes the time until the next sample to the position the cursor **rested** at – the previous one, not the one
+ * it moved to. `flush` attributes the pending dwell when the page is hidden or closed.
+ */
+export class PointerDwell {
+  private last = { t: Number.NEGATIVE_INFINITY, x: -100, y: -100 }
+  private pending: { t: number, anchor: string, x: number, y: number } | null = null
+
+  constructor(private readonly minMs = 100, private readonly minPx = 8, private readonly maxDwellMs = MAX_DWELL_MS) {}
+
+  /** Whether a pointer event at viewport position (x, y) and time t is sampled. */
+  accepts(t: number, x: number, y: number): boolean {
+    return t - this.last.t >= this.minMs && Math.hypot(x - this.last.x, y - this.last.y) >= this.minPx
+  }
+
+  /**
+   * Records a sample at viewport position (x, y); `position` is the anchor and relative position there (null outside
+   * any anchor). Returns the dwell of the previous position, if it was inside an anchor.
+   */
+  move(t: number, x: number, y: number, position: { anchor: string, x: number, y: number } | null): PointerSample | null {
+    const sample = this.flush(t)
+    this.last = { t, x, y }
+    this.pending = position ? { t, ...position } : null
+    return sample
+  }
+
+  /** Dwell of the current position up to t; the position is then forgotten (page hidden, page closed). */
+  flush(t: number): PointerSample | null {
+    const p = this.pending
+    this.pending = null
+    if (!p) return null
+    const dt = Math.min(Math.max(0, t - p.t), this.maxDwellMs)
+    return dt > 0 ? [p.anchor, p.x, p.y, Math.round(dt)] : null
+  }
+}
+
+/** Status codes worth one more try: timeouts, rate limits and server errors. */
+export function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500
+}
+
+/**
+ * Sends a request and retries it up to `retries` times after `delayMs` when it fails with a network error or a
+ * retryable status (R8.3). The caller sends the same body each time, so the batch keeps its `seq` and the server
+ * applies it once. Resolves to whether a try succeeded; never rejects.
+ */
+export async function sendWithRetry(
+  send: () => Promise<{ ok: boolean, status: number }>,
+  options: { retries?: number, delayMs?: number, wait?: (ms: number) => Promise<void> } = {}
+): Promise<boolean> {
+  const { retries = 1, delayMs = 2000, wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)) } = options
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await send()
+      if (response.ok) return true
+      if (!isRetryableStatus(response.status) || attempt >= retries) return false
+    } catch {
+      if (attempt >= retries) return false
+    }
+    await wait(delayMs)
+  }
+}

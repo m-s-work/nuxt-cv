@@ -111,6 +111,8 @@ export interface AdminInvite {
   viewOnceUntil?: string
   parentId?: string
   source?: string
+  /** Clicks on website links printed into this PDF (pdf-qr invites), most clicked first. */
+  linkClicks?: Array<{ url: string, count: number, lastAt?: string }>
   /** Effective CV pin (the invite's own or its profile's); undefined = follows the current CV. */
   revision?: string
   pinnedBy?: 'invite' | 'profile'
@@ -157,6 +159,29 @@ export interface AnalyticsGroup {
   lastVisit?: string
   consent: ConsentCounts
   score: number
+  /** Sections this group saw / sections any visitor of the tenant saw (coverage). */
+  sectionsSeen: number
+  sectionsKnown: number
+}
+
+/** Optional period of the analytics reports: sessions started in [from, to). ISO date-times. */
+export interface AnalyticsPeriod { from?: string, to?: string }
+
+export interface AnalyticsBreakdown { key: string, visitors: number, sessions: number }
+
+export interface AnalyticsOverview {
+  from?: string
+  to?: string
+  totals: {
+    visitors: number, persons: number, sessions: number, visits: number, groups: number,
+    activeMs: number, visibleMs: number, avgActiveMs: number, avgVisibleMs: number
+  }
+  consent: ConsentCounts
+  perDay: Array<{ date: string, sessions: number, visitors: number, activeMs: number }>
+  devices: AnalyticsBreakdown[]
+  browsers: AnalyticsBreakdown[]
+  os: AnalyticsBreakdown[]
+  countries: AnalyticsBreakdown[]
 }
 
 export interface AnalyticsSession {
@@ -188,6 +213,8 @@ export interface AnalyticsSession {
   appSha?: string
   cvSourceSha?: string
   cvVersion?: string
+  /** CV version the client reported when it differs from cvVersion (heat data is stored under cvVersion). */
+  clientCvVersion?: string
   versionMismatch: boolean
 }
 
@@ -196,11 +223,14 @@ export interface ScoreParts { time: number, coverage: number, returns: number, d
 export interface AnalyticsGroupDetail {
   groupKey: string
   score: { total: number, parts: ScoreParts }
+  coverage?: { seen: number, known: number }
   consent: ConsentCounts
   visitors: Array<{
     id: string, personId: string, personReason: string, device?: string, browser?: string, os?: string, language?: string,
-    firstSeen: string, lastSeen: string, sessions: number, visits: number, activeMs: number
+    firstSeen: string, lastSeen: string, sessions: number, visits: number, activeMs: number, visibleMs?: number
   }>
+  /** All sessions of the period; `sessions` lists the most recent ones. */
+  sessionsTotal?: number
   sessions: AnalyticsSession[]
   anchors: Array<{
     anchor: string, label?: string, visibleMs: number, hoverMs: number, clicks: number, views: number, sessions: number,
@@ -222,7 +252,19 @@ export interface AnalyticsSessionDetail {
 
 export type HeatmapType = 'move' | 'click' | 'attention'
 
-export interface HeatmapFacet { breakpoint: string, appSha: string, cvVersion: string, weight: number }
+export interface HeatmapFacet {
+  breakpoint: string
+  appSha: string
+  cvVersion: string
+  /** Sum of all cursor and click cells. */
+  weight: number
+  move?: number
+  click?: number
+  /** Section dwell of sessions with this layout and version (touch devices too). */
+  attentionMs?: number
+  /** Whether the CV snapshot of cvVersion exists, i.e. the heatmap can be rendered. */
+  snapshot?: boolean
+}
 
 export interface HeatmapData {
   type: HeatmapType
@@ -509,6 +551,9 @@ export function useAdmin() {
       request<void>(`${t(tenant)}/files/${path}`, { method: 'DELETE' }),
     preview: (tenant: string, profile: string, locale?: string, revision?: string) =>
       request<{ locale: string, revision?: string, cv: unknown }>(`${t(tenant)}/preview`, { query: { profile, locale, revision } }),
+    /** Unsaved CV draft redacted for a profile (nothing is stored; pins are ignored). */
+    previewDraft: (tenant: string, profile: string, cv: unknown, locale?: string) =>
+      request<{ locale?: string, revision?: string | null, cv: unknown }>(`${t(tenant)}/preview`, { method: 'POST', body: { profile, locale, cv } }),
     /** PDF of a profile in any template (not cached); revision as for preview. Needs the PDF renderer. */
     pdfPreview: (tenant: string, query: { profile: string, locale?: string, template?: string, vars?: string, revision?: string }) =>
       request<Blob>(`${t(tenant)}/pdf-preview`, { query, responseType: 'blob' }),
@@ -522,9 +567,13 @@ export function useAdmin() {
     /** revision: SHA = pin, "" = current CV (ignores a profile pin), null = follow the profile. */
     pinInvite: (tenant: string, id: string, revision: string | null) =>
       request<AdminInvite>(`${t(tenant)}/invites/${id}/revision`, { method: 'PUT', body: { revision } }),
-    analyticsGroups: (tenant: string) => request<AnalyticsGroup[]>(`${t(tenant)}/analytics/groups`),
-    analyticsGroup: (tenant: string, group: string) =>
-      request<AnalyticsGroupDetail>(`${t(tenant)}/analytics/groups/${encodeURIComponent(group)}`),
+    analyticsGroups: (tenant: string, period: AnalyticsPeriod = {}) =>
+      request<AnalyticsGroup[]>(`${t(tenant)}/analytics/groups`, { query: { ...period } }),
+    analyticsGroup: (tenant: string, group: string, period: AnalyticsPeriod = {}, limit?: number) =>
+      request<AnalyticsGroupDetail>(`${t(tenant)}/analytics/groups/${encodeURIComponent(group)}`, { query: { ...period, limit } }),
+    /** Tenant-wide totals, sessions per day and breakdowns; tz = new Date().getTimezoneOffset() for the day buckets. */
+    analyticsOverview: (tenant: string, period: AnalyticsPeriod = {}, tz = new Date().getTimezoneOffset()) =>
+      request<AnalyticsOverview>(`${t(tenant)}/analytics/overview`, { query: { ...period, tz } }),
     analyticsSession: (tenant: string, id: string) =>
       request<AnalyticsSessionDetail>(`${t(tenant)}/analytics/sessions/${encodeURIComponent(id)}`),
     heatmap: (tenant: string, query: { group?: string, bp?: string, appSha?: string, cvVersion?: string, type: HeatmapType }) =>

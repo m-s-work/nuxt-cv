@@ -11,7 +11,7 @@ CV of a software architect built with Nuxt 4.
 - **Invite-gated** - No CV is public by default; invites select a redaction profile
 - **Redaction** - Per-field visibility plus global flags (`hideCompanies`, `hideTimeframeMonths`, ...)
 - **C# backend** - ASP.NET Core API (`api/`) serving the redacted CV JSON
-- **Testing** - Vitest (frontend) and xUnit (API)
+- **Testing** - Vitest (frontend), xUnit (API) and Playwright end-to-end tests against the full stack (`e2e/`)
 - **PDF per invite** - Rendered on invite creation, cached, re-rendered when the CV changes
 - **Coolify** - Docker Compose deployment (nginx + API + PDF renderer)
 

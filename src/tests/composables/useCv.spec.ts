@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatPeriod, withPeriods } from '~/composables/useCv'
+import { formatPeriod, inlineAssets, withPeriods } from '~/composables/useCv'
 
 describe('formatPeriod', () => {
   it('formats year precision', () => {
@@ -31,5 +31,19 @@ describe('withPeriods', () => {
     expect(cv.experiences?.[0]?.period).toBe('2020 - Present')
     expect(cv.experiences?.[1]?.period).toBe('Two years')
     expect(cv.studies).toBeUndefined()
+  })
+})
+
+describe('inlineAssets', () => {
+  it('replaces asset URLs and reuses cached object URLs', async () => {
+    const loaded: string[] = []
+    const load = async (path: string) => { loaded.push(path); return new Blob(['x']) }
+    const urls = new Map<string, string>()
+    const first = await inlineAssets({ photo: '/api/assets/a.jpg', other: 'keep' }, load, urls)
+    expect(first.photo).toMatch(/^blob:/)
+    expect(first.other).toBe('keep')
+    const second = await inlineAssets({ photo: '/api/assets/a.jpg' }, load, urls)
+    expect(second.photo).toBe(first.photo)
+    expect(loaded).toEqual(['assets/a.jpg'])
   })
 })
