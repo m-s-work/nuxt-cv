@@ -257,10 +257,11 @@ public static partial class AdminEndpoints
         // Change label, expiry, max. redemptions and view once of an invite (its QR invite follows).
         admin.MapPut("/tenants/{tenantId}/invites/{id:guid}/settings", async (string tenantId, Guid id, UpdateInviteRequest body,
             TenantStore tenants, AppDbContext db, AccessService access, PdfService pdf, IConfiguration config, TimeProvider time,
-            CancellationToken ct) =>
+            TenantOwners owners, HttpContext ctx, CancellationToken ct) =>
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
             if (invite is null) return Results.NotFound();
+            var wasActive = invite.IsActive(time.GetUtcNow());
             if (invite.RevokedAt is not null) return Results.Conflict(new { error = "revoked" });
             if (invite.Source == InviteSources.PdfQr) return Results.BadRequest(new { error = "edit_the_parent_invite" });
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
@@ -306,6 +307,7 @@ public static partial class AdminEndpoints
                 child.Label = invite.Label;
                 child.ExpiresAt = invite.ExpiresAt;
             }
+            if (await ReactivationLimitAsync(ctx, invite, wasActive, db, owners, time.GetUtcNow(), ct) is { } limited) return limited;
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config, tenants));
         });
@@ -313,12 +315,15 @@ public static partial class AdminEndpoints
         // Make a used-up code redeemable again: resets the use count and a used view-once state. The browser
         // that opened a view-once invite loses access; normal invites keep their existing sessions.
         admin.MapPost("/tenants/{tenantId}/invites/{id:guid}/rearm", async (string tenantId, Guid id,
-            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, CancellationToken ct) =>
+            TenantStore tenants, AppDbContext db, AccessService access, IConfiguration config, TimeProvider time,
+            TenantOwners owners, HttpContext ctx, CancellationToken ct) =>
         {
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id && i.TenantId == tenantId, ct);
             if (invite is null) return Results.NotFound();
             if (invite.RevokedAt is not null) return Results.Conflict(new { error = "revoked" });
+            var wasActive = invite.IsActive(time.GetUtcNow());
             invite.Rearm();
+            if (await ReactivationLimitAsync(ctx, invite, wasActive, db, owners, time.GetUtcNow(), ct) is { } limited) return limited;
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config, tenants));
         });
@@ -628,6 +633,20 @@ public static partial class AdminEndpoints
             return Results.NotFound();
         http.Items[typeof(AdminCaller)] = new AdminCaller(false, user);
         return await next(context);
+    }
+
+    /// <summary>
+    /// Plan limit for invites that become active again (rearm, later expiry): like creating one (SaaS §4). Counted
+    /// before saving, so the database still holds the invite as inactive.
+    /// </summary>
+    private static async Task<IResult?> ReactivationLimitAsync(HttpContext ctx, Invite invite, bool wasActive, AppDbContext db,
+        TenantOwners owners, DateTimeOffset now, CancellationToken ct)
+    {
+        if (wasActive || !invite.IsActive(now) || invite.Source is not null || AdminCaller.Of(ctx).IsSuperAdmin) return null;
+        if (owners.For(invite.TenantId).MaxActiveInvites is not { } max) return null;
+        return await AccountService.ActiveInviteCountAsync(db, invite.TenantId, now, ct) >= max
+            ? AccountEndpoints.PlanLimit("activeInvites", max)
+            : null;
     }
 
     /// <summary>A user may not change the hosts of their tenant (own domains go through /account/domain).</summary>

@@ -80,7 +80,8 @@ Keywords MUST / SHOULD / MAY follow RFC 2119.
 | Own domain | – | ✓ |
 | Asset storage | 20 MB | 200 MB |
 
-- S4.1 Limits are enforced **server-side** (`402 { error: "plan_limit", limit, feature }`); the UI shows an upgrade hint.
+- S4.1 Limits are enforced **server-side**, also when an inactive invite would become active again (rearm, later
+  expiry) (`402 { error: "plan_limit", limit, feature }`); the UI shows an upgrade hint.
 - S4.2 **Downgrade.** When Pro ends nothing is deleted: existing invites keep working until they expire, but no new
   invite can be created while 3 or more are active; the credit is shown again; the own domain stops resolving
   (visitors see the shared host's showcase) until Pro is active again; heat data keeps being recorded (with consent),
@@ -99,7 +100,7 @@ Buying a pass while Pro is active extends it. Default prices (configurable, `Bil
 | 1 week | 7 | €5 | €5.00 / week |
 | 1 month | 30 | €17 | €3.97 / week |
 | 6 months | 182 | €78 | €3.00 / week |
-| 1 year | 365 | €104 | €2.00 / week |
+| 1 year | 365 | €104 | €1.99 / week |
 
 The pricing UI shows the price per week prominently and the total below it, with the saving against the weekly pass.
 

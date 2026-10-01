@@ -293,5 +293,5 @@ public static class Csrf
 
     public static bool IsSafe(HttpContext http) =>
         HttpMethods.IsGet(http.Request.Method) || HttpMethods.IsHead(http.Request.Method) || HttpMethods.IsOptions(http.Request.Method)
-        || http.Request.Headers.ContainsKey(HeaderName);
+        || http.Request.Headers[HeaderName].ToString() == "cv";
 }

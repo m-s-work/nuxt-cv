@@ -251,6 +251,36 @@ public class AccountTests : IDisposable
     }
 
     [Fact]
+    public async Task Expired_invites_cannot_be_brought_back_beyond_the_free_limit()
+    {
+        var client = await _factory.SignUpWithTenantAsync("revive@example.org", "reviver");
+        var now = _factory.Clock.GetUtcNow();
+        var expiring = await client.PostAsJsonAsync("/api/admin/tenants/reviver/invites", new { profile = "full", expiresAt = now.AddDays(1) });
+        var id = (await expiring.Content.ReadFromJsonAsync<JsonObject>())!["invite"]!["id"]!.GetValue<string>();
+        _factory.Clock.Advance(TimeSpan.FromDays(2));
+        for (var i = 0; i < 3; i++)
+            (await client.PostAsJsonAsync("/api/admin/tenants/reviver/invites", new { profile = "full" })).EnsureSuccessStatusCode();
+
+        var extend = await client.PutAsJsonAsync($"/api/admin/tenants/reviver/invites/{id}/settings",
+            new { label = "x", expiresAt = _factory.Clock.GetUtcNow().AddDays(10) });
+        Assert.Equal(HttpStatusCode.PaymentRequired, extend.StatusCode);
+
+        // Settings of an invite that stays inactive can still be changed; the super-admin may revive it.
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/admin/tenants/reviver/invites/{id}/settings", new { label = "renamed", expiresAt = now.AddDays(1) })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _factory.AdminClient().PutAsJsonAsync($"/api/admin/tenants/reviver/invites/{id}/settings",
+            new { label = "x", expiresAt = _factory.Clock.GetUtcNow().AddDays(10) })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Csrf_header_must_carry_the_expected_value()
+    {
+        var client = await _factory.SignUpWithTenantAsync("csrf2@example.org", "csrf-two");
+        client.DefaultRequestHeaders.Remove(Csrf.HeaderName);
+        client.DefaultRequestHeaders.Add(Csrf.HeaderName, "XMLHttpRequest");
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/admin/tenants/csrf-two/invites", new { profile = "full" })).StatusCode);
+    }
+
+    [Fact]
     public async Task Users_cannot_change_hosts_or_use_short_custom_codes()
     {
         var client = await _factory.SignUpWithTenantAsync("hosts@example.org", "hoster");
