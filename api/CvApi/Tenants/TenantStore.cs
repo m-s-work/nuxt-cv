@@ -8,7 +8,8 @@ namespace CvApi.Tenants;
 /// Reads tenants from {DataPath}/tenants/{id}/. Files are re-read after a short cache period,
 /// so CV edits on the volume need no redeploy.
 /// </summary>
-public sealed partial class TenantStore(IConfiguration configuration, ILogger<TenantStore> logger, TimeProvider time)
+public sealed partial class TenantStore(IConfiguration configuration, ILogger<TenantStore> logger, TimeProvider time,
+    Accounts.TenantOwners owners)
 {
     public static readonly JsonSerializerOptions FileJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -48,7 +49,20 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
                 .ToList()
             : [];
 
-    public Tenant? FindByHost(string host) => Current().ByHost.GetValueOrDefault(NormalizeHost(host));
+    /// <summary>
+    /// Tenant of a hostname. Tenants of blocked users and own domains of users without Pro do not resolve
+    /// (docs/REQUIREMENTS_SAAS.md §4 S4.2, §6 S6.3); such hosts behave like the shared host.
+    /// </summary>
+    public Tenant? FindByHost(string host)
+    {
+        var normalized = NormalizeHost(host);
+        if (Current().ByHost.GetValueOrDefault(normalized) is not { } tenant) return null;
+        return owners.IsBlocked(tenant.Id) || owners.IsSuspendedHost(tenant.Id, normalized) ? null : tenant;
+    }
+
+    /// <summary>Host for public and invite links: the first configured host that currently resolves to the tenant.</summary>
+    public string? PrimaryHost(Tenant tenant) =>
+        tenant.Config.Hosts.Select(NormalizeHost).FirstOrDefault(h => !owners.IsSuspendedHost(tenant.Id, h));
 
     public static string NormalizeHost(string host)
     {
@@ -135,9 +149,15 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
             try
             {
                 config = JsonSerializer.Deserialize<TenantConfig>(File.ReadAllText(file), FileJsonOptions);
+                if (Validate(config) is { } error)
+                {
+                    logger.LogError("Invalid tenant config {File}: {Error}", file, error);
+                    continue;
+                }
             }
-            catch (JsonException ex)
+            catch (Exception ex) when (ex is JsonException or IOException or NotSupportedException)
             {
+                // One broken tenant must not take the others down.
                 logger.LogError(ex, "Invalid tenant config {File}", file);
                 continue;
             }
@@ -164,6 +184,18 @@ public sealed partial class TenantStore(IConfiguration configuration, ILogger<Te
         }
 
         return new Snapshot(now, byId, byHost);
+    }
+
+    /// <summary>Checks a parsed tenant.json for values the code cannot work with; null = valid.</summary>
+    public static string? Validate(TenantConfig? config)
+    {
+        if (config is null) return "empty";
+        if (config.Hosts is null) return "\"hosts\" must be a list (use [] for none)";
+        if (config.Profiles is null) return "\"profiles\" must be an object";
+        if (config.Hosts.Any(string.IsNullOrWhiteSpace)) return "\"hosts\" must not contain empty entries";
+        if (config.Profiles.Any(p => p.Value is null)) return "every profile must be an object";
+        if (string.IsNullOrWhiteSpace(config.DefaultLocale) || !LocaleRegex().IsMatch(config.DefaultLocale)) return "\"defaultLocale\" must be like \"en\" or \"de-AT\"";
+        return null;
     }
 
     private sealed record Snapshot(DateTimeOffset LoadedAt, Dictionary<string, Tenant> ById, Dictionary<string, Tenant> ByHost);

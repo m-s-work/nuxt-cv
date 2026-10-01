@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CvApi.Access;
+using CvApi.Accounts;
 using CvApi.Pdf;
 using CvApi.Redaction;
 using CvApi.Tenants;
@@ -70,7 +71,8 @@ public static partial class AdminEndpoints
             }),
         }));
 
-        admin.MapGet("/tenants", (TenantStore tenants) => tenants.All.Select(t => new
+        // Super-admin: all tenants; a user: only their own (SaaS §1).
+        admin.MapGet("/tenants", (HttpContext ctx, TenantStore tenants, TenantOwners owners) => AdminCaller.Of(ctx).Visible(tenants.All).Select(t => new
         {
             id = t.Id,
             name = t.Config.Name,
@@ -83,6 +85,7 @@ public static partial class AdminEndpoints
             pins = t.Config.Profiles.Where(p => !string.IsNullOrWhiteSpace(p.Value.Revision))
                 .ToDictionary(p => p.Key, p => p.Value.Revision!.Trim()),
             dataHash = TenantHashes.Compute(t).Combined,
+            plan = owners.For(t.Id).Plan,
         }));
 
         // SHA-256 of every data file of a tenant (compare with `sha256sum` in the CV repository).
@@ -140,7 +143,7 @@ public static partial class AdminEndpoints
             var revision = RevisionStore.Register(tenant, sha, body.Message, body.CommittedAt, time.GetUtcNow(), source);
             await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
             return Results.Ok(new { sha = revision.Sha, message = revision.Message, committedAt = revision.CommittedAt, registeredAt = revision.RegisteredAt });
-        });
+        }).WithMetadata(SuperAdminOnly.Instance);
 
         // Fetch a revision (SHA, tag or branch) from the tenant's git repo again, e.g. after it was pruned.
         admin.MapPost("/tenants/{tenantId}/revisions/fetch", async (string tenantId, FetchRevisionRequest body, TenantStore tenants,
@@ -150,7 +153,7 @@ public static partial class AdminEndpoints
             if (RevisionStore.Resolve(tenant, body.Ref ?? "") is { } known) return Results.Ok(new { sha = known });
             var result = await git.FetchAsync(tenant, body.Ref ?? "", ct);
             return result.Sha is { } sha ? Results.Ok(new { sha }) : Results.BadRequest(new { error = result.Error });
-        });
+        }).WithMetadata(SuperAdminOnly.Instance);
 
         // Profile definitions of a tenant (for the admin UI's invite form and preview).
         admin.MapGet("/tenants/{tenantId}/profiles", (string tenantId, TenantStore tenants) =>
@@ -161,15 +164,23 @@ public static partial class AdminEndpoints
         {
             if (tenants.Get(tenantId) is not { } tenant) return Results.NotFound();
             var invites = await db.Invites.Where(i => i.TenantId == tenantId).ToListAsync(ct);
-            return Results.Ok(invites.OrderByDescending(i => i.CreatedAt).Select(i => ToDto(i, access.RevealCode(i), tenant, config)));
+            return Results.Ok(invites.OrderByDescending(i => i.CreatedAt).Select(i => ToDto(i, access.RevealCode(i), tenant, config, tenants)));
         });
 
         admin.MapPost("/tenants/{tenantId}/invites", async (string tenantId, CreateInviteRequest body,
             TenantStore tenants, AppDbContext db, IConfiguration config, TimeProvider time,
-            AccessService access, PdfService pdf, GitRevisionFetcher git, CancellationToken ct) =>
+            AccessService access, PdfService pdf, GitRevisionFetcher git, TenantOwners owners, HttpContext ctx, CancellationToken ct) =>
         {
             var tenant = tenants.Get(tenantId);
             if (tenant is null) return Results.NotFound();
+            var caller = AdminCaller.Of(ctx);
+            // Plan limit (SaaS §4); the super-admin may exceed it, e.g. for support.
+            if (!caller.IsSuperAdmin && owners.For(tenant.Id).MaxActiveInvites is { } maxInvites
+                && await AccountService.ActiveInviteCountAsync(db, tenant.Id, time.GetUtcNow(), ct) >= maxInvites)
+                return AccountEndpoints.PlanLimit("activeInvites", maxInvites);
+            // Users share one code namespace: chosen codes must be long enough not to be guessed or squatted.
+            if (!caller.IsSuperAdmin && body.Code?.Trim() is { Length: > 0 and < 8 })
+                return Results.BadRequest(new { error = "invalid_code", rule = "8-64 characters: A-Z a-z 0-9 - _" });
             if (!tenant.Config.Profiles.ContainsKey(body.Profile))
                 return Results.BadRequest(new { error = "unknown_profile", profiles = tenant.Config.Profiles.Keys });
             if (body.MaxUses is <= 0) return Results.BadRequest(new { error = "invalid_max_uses" });
@@ -189,9 +200,9 @@ public static partial class AdminEndpoints
                     return Results.BadRequest(new { error = "invalid_code", rule = "4-64 characters: A-Z a-z 0-9 - _" });
                 var hash = InviteCodes.Hash(code);
                 var existing = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
-                if (existing is not null && existing.RevokedAt is null)
+                if (existing is not null && existing.IsActive(time.GetUtcNow()))
                     return Results.Conflict(new { error = "code_taken" });
-                // A revoked invite releases its code (e.g. re-create "demo" with other settings).
+                // A revoked or expired invite releases its code (R4.1, e.g. re-create "demo" with other settings).
                 if (existing is not null) existing.CodeHash = $"released:{existing.Id:N}";
             }
             var invite = new Invite
@@ -217,7 +228,7 @@ public static partial class AdminEndpoints
             if (pdf.Enabled && access.GrantFor(invite) is { } grant)
                 pdfOutcomes = await pdf.RenderAllLocalesAsync(grant, ct);
 
-            return Results.Ok(new { invite = ToDto(invite, code, tenant, config), code, link = BuildLink(tenant, config, code), pdf = pdfOutcomes });
+            return Results.Ok(new { invite = ToDto(invite, code, tenant, config, tenants), code, link = BuildLink(tenant, config, tenants, code), pdf = pdfOutcomes });
         });
 
         admin.MapDelete("/tenants/{tenantId}/invites/{id:guid}", async (string tenantId, Guid id, AppDbContext db,
@@ -236,7 +247,7 @@ public static partial class AdminEndpoints
             await db.SaveChangesAsync(ct);
             pdf.DeleteCached(tenantId, id);
             if (tenants.Get(tenantId) is { } revokedTenant) await PruneRevisionsAsync(revokedTenant, db, now, ct);
-            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config, tenants));
         });
 
         // Change label, expiry, max. redemptions and view once of an invite (its QR invite follows).
@@ -289,7 +300,7 @@ public static partial class AdminEndpoints
                 child.ExpiresAt = invite.ExpiresAt;
             }
             await db.SaveChangesAsync(ct);
-            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config, tenants));
         });
 
         // Make a used-up code redeemable again: resets the use count and a used view-once state. The browser
@@ -302,7 +313,7 @@ public static partial class AdminEndpoints
             if (invite.RevokedAt is not null) return Results.Conflict(new { error = "revoked" });
             invite.Rearm();
             await db.SaveChangesAsync(ct);
-            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config));
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenants.Get(tenantId), config, tenants));
         });
 
         // Pin an invite (and its QR invite) to a CV revision, e.g. to update an outdated pin.
@@ -330,7 +341,7 @@ public static partial class AdminEndpoints
             }
             await db.SaveChangesAsync(ct);
             await PruneRevisionsAsync(tenant, db, time.GetUtcNow(), ct);
-            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenant, config));
+            return Results.Ok(ToDto(invite, access.RevealCode(invite), tenant, config, tenants));
         });
 
         // (Re-)render the PDFs of an invite, e.g. after fixing a rendering problem or changing the CV.
@@ -347,8 +358,10 @@ public static partial class AdminEndpoints
         // File management, so tenants can be maintained without shell access to the volume.
         // tenant.json and cv.<locale>.json must be valid JSON; assets are stored as-is.
         admin.MapPut("/tenants/{tenantId}/files/{**path}", async (string tenantId, string path, HttpRequest request,
-            TenantStore tenants, IConfiguration config, AppDbContext db, TimeProvider time, GitRevisionFetcher git, CancellationToken ct) =>
+            TenantStore tenants, IConfiguration config, AppDbContext db, TimeProvider time, GitRevisionFetcher git,
+            TenantOwners owners, HttpContext ctx, CancellationToken ct) =>
         {
+            var caller = AdminCaller.Of(ctx);
             if (!TenantIdRegex().IsMatch(tenantId)) return Results.BadRequest(new { error = "invalid_tenant_id" });
             if (!AllowedFileRegex().IsMatch(path)) return Results.BadRequest(new { error = "invalid_path" });
 
@@ -365,13 +378,29 @@ public static partial class AdminEndpoints
                         CommentHandling = JsonCommentHandling.Skip,
                         AllowTrailingCommas = true,
                     });
+                    if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                        return Results.BadRequest(new { error = "invalid_json", detail = "The file must contain a JSON object." });
                     if (path == "tenant.json")
-                        JsonSerializer.Deserialize<TenantConfig>(doc, TenantStore.FileJsonOptions);
+                    {
+                        var parsed = JsonSerializer.Deserialize<TenantConfig>(doc, TenantStore.FileJsonOptions);
+                        if (TenantStore.Validate(parsed) is { } invalid) return Results.BadRequest(new { error = "invalid_tenant", detail = invalid });
+                        // Hosts are managed by the platform for users (own domain via /account/domain, SaaS §3 S3.4).
+                        if (!caller.IsSuperAdmin && !HostsUnchanged(tenants.Get(tenantId), parsed!))
+                            return Results.BadRequest(new { error = "hosts_managed" });
+                    }
                 }
                 catch (JsonException ex)
                 {
                     return Results.BadRequest(new { error = "invalid_json", detail = ex.Message });
                 }
+            }
+            else if (tenants.Get(tenantId) is { } quotaTenant)
+            {
+                // Asset storage quota of the plan (SaaS §3 S3.6).
+                var existingSize = File.Exists(Path.Combine(quotaTenant.Directory, path)) ? new FileInfo(Path.Combine(quotaTenant.Directory, path)).Length : 0;
+                var quota = owners.For(quotaTenant.Id).QuotaBytes;
+                if (!caller.IsSuperAdmin && AccountService.AssetBytes(quotaTenant) - existingSize + buffer.Length > quota)
+                    return Results.Json(new { error = "quota_exceeded", quota }, statusCode: StatusCodes.Status413PayloadTooLarge);
             }
 
             var dir = TenantDir(config, tenantId);
@@ -474,11 +503,11 @@ public static partial class AdminEndpoints
         Path.Combine(Path.GetFullPath(config["Cv:DataPath"] ?? "/data"), "tenants", tenantId);
 
     // Codes are not secret towards the admin: they are shown with their link on every listing.
-    private static object ToDto(Invite i, string? code, Tenant? tenant, IConfiguration config) => new
+    private static object ToDto(Invite i, string? code, Tenant? tenant, IConfiguration config, TenantStore tenants) => new
     {
         id = i.Id,
         code,
-        link = code is not null && tenant is not null ? BuildLink(tenant, config, code) : null,
+        link = code is not null && tenant is not null ? BuildLink(tenant, config, tenants, code) : null,
         // Effective CV pin: the invite's own (override) or its profile's; null = follows the current CV.
         revision = PinOf(i, tenant) is { Length: > 0 } pin ? pin : null,
         pinnedBy = AccessService.ParseOverrides(i.OverridesJson)?.Revision is not null ? "invite"
@@ -536,22 +565,71 @@ public static partial class AdminEndpoints
     }
 
     /// <summary>Invite link (R4.4): "/" on the tenant's own host, "/cv" on the shared host ("/" is the showcase there).</summary>
-    private static string BuildLink(Tenant tenant, IConfiguration config, string code) =>
-        tenant.Config.Hosts.FirstOrDefault() is { } host
-            ? $"https://{TenantStore.NormalizeHost(host)}/?c={code}"
+    /// <remarks>Without own host and without Cv:SharedBaseUrl the link is relative ("/cv?c=…"); the admin UI completes it.</remarks>
+    private static string BuildLink(Tenant tenant, IConfiguration config, TenantStore tenants, string code) =>
+        tenants.PrimaryHost(tenant) is { } host
+            ? $"https://{host}/?c={code}"
             : $"{config["Cv:SharedBaseUrl"]?.TrimEnd('/')}/cv?c={code}";
 
+    /// <summary>
+    /// Admin API access: the super-admin (X-Admin-Key) or a signed-in user for their own tenant (SaaS §1).
+    /// Other tenants and super-admin-only endpoints answer 404 to users, so they do not learn what exists.
+    /// </summary>
     internal static async ValueTask<object?> RequireAdminKey(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
+        http.Response.Headers.CacheControl = "private, no-store";
         var expected = http.RequestServices.GetRequiredService<IConfiguration>()["Admin:ApiKey"];
-        // Admin API is disabled entirely when no key is configured.
-        if (string.IsNullOrEmpty(expected)) return Results.NotFound();
-
         var provided = http.Request.Headers[HeaderName].ToString();
-        var ok = CryptographicOperations.FixedTimeEquals(
-            SHA256.HashData(Encoding.UTF8.GetBytes(provided)),
-            SHA256.HashData(Encoding.UTF8.GetBytes(expected)));
-        return ok ? await next(context) : Results.Unauthorized();
+        if (provided.Length > 0)
+        {
+            // Admin API is disabled entirely when no key is configured.
+            if (string.IsNullOrEmpty(expected)) return Results.NotFound();
+            var ok = CryptographicOperations.FixedTimeEquals(
+                SHA256.HashData(Encoding.UTF8.GetBytes(provided)),
+                SHA256.HashData(Encoding.UTF8.GetBytes(expected)));
+            if (!ok) return Results.Unauthorized();
+            http.Items[typeof(AdminCaller)] = AdminCaller.SuperAdmin;
+            return await next(context);
+        }
+
+        if (await AuthSetup.CurrentUserAsync(http) is not { } user)
+            return string.IsNullOrEmpty(expected) && !http.Request.Cookies.ContainsKey(AuthSetup.SessionCookieName)
+                ? Results.NotFound()
+                : Results.Unauthorized();
+        if (!Csrf.IsSafe(http)) return Results.BadRequest(new { error = "csrf" });
+        if (http.GetEndpoint()?.Metadata.GetMetadata<SuperAdminOnly>() is not null) return Results.NotFound();
+        if (http.GetRouteValue("tenantId") is string tenantId
+            && !string.Equals(tenantId, user.TenantId, StringComparison.OrdinalIgnoreCase))
+            return Results.NotFound();
+        http.Items[typeof(AdminCaller)] = new AdminCaller(false, user);
+        return await next(context);
     }
+
+    /// <summary>A user may not change the hosts of their tenant (own domains go through /account/domain).</summary>
+    private static bool HostsUnchanged(Tenant? current, TenantConfig updated)
+    {
+        var before = (current?.Config.Hosts ?? []).Select(TenantStore.NormalizeHost).Order(StringComparer.Ordinal);
+        var after = (updated.Hosts ?? []).Select(TenantStore.NormalizeHost).Order(StringComparer.Ordinal);
+        return before.SequenceEqual(after);
+    }
+}
+
+/// <summary>Who calls the admin API: the super-admin (admin key) or a user (session, own tenant only).</summary>
+public sealed record AdminCaller(bool IsSuperAdmin, User? User)
+{
+    public static readonly AdminCaller SuperAdmin = new(true, null);
+
+    /// <summary>Set by the admin filter; without it (endpoint not behind the filter) nobody gets privileges.</summary>
+    public static AdminCaller Of(HttpContext http) =>
+        http.Items.TryGetValue(typeof(AdminCaller), out var caller) && caller is AdminCaller c ? c : new AdminCaller(false, null);
+
+    public IEnumerable<Tenant> Visible(IEnumerable<Tenant> tenants) =>
+        IsSuperAdmin ? tenants : tenants.Where(t => string.Equals(t.Id, User?.TenantId, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>Endpoint metadata: only the super-admin may call it (e.g. git access with the operator's token).</summary>
+public sealed class SuperAdminOnly
+{
+    public static readonly SuperAdminOnly Instance = new();
 }

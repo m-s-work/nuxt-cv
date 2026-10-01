@@ -73,7 +73,7 @@ Keywords MUST / SHOULD / MAY follow RFC 2119.
 | | Free (forever) | Pro |
 |---|---|---|
 | CV, all profiles, redaction, PDF, all templates, languages | ✓ | ✓ |
-| Active invites (not revoked, not expired, not used up; QR invites not counted) | **3** | unlimited |
+| Active invites (not revoked, not expired; used-up codes count while their visitors keep access; QR invites not counted) | **3** | unlimited |
 | "Created with …" credit in PDFs | shown | can be removed |
 | Visitor statistics: visits, sessions, time on CV, devices, per-invite reach | ✓ | ✓ |
 | Heatmaps, attention per section/entry, technology intent, session replay timeline | – | ✓ |

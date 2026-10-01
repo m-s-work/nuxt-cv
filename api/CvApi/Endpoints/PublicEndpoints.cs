@@ -56,7 +56,7 @@ public static class PublicEndpoints
 
         app.MapGet("/cv", async (string? locale, HttpContext ctx, AccessService access, TenantStore tenants, PdfService pdf,
             IConfiguration config, Tracking.ConsentCookies consentCookies, Tracking.TrackingService tracking,
-            Tracking.CvSourceVersion sourceVersion, CancellationToken ct) =>
+            Tracking.CvSourceVersion sourceVersion, Accounts.TenantOwners owners, CancellationToken ct) =>
         {
             NoStore(ctx);
             var grant = await access.ResolveAsync(ctx, ct);
@@ -84,7 +84,7 @@ public static class PublicEndpoints
                 features = new { pdf = pdf.Enabled },
                 templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html, pdfVars = grant.Templates.PdfVars },
                 // Platform site for the "Created with …" credit (shared base URL, if configured).
-                links = new { platform = string.IsNullOrEmpty(config["Cv:SharedBaseUrl"]) ? null : config["Cv:SharedBaseUrl"]!.TrimEnd('/') },
+                links = new { platform = Accounts.Branding.PlatformLink(grant.Tenant, config, owners) },
                 // SHA-256 of exactly this redacted CV (the "cv" value below) – for tests and deployment checks.
                 cvHash = Sha256.OfText(redactedJson),
                 // Versions of this view for the visitor tracking (§6.4): short hash of the redacted CV and the CV's git SHA.

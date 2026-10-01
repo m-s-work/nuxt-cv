@@ -25,7 +25,8 @@ public sealed class AccessService(
     TenantStore tenants,
     AppDbContext db,
     IDataProtectionProvider dataProtection,
-    TimeProvider time)
+    TimeProvider time,
+    Accounts.TenantOwners owners)
 {
     public const string CookieName = "cv_access";
     public const string RenderCookieName = "cv_render";
@@ -79,7 +80,7 @@ public sealed class AccessService(
         if (!invite.CanRedeem(now) || !await IsActiveAsync(invite, now, ct)) return RedeemResult.Invalid;
 
         var tenant = tenants.Get(invite.TenantId);
-        if (tenant is null || !tenant.Config.Profiles.ContainsKey(invite.Profile)) return RedeemResult.Invalid;
+        if (tenant is null || !tenant.Config.Profiles.ContainsKey(invite.Profile) || owners.IsBlocked(tenant.Id)) return RedeemResult.Invalid;
 
         // On a tenant host, only that tenant's invites are accepted.
         var hostTenant = tenants.FindByHost(context.Request.Host.Host);
@@ -185,7 +186,8 @@ public sealed class AccessService(
     public AccessGrant? GrantFor(Invite invite)
     {
         var tenant = tenants.Get(invite.TenantId);
-        if (tenant is null || !tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile)) return null;
+        // CVs of blocked users are not shown to anyone (SaaS §6 S6.3).
+        if (tenant is null || !tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile) || owners.IsBlocked(tenant.Id)) return null;
         var overrides = ParseOverrides(invite.OverridesJson);
         return new AccessGrant(tenant, invite.Profile, tenant.PolicyFor(invite.Profile, profile, overrides), invite,
             TemplateResolver.Resolve(tenant.Config, profile, overrides));
