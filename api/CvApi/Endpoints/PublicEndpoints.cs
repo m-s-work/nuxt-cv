@@ -82,6 +82,8 @@ public static partial class PublicEndpoints
                     label = grant.Invite?.Label,
                     expiresAt = grant.Invite?.ExpiresAt,
                 },
+                // "shared": the frontend shows the CV at /cv and keeps "/" for the showcase (§11). Never names a tenant.
+                host = HostKind(ctx, tenants),
                 locale = resolvedLocale,
                 features = new { pdf = pdf.Enabled },
                 templates = new { pdf = grant.Templates.Pdf, html = grant.Templates.Html, pdfVars = grant.Templates.PdfVars },
@@ -194,8 +196,11 @@ public static partial class PublicEndpoints
         Results.Json(new
         {
             error = "no_access",
-            host = tenants.FindByHost(ctx.Request.Host.Host) is null ? "shared" : "tenant",
+            host = HostKind(ctx, tenants),
         }, statusCode: StatusCodes.Status403Forbidden);
+
+    private static string HostKind(HttpContext ctx, TenantStore tenants) =>
+        tenants.FindByHost(ctx.Request.Host.Host) is null ? "shared" : "tenant";
 
     private static void NoStore(HttpContext ctx)
     {

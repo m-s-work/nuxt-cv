@@ -99,6 +99,8 @@ The schemas live in `src/app/utils/printTemplates.ts` (types in `utils/templateV
 
 1. **Applies to**: the tenant default or one profile (invites keep their own overrides).
 2. **PDF template**: pick one, or "Not set here" to inherit (profile → tenant → system default).
+   Hovering (or focusing) a template shows a preview of its first page with the fictional sample tenant
+   (`src/public/templates/<name>.jpg`, never the tenant's own CV).
 3. **Colour set**: the template's presets; **Variables**: colour pickers with suggestions, switches,
    palettes and choices generated from the schema. "Reset to defaults" returns to the template defaults.
 4. The preview (any profile and locale) re-renders about 0.7 s after the last change (`…/pdf-preview`).
@@ -120,14 +122,30 @@ the UI: copy the snippet into the repository as well.
    - Show only fields that exist: every field can be hidden by redaction.
    - Include the notice `label('notice')`, a link to the online version (`qrUrl`, shown as `onlineHost`)
      and the credit `label('createdWith')` + `platformUrl`/`platformHost` (see existing templates).
-2. Register it in `src/app/utils/printTemplates.ts` (name, title, description, component, optional `vars`
-   schema with defaults and presets). The component receives the resolved values as `vars` prop.
+2. Register it in `src/app/utils/printTemplates.ts` (name, title, description, `preview`, component,
+   optional `vars` schema with defaults and presets). The component receives the resolved values as `vars` prop.
 3. Add labels to `src/app/utils/printLabels.ts` if needed (EN + DE).
 4. Check it: `pdf-preview` with `template=<name>` for a full and a heavily redacted profile.
-5. After changing an existing template, bump `CV_PDF_LAYOUT_VERSION` so cached PDFs are re-rendered.
+5. Cached PDFs re-render automatically after a deployment (the build commit is part of the cache key);
+   `CV_PDF_LAYOUT_VERSION` forces it without a new build.
+6. Generate its preview image (`src/public/templates/<name>.jpg`; also after visible changes to a template).
+   It renders page 1 of `pdf-preview` for the sample tenant `demo` (profile `full`) with pdf.js:
+
+   ```bash
+   cd pdf && PORT=3100 CHROMIUM_PATH=/path/to/chrome node server.mjs
+   cd api/CvApi && Pdf__RendererUrl=http://localhost:3100 Pdf__AppBaseUrl=http://localhost:3000 dotnet run
+   cd src && npm run dev
+   cd src && node scripts/template-previews.mjs   # env: API, ADMIN_KEY, TENANT, PROFILE, CHROMIUM_PATH
+   ```
 
 The page size and margins (`@page`, A4) and the running footer (name, page x / y) are shared by all
-templates.
+templates. The footer is drawn by Chromium in the bottom page margin, outside the page content, so page
+backgrounds do not reach it. A template with a full-height sidebar sets
+`window.__CV_PDF_FOOTER_SIDE__ = { width, height, background, color }` (height = bottom margin) and the
+renderer continues the sidebar through the footer, with the name on the sidebar colour (see `PrintBanner.vue`).
+
+The banner template shows the initials in the photo circle when there is no photo or the profile hides it
+(`hidePhoto`).
 
 ---
 

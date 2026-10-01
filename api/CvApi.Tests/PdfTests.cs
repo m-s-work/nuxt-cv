@@ -67,7 +67,20 @@ public sealed class PdfTests : IDisposable
         var qrUrls = _factory.Renderer.Calls.Select(QrUrl).ToList();
         Assert.StartsWith("https://alice-cv.example.org/de?c=", qrUrls[0]);
         Assert.StartsWith("https://alice-cv.example.org/?c=", qrUrls[1]);
-        Assert.Equal(["http://web/de", "http://web/"], _factory.Renderer.Calls.Select(c => c.Url.GetLeftPart(UriPartial.Path)));
+        Assert.Equal(["http://web/de/cv", "http://web/cv"], _factory.Renderer.Calls.Select(c => c.Url.GetLeftPart(UriPartial.Path)));
+    }
+
+    [Fact]
+    public async Task Qr_code_of_a_tenant_without_own_host_points_to_cv_on_the_shared_host()
+    {
+        _factory.Settings["Cv:SharedBaseUrl"] = "https://cv.example.org/";
+        _factory.SetHosts("alice");
+        await CreateInvite(new { profile = "full" });
+
+        // "/" is the showcase on the shared host, so the QR code opens /cv.
+        var qrUrls = _factory.Renderer.Calls.Select(QrUrl).ToList();
+        Assert.StartsWith("https://cv.example.org/de/cv?c=", qrUrls[0]);
+        Assert.StartsWith("https://cv.example.org/cv?c=", qrUrls[1]);
     }
 
     [Fact]

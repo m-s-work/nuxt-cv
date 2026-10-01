@@ -693,7 +693,7 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
 | Storage | `/data/tracking.db` (own SQLite file, `Tracking/TrackingModels.cs`) |
 | Consent modal, footer "Privacy" link | `src/app/components/CvConsentModal.vue`, `CvFooter.vue` |
 | Tracker | `src/app/composables/useVisitorTracking.ts`, helpers + fingerprint in `src/app/utils/tracking.ts` |
-| Admin | `src/app/components/AdminAnalytics.vue`, `AdminHeatmap.vue`, heatmap overlay `CvHeatmapOverlay.vue` (`/?heatmap=1`) |
+| Admin | `src/app/components/AdminAnalytics.vue`, `AdminHeatmap.vue`, heatmap overlay `CvHeatmapOverlay.vue` (`/cv?heatmap=1`) |
 
 **Configuration**
 

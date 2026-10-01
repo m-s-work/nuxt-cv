@@ -6,7 +6,7 @@ The site consists of two containers, defined in [`docker-compose.yml`](../docker
 Internet ──► Coolify Traefik (TLS, domains) ──► web (nginx :80) ──┬─► static Nuxt SPA
                                                                   └─► /api/* ──► api (ASP.NET :8080) ──► /data volume
                                                                                    │  ▲
-                                                               POST /render        ▼  │ opens http://web/?print=1
+                                                               POST /render        ▼  │ opens http://web/cv?print=1
                                                                                pdf (Chromium :3000)
 ```
 
@@ -34,7 +34,7 @@ Requirements for access control and multi-tenancy: [REQUIREMENTS_ACCESS_AND_TENA
    | `CV_ADMIN_API_KEY` | long random string (`openssl rand -base64 32`) | Enables the admin API. Mark as secret. Empty = admin API disabled. |
    | `CV_SHARED_BASE_URL` | `https://cv.velarix.space` | Used for invite links of tenants that have no own host. |
    | `CV_CLIENT_IP_HEADER` | `CF-Connecting-IP` | Set when traffic arrives through a Cloudflare Tunnel (see below). |
-   | `CV_DEMO_INVITE_CODE` | `demo` | Build time: shows a "Try the demo CV" button on the showcase linking to `/?c=demo`. Create the invite with that code (below). |
+   | `CV_DEMO_INVITE_CODE` | `demo` | Build time: shows a "Try the demo CV" button on the showcase linking to `/cv?c=demo`. Create the invite with that code (below). |
    | `CV_PDF_RENDERER_URL` | *(default `http://pdf:3000`)* | Set to an empty value to disable PDFs. |
    | `CV_PDF_LAYOUT_VERSION` | `2` | Bump after frontend layout changes so all cached PDFs are re-rendered. |
    | `CV_GIT_TOKEN` | fine-grained GitHub token, *Contents: read* on the CV repo | Lets the API fetch pinned CV versions from a private CV repository again. Mark as secret. Not needed for public repos. |
@@ -199,7 +199,7 @@ cd src && npm install && npm run dev       # http://localhost:3000
 - `http://localhost:3000/admin` → admin UI (key `dev-admin-key`).
 - `http://127.0.0.1:3000` → behaves like the shared host (no access without invite).
 - Create an invite: `curl -X POST -H "X-Admin-Key: dev-admin-key" -H "Content-Type: application/json" -d '{"profile":"full"}' http://localhost:5080/api/admin/tenants/bob/invites`
-  and open `http://127.0.0.1:3000/?c=<code>`.
+  and open the returned link, e.g. `http://127.0.0.1:3000/cv?c=<code>` (`/` stays the showcase on the shared host).
 
 Full stack with Docker: `docker compose up --build`, then put tenant files into the volume via the admin API
 (set `CV_ADMIN_API_KEY` in a `.env` next to `docker-compose.yml`).

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Invite code entry, used on the no-access page and the showcase.
 const { t } = useI18n()
-const { redeem, inviteRejected } = useCv()
+const { redeem, inviteRejected, hostKind } = useCv()
+const localePath = useLocalePath()
+const router = useRouter()
 
 const code = ref('')
 const submitting = ref(false)
@@ -10,8 +12,10 @@ async function submit() {
   if (!code.value.trim() || submitting.value) return
   submitting.value = true
   if (await redeem(code.value)) {
-    // Full reload so the whole page initializes with the new access.
-    window.location.reload()
+    // Full load so the whole page initializes with the new access. On the shared host the CV lives at /cv
+    // ("/" is the showcase there).
+    if (hostKind.value === 'shared') window.location.assign(router.resolve(localePath('/cv')).href)
+    else window.location.reload()
     return
   }
   submitting.value = false

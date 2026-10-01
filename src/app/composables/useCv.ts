@@ -150,6 +150,8 @@ export interface CvConsent {
 
 interface CvResponse {
   access: CvAccess
+  /** "shared": the CV lives at /cv, "/" is the showcase. */
+  host?: CvHostKind
   cvVersion?: string
   cvSourceSha?: string
   consent?: CvConsent
@@ -160,8 +162,13 @@ interface CvResponse {
   cv: CvData
 }
 
-/** Query parameter carrying the invite code, e.g. https://cv.example.org/?c=abc */
+/** Query parameter carrying the invite code, e.g. https://cv.example.org/cv?c=abc */
 export const INVITE_PARAM = 'c'
+
+/** PDF renderer mode (?print=1): the typeset layout, no consent modal, no tracking. */
+export function isPrintView(): boolean {
+  return import.meta.client && new URLSearchParams(window.location.search).has('print')
+}
 
 /** Owner heatmap view (admin iframe): no consent modal, no tracking, no splash screen. */
 export function isHeatmapView(): boolean {
@@ -254,6 +261,7 @@ export function useCv() {
       })
       cv.value = withPeriods(response.cv, presentLabel(locale))
       access.value = response.access
+      hostKind.value = response.host === 'shared' ? 'shared' : 'tenant'
       features.value = response.features ?? { pdf: false }
       templates.value = response.templates ?? {}
       links.value = response.links ?? {}
@@ -276,6 +284,16 @@ export function useCv() {
     if (link) link.href = `${apiBase}/favicon.svg?v=${Date.now()}`
   }
 
+  /** Removes the invite from this browser (access cookie); the invite itself stays valid. */
+  async function forget(): Promise<boolean> {
+    try {
+      await $fetch(`${apiBase}/access/logout`, { method: 'POST', credentials: 'include' })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** Redeems an invite code. Returns false if the code is not valid. */
   async function redeem(code: string): Promise<boolean> {
     try {
@@ -294,7 +312,7 @@ export function useCv() {
   }
 
   /**
-   * Heatmap view for the owner (/?heatmap=1&tenant=…&cv=…, opened by the admin page in an iframe): renders the
+   * Heatmap view for the owner (/cv?heatmap=1&tenant=…&cv=…, opened by the admin page in an iframe): renders the
    * stored CV snapshot of that version instead of calling /api/cv (docs/VISITOR_SESSION_TRACKING.md R6.8, R6.12).
    * Uses the admin key of this browser tab; assets are loaded through the admin API.
    */
@@ -405,6 +423,7 @@ export function useCv() {
     init,
     load,
     ensure,
-    redeem
+    redeem,
+    forget
   }
 }

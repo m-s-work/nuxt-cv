@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Heatmap of a visitor group: the CV snapshot of the chosen version rendered at the chosen breakpoint in an
- * iframe (/?heatmap=1), with the aggregated cells painted over it (docs/VISITOR_SESSION_TRACKING.md §6).
+ * iframe (/cv?heatmap=1), with the aggregated cells painted over it (docs/VISITOR_SESSION_TRACKING.md §6).
  */
 import { errorMessage, shortSha, type AdminTenant, type HeatmapFacet, type HeatmapType } from '~/composables/useAdmin'
 import { BREAKPOINT_WIDTH, type Breakpoint } from '~/utils/tracking'
@@ -32,7 +32,7 @@ const src = computed(() => {
   const q = new URLSearchParams({
     heatmap: '1', tenant: props.tenant.id, group: props.group, bp: f.breakpoint, app: f.appSha, cv: f.cvVersion, type: type.value
   })
-  return `/?${q}`
+  return `/cv?${q}`
 })
 const otherApp = computed(() => new Set(facets.value.map(f => f.appSha)).size > 1)
 
