@@ -44,14 +44,6 @@ builder.Services.AddSingleton<CvApi.Tracking.CvSourceVersion>();
 builder.Services.AddSingleton<CvApi.Tracking.GeoLookup>();
 builder.Services.AddHttpClient(CvApi.Tracking.GeoLookup.HttpClientName);
 builder.Services.AddHostedService<CvApi.Tracking.RetentionService>();
-// External images referenced by CVs are proxied (and cached) so visitors never contact third parties.
-builder.Services.AddSingleton<CvApi.Media.ExternalMedia>();
-builder.Services.AddHttpClient(CvApi.Media.ExternalMedia.HttpClientName, client =>
-    {
-        client.Timeout = TimeSpan.FromSeconds(15);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("nuxt-cv-media-proxy/1.0");
-    })
-    .ConfigurePrimaryHttpMessageHandler(CvApi.Media.ExternalMedia.PublicOnlyHandler);
 
 // Keys sign the access cookie; they must survive redeploys, otherwise every invitee is logged out.
 builder.Services.AddDataProtection()

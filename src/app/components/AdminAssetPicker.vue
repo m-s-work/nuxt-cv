@@ -1,21 +1,20 @@
 <script setup lang="ts">
 /**
- * Image field of the CV editor (photo, logos, images, screenshots): pick from the tenant's assets, upload new ones
- * or enter a link to an image on a live website (served to visitors through the API's proxy, /api/media).
+ * Image field of the CV editor (photo, logos, images, screenshots): pick from the tenant's assets or upload new ones.
+ * Images are always assets (versioned with the CV in git), never links to other websites that may go offline.
  */
 import { errorMessage } from '~/composables/useAdmin'
 import { ASSET_PREFIX, isImageFile } from '~/composables/useTenantAssets'
 
-const props = defineProps<{ tenantId: string, modelValue: string[], multiple?: boolean, placeholder?: string }>()
+const props = defineProps<{ tenantId: string, modelValue: string[], multiple?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 
 const { assets, loading, error, load, thumb, upload } = useTenantAssets(props.tenantId)
 
 const isAsset = (url: string) => url.startsWith(ASSET_PREFIX)
-const isExternal = (url: string) => /^https?:\/\//i.test(url)
-// Images that failed to load (e.g. an external link that is not an image) show an icon instead.
+// Images that failed to load show an icon instead.
 const failed = ref(new Set<string>())
-const src = (url: string) => failed.value.has(url) ? undefined : isAsset(url) ? thumb(url) : isExternal(url) ? url : undefined
+const src = (url: string) => failed.value.has(url) || !isAsset(url) ? undefined : thumb(url)
 const nameOf = (url: string) => isAsset(url) ? url.slice(ASSET_PREFIX.length) : url
 
 function set(value: string[]) {
@@ -37,22 +36,6 @@ function move(index: number, delta: -1 | 1) {
   if (target < 0 || target >= items.length) return
   ;[items[index], items[target]] = [items[target]!, items[index]!]
   set(items)
-}
-
-// --- Link to an image on a live website, or a path typed by hand ---------------------------
-
-const link = ref('')
-const linkError = ref('')
-function addLink() {
-  const value = link.value.trim()
-  if (!value) return
-  if (!isExternal(value) && !value.startsWith('/')) {
-    linkError.value = 'Enter an https:// link or an /api/assets/… path.'
-    return
-  }
-  linkError.value = ''
-  add([value])
-  link.value = ''
 }
 
 // --- File picker ----------------------------------------------------------------------------
@@ -118,7 +101,8 @@ async function onUpload(event: Event) {
         >
         <div v-else class="h-16 flex items-center justify-center text-gray-400"><UIcon name="i-lucide-image-off" /></div>
         <p class="text-[10px] leading-tight px-1 py-0.5 truncate flex items-center gap-0.5">
-          <UIcon v-if="isExternal(url)" name="i-lucide-globe" class="shrink-0 text-primary" />
+          <!-- Older entries may still point elsewhere: those can go offline, replace them with an asset. -->
+          <UIcon v-if="!isAsset(url)" name="i-lucide-triangle-alert" class="shrink-0 text-amber-500" title="Not an asset of this tenant: may go offline" />
           {{ nameOf(url) }}
         </p>
         <div class="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
@@ -133,12 +117,7 @@ async function onUpload(event: Event) {
 
     <div class="flex gap-2 flex-wrap">
       <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-folder-open" :label="multiple ? 'Add from files' : 'Choose file'" @click="openPicker" />
-      <form class="flex gap-1 flex-1 min-w-48" @submit.prevent="addLink">
-        <UInput v-model="link" size="xs" :placeholder="placeholder ?? 'or link: https://example.com/logo.png'" class="flex-1" aria-label="Image link" />
-        <UButton type="submit" size="xs" color="neutral" variant="ghost" icon="i-lucide-link" aria-label="Add link" :disabled="!link.trim()" />
-      </form>
     </div>
-    <p v-if="linkError" class="text-xs text-red-600 dark:text-red-400">{{ linkError }}</p>
 
     <UModal v-model:open="open" :title="multiple ? 'Add images' : 'Choose an image'" description="Assets of this tenant. Uploads are stored under assets/." :ui="{ content: 'max-w-3xl' }">
       <template #body>

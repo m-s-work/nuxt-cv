@@ -19,7 +19,6 @@ Catalogue of the product's features. **Visibility** says where a feature may be 
 | Template variables: colour sets, colours, toggles (e.g. chapter colours) | public | ✅ |
 | Template builder UI (admin "Design" tab, live PDF preview) | owner | ✅ |
 | Graphical CV editor with live web / data / PDF preview per profile (admin "Edit" tab) | owner | ✅ |
-| Images and logos from other websites, served through the API (visitors contact no third party) | public | ✅ |
 | Website links on entries (redirect through the API) | public | ✅ |
 | Selectable web templates | public | 📝 planned (#77) |
 | Multilingual content and UI (EN/DE) | public | ✅ |

@@ -16,9 +16,6 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// <summary>Extra configuration, set before the first request.</summary>
     public Dictionary<string, string> Settings { get; } = [];
 
-    /// <summary>Extra service registrations (e.g. fake HTTP handlers), applied after the app's own.</summary>
-    public Action<IServiceCollection>? ExtraServices { get; set; }
-
     /// <summary>Clock of the API; tests move it forward with <see cref="TestClock.Advance"/>.</summary>
     public TestClock Clock { get; } = new();
 
@@ -108,11 +105,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Git:AllowLocalRepos", "true");
         builder.UseSetting("Tracking:EventsPerMinute", "100000");
         foreach (var (key, value) in Settings) builder.UseSetting(key, value);
-        builder.ConfigureTestServices(services =>
-        {
-            services.AddSingleton<TimeProvider>(Clock);
-            ExtraServices?.Invoke(services);
-        });
+        builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(Clock));
     }
 
     protected override void Dispose(bool disposing)
