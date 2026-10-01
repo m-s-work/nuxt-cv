@@ -569,6 +569,28 @@ public sealed class TrackingTests : IDisposable
     }
 
     [Fact]
+    public void Existing_tracking_databases_get_new_columns()
+    {
+        var file = Path.Combine(_factory.DataPath, $"old-tracking-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<TrackingDbContext>().UseSqlite($"Data Source={file}").Options;
+        using (var old = new TrackingDbContext(options))
+        {
+            old.Database.EnsureCreated();
+            // A database created before these columns existed.
+            old.Database.ExecuteSqlRaw("ALTER TABLE Sessions DROP COLUMN SeqWindow");
+            old.Database.ExecuteSqlRaw("ALTER TABLE Sessions DROP COLUMN ClientCvVersion");
+        }
+        using (var db = new TrackingDbContext(options))
+        {
+            db.Sessions.Add(new TrackSession { Id = "s-upgrade-000000001", TenantId = "alice", GroupKey = "g", SeqWindow = 3, ClientCvVersion = "x" });
+            db.SaveChanges();
+        }
+        using (var db = new TrackingDbContext(options))
+            Assert.Equal(3, db.Sessions.Single().SeqWindow);
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    [Fact]
     public async Task Heat_cells_use_the_breakpoint_of_each_batch()
     {
         var client = await InvitedClient();
