@@ -40,7 +40,8 @@ test.describe('admin', () => {
     await page.getByRole('option', { name: 'anonymous', exact: true }).click()
     await page.getByRole('button', { name: 'Create invite' }).click()
     const link = (await page.getByTestId('invite-link').textContent({ timeout: 60_000 }))!.trim()
-    expect(link).toContain(`${SHARED_URL}/?c=`)
+    // On the shared host "/" is the showcase: invite links open /cv (since #105).
+    expect(link).toContain(`${SHARED_URL}/cv?c=`)
     await expect(page.getByText(`Invite created for "${label}"`)).toBeVisible()
 
     // The recipient opens the link in their own browser.
@@ -87,7 +88,8 @@ test.describe('admin', () => {
 
   test('previews the redacted CV of a profile', async ({ page }) => {
     await signIn(page, 'demo')
-    await page.getByRole('tab', { name: 'Preview' }).click()
+    await page.getByRole('tab', { name: 'Edit' }).click()
+    await page.getByRole('tab', { name: 'Data' }).click()
 
     await page.getByRole('combobox', { name: 'Preview profile' }).click()
     await page.getByRole('option', { name: 'public', exact: true }).click()
@@ -97,6 +99,28 @@ test.describe('admin', () => {
     await page.getByRole('combobox', { name: 'Preview profile' }).click()
     await page.getByRole('option', { name: 'full', exact: true }).click()
     await expect(page.getByTestId('preview-json')).toContainText('max.mustermann@example.com')
+  })
+
+  test('edits the CV graphically with a live web preview, without saving', async ({ page, admin }) => {
+    const before = await admin.readFile('bob', 'cv.en.json')
+    const draftName = unique('Draft Bob')
+    await signIn(page, 'bob')
+    await page.getByRole('tab', { name: 'Edit' }).click()
+
+    // The Web view is the CV page itself, as the chosen profile sees it.
+    const frame = page.frameLocator('[data-testid=web-preview]')
+    await expect(frame.locator('h1').first()).toContainText('Bob Builder')
+
+    // Typing in the editor updates the preview (redacted by the API) before anything is saved.
+    const profile = page.getByTestId('cv-block-profile')
+    await profile.getByRole('textbox').first().fill(draftName)
+    await expect(page.getByTestId('preview-draft-note')).toBeVisible()
+    await expect(frame.locator('h1').first()).toContainText(draftName)
+
+    page.once('dialog', dialog => dialog.accept())
+    await page.getByRole('button', { name: 'Revert' }).click()
+    await expect(frame.locator('h1').first()).toContainText('Bob Builder')
+    expect(await admin.readFile('bob', 'cv.en.json')).toBe(before)
   })
 
   test('chooses the PDF template and the favicon of a tenant', async ({ page, admin }) => {

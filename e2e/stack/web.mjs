@@ -28,7 +28,8 @@ const TYPES = {
 const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
+  // Like nginx: same-origin frames only (admin web preview, heatmap).
+  'X-Frame-Options': 'SAMEORIGIN',
   'X-Robots-Tag': 'noindex, nofollow'
 }
 

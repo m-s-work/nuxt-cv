@@ -15,7 +15,8 @@ server {
     # Note: add_header in a location replaces these, so locations below only use `expires`/proxy settings.
     add_header Referrer-Policy "no-referrer" always;       # never leak ?c=... via Referer
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    # SAMEORIGIN, not DENY: the admin page embeds the CV page (Edit tab web preview, heatmap).
+    add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Robots-Tag "noindex, nofollow" always;
 
     location = /healthz {
