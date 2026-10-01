@@ -412,7 +412,7 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   to a website (§7.2); the
   redaction markers (`requires`, `fieldRequires`, `companyAlias`, `clientAlias`) are editable too. Keys it does not
   know are kept unchanged; saving writes formatted JSON (comments are removed, after a warning). The preview shows
-  the CV as **Web** (the real CV page in an iframe, `/?preview=1`, fed by the admin page via `postMessage`, phone /
+  the CV as **Web** (the real CV page in an iframe, `/cv?preview=1`, fed by the admin page via `postMessage`, phone /
   tablet / desktop width), as **Data** (the redacted JSON exactly as delivered) or as **PDF** in any template and
   colour set (`…/pdf-preview`, needs the renderer). Unsaved edits appear in the web and data views while typing:
   the draft is redacted by the API (`POST …/preview`), nothing is stored; the PDF shows the saved file.

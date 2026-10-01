@@ -80,10 +80,10 @@ async function loadData() {
   }
 }
 
-// The web view is the real CV page in an iframe (/?preview=1); it asks for its data once it is ready.
+// The web view is the real CV page in an iframe (/cv?preview=1); it asks for its data once it is ready.
 const frame = ref<HTMLIFrameElement | null>(null)
 const frameReady = ref(false)
-const frameSrc = computed(() => `${locale.value === 'de' ? '/de' : ''}/?preview=1`)
+const frameSrc = computed(() => `${locale.value === 'de' ? '/de' : ''}/cv?preview=1`)
 watch([frameSrc, view], () => { frameReady.value = false })
 
 function postToFrame() {

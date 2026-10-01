@@ -175,7 +175,7 @@ export function isHeatmapView(): boolean {
   return import.meta.client && new URLSearchParams(window.location.search).has('heatmap')
 }
 
-/** Owner preview in the admin's Edit tab (/?preview=1 in an iframe): CV data is posted in by the admin page. */
+/** Owner preview in the admin's Edit tab (/cv?preview=1 in an iframe): CV data is posted in by the admin page. */
 export function isAdminPreview(): boolean {
   return import.meta.client && new URLSearchParams(window.location.search).has('preview')
 }
@@ -334,7 +334,7 @@ export function useCv() {
   }
 
   /**
-   * Owner preview (/?preview=1, iframe in the admin's Edit tab): shows the CV the admin page posts in – already
+   * Owner preview (/cv?preview=1, iframe in the admin's Edit tab): shows the CV the admin page posts in – already
    * redacted by the API for the chosen profile, possibly an unsaved draft. No tracking, no consent, no PDF button.
    */
   function initPreview() {
