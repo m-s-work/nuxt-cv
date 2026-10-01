@@ -18,7 +18,7 @@ public static class AuthEndpoints
     {
         var auth = app.MapGroup("/auth");
 
-        auth.MapGet("/providers", (IConfiguration config, EmailSender email) => Results.Ok(new
+        auth.MapGet("/providers", (IConfiguration config, IEmailSender email) => Results.Ok(new
         {
             providers = AuthSetup.Providers.Where(p => AuthSetup.IsConfigured(config, p.Value)).Select(p => p.Key),
             magicLink = email.Enabled,
@@ -53,7 +53,7 @@ public static class AuthEndpoints
         });
 
         // Always 204, so the response does not tell whether an account exists (S2.2).
-        auth.MapPost("/magic-link", async (MagicLinkRequest body, HttpContext ctx, AccountsDbContext db, EmailSender email,
+        auth.MapPost("/magic-link", async (MagicLinkRequest body, HttpContext ctx, AccountsDbContext db, IEmailSender email,
             TimeProvider time, ILoggerFactory loggers, CancellationToken ct) =>
         {
             if (!email.Enabled) return Results.NotFound();

@@ -42,7 +42,7 @@ builder.Services.AddDbContext<CvApi.Tracking.TrackingDbContext>(o => o.UseSqlite
 builder.Services.AddDbContext<AccountsDbContext>(o => o.UseSqlite($"Data Source={Path.Combine(dataPath, "accounts.db")}"));
 builder.Services.AddSingleton<TenantOwners>();
 builder.Services.AddScoped<AccountService>();
-builder.Services.AddSingleton<EmailSender>();
+builder.Services.AddSingleton<IEmailSender, EmailSender>();
 builder.Services.AddHttpClient(EmailSender.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.AddAccountAuthentication();
 builder.Services.AddScoped<CvApi.Tracking.TrackingService>();
