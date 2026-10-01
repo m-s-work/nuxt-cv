@@ -446,7 +446,16 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   `tenant.json` (comments kept); "Reset to default" removes it (§7.1).
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
-  admin page's own CSS chunk, so the public pages are unaffected.
+  admin page's own CSS chunk, so the public pages are unaffected. The sign-in page `/login` (SaaS §2) is treated
+  the same way (own language switch, `noindex`, same CSS chunk).
+- R13.8 **Accounts** (`docs/REQUIREMENTS_SAAS.md`): a key stored in the tab means super-admin mode; otherwise
+  `/admin` checks `GET /api/auth/me` and, for a signed-in user, works with the session cookie and
+  `X-Requested-With: cv` (never the key) on the user's own tenant: no tenant selector or new-tenant form, no git
+  fetch, onboarding (handle, language, starter CV / LinkedIn ZIP / CV JSON) while the user has no tenant, and an
+  "Account" tab (plan and usage, Pro passes with Paddle checkout, PDF credit, open notifications, own domain,
+  payments, export, sign out everywhere, deletion). Plan limits (402) and the storage quota (413) show an upgrade
+  hint; heatmaps show a locked state. The super-admin gets a "Users" tab (stats, search, manual plan, block,
+  delete, payments incl. unmatched). Relative invite links (`/cv?c=…`) are completed with the page origin.
 
 ---
 

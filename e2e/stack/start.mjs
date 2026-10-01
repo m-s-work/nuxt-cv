@@ -63,10 +63,13 @@ function seedData() {
   }
 }
 
-function start(name, command, args, { cwd, env }) {
+function start(name, command, args, { cwd, env, logFile }) {
   const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] })
   const prefix = line => `[${name}] ${line}`
+  // The API's log is also kept in a file: tests read sign-in links from it (Email__LogLinks).
+  if (logFile) fs.writeFileSync(logFile, '')
   const pipe = (stream, out) => stream.on('data', chunk => {
+    if (logFile) fs.appendFileSync(logFile, chunk)
     for (const line of chunk.toString().split('\n')) if (line.trim()) out.write(prefix(line) + '\n')
   })
   pipe(child.stdout, process.stdout)
@@ -119,6 +122,7 @@ start('pdf', 'node', ['server.mjs'], {
 
 start('api', 'dotnet', ['run', '--project', 'CvApi/CvApi.csproj', '-c', 'Release', '--no-launch-profile'], {
   cwd: path.join(root, 'api'),
+  logFile: path.join(stateDir, 'api.log'),
   env: {
     ASPNETCORE_URLS: `http://127.0.0.1:${PORTS.api}`,
     ASPNETCORE_ENVIRONMENT: 'Production',
@@ -131,7 +135,9 @@ start('api', 'dotnet', ['run', '--project', 'CvApi/CvApi.csproj', '-c', 'Release
     Tracking__GeoUrl: '',
     Admin__ApiKey: ADMIN_KEY,
     Pdf__RendererUrl: `http://127.0.0.1:${PORTS.pdf}`,
-    Pdf__AppBaseUrl: webUrl
+    Pdf__AppBaseUrl: webUrl,
+    // Magic sign-in links are written to the log (stateDir/api.log) instead of being e-mailed.
+    Email__LogLinks: 'true'
   }
 })
 

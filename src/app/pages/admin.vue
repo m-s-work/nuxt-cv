@@ -284,7 +284,7 @@ onMounted(init)
         <p v-else-if="sessionMode && loginError && !tenants.length" class="text-center text-red-600 mt-16">{{ loginError }}</p>
 
         <template v-else>
-          <section v-if="tenantTab || keyMode" class="grid gap-4 items-start mb-6" :class="{ 'md:grid-cols-[1fr_auto]': keyMode }">
+          <section v-if="tenantTab" class="grid gap-4 items-start mb-6" :class="{ 'md:grid-cols-[1fr_auto]': keyMode }">
             <div v-if="selected && !creatingTenant" class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
               <div class="flex items-baseline gap-2 flex-wrap">
                 <h2 class="text-xl font-semibold">{{ selected.name || selected.id }}</h2>

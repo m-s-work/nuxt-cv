@@ -15,12 +15,12 @@ const message = computed(() => props.text ?? upgradeText(props.reason))
 
 <template>
   <div
-    class="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm flex items-start gap-3 flex-wrap"
-    :class="{ 'py-6 justify-center text-center flex-col items-center': locked }"
+    class="rounded-md border border-primary/40 bg-primary/5 text-sm flex gap-3"
+    :class="locked ? 'px-3 py-8 flex-col items-center text-center' : 'p-3 items-start flex-wrap'"
     data-testid="upgrade-hint" role="status"
   >
     <UIcon :name="locked ? 'i-lucide-lock' : 'i-lucide-sparkles'" class="text-primary shrink-0" :class="locked ? 'size-8' : 'size-5 mt-0.5'" />
-    <p class="flex-1 min-w-48">{{ message }}</p>
+    <p :class="locked ? 'max-w-md' : 'flex-1 min-w-48'">{{ message }}</p>
     <UButton v-if="canUpgrade" size="sm" icon="i-lucide-circle-arrow-up" label="Get Pro" @click="openAccount?.()" />
   </div>
 </template>
