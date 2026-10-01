@@ -9,7 +9,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Cv__DataPath": "../sample-data",
-        "Admin__ApiKey": "dev-admin-key"
+        "Admin__ApiKey": "dev-admin-key",
+        "Email__LogLinks": "true"
       }
     }
   }

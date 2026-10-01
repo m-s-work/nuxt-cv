@@ -75,11 +75,14 @@ public static class TrackingEndpoints
             var decision = TrackingPolicy.Resolve(grant);
             if (!decision.Enabled) return Results.NoContent();
 
-            // The server's own view of the CV version for this session (R6.10).
-            string cvVersion = "unknown";
+            // The server's own view of the CV for a new session (R6.10); its JSON becomes the snapshot (R6.12).
+            ServerCv? serverCv = null;
             if (batch.Start is not null && tenants.LoadCv(grant.Tenant, batch.Start.Locale, grant.Policy.Revision) is { } loaded)
-                cvVersion = CvVersionOf(CvRedactor.Redact(loaded.Cv, grant.Policy).ToJsonString());
-            await tracking.IngestAsync(ctx, grant, decision, batch, cvVersion, sourceVersion.For(grant.Tenant, grant.Policy.Revision), ct);
+            {
+                var json = CvRedactor.Redact(loaded.Cv, grant.Policy).ToJsonString();
+                serverCv = new ServerCv(CvVersionOf(json), json, loaded.Locale);
+            }
+            await tracking.IngestAsync(ctx, grant, decision, batch, serverCv, sourceVersion.For(grant.Tenant, grant.Policy.Revision), ct);
             return Results.NoContent();
         }).RequireRateLimiting(EventsRateLimitPolicy);
     }

@@ -25,7 +25,9 @@ public sealed class AccessService(
     TenantStore tenants,
     AppDbContext db,
     IDataProtectionProvider dataProtection,
-    TimeProvider time)
+    TimeProvider time,
+    Accounts.TenantOwners owners,
+    Accounts.OwnerNotifier notifier)
 {
     public const string CookieName = "cv_access";
     public const string RenderCookieName = "cv_render";
@@ -79,7 +81,7 @@ public sealed class AccessService(
         if (!invite.CanRedeem(now) || !await IsActiveAsync(invite, now, ct)) return RedeemResult.Invalid;
 
         var tenant = tenants.Get(invite.TenantId);
-        if (tenant is null || !tenant.Config.Profiles.ContainsKey(invite.Profile)) return RedeemResult.Invalid;
+        if (tenant is null || !tenant.Config.Profiles.ContainsKey(invite.Profile) || owners.IsBlocked(tenant.Id)) return RedeemResult.Invalid;
 
         // On a tenant host, only that tenant's invites are accepted.
         var hostTenant = tenants.FindByHost(context.Request.Host.Host);
@@ -105,9 +107,23 @@ public sealed class AccessService(
         }
         else
         {
+            // Atomic, so parallel redemptions cannot exceed maxUses (R4.6).
+            var counted = await db.Invites.Where(i => i.Id == invite.Id && (i.MaxUses == null || i.UseCount < i.MaxUses))
+                .ExecuteUpdateAsync(u => u.SetProperty(i => i.UseCount, i => i.UseCount + 1).SetProperty(i => i.LastUsedAt, now), ct);
+            if (counted == 0) return RedeemResult.Invalid;
             invite.UseCount++;
             invite.LastUsedAt = now;
-            await db.SaveChangesAsync(ct);
+            // An invite that was view-once before keeps its token: new sessions carry it too (R4.11).
+            token = invite.ViewOnceToken;
+        }
+
+        if (invite.UseCount == 1)
+        {
+            // First opening: tell the owner (label of the parent for scans of the printed QR code).
+            var label = invite.Label;
+            if (invite.ParentId is { } parentId && await db.Invites.AsNoTracking().SingleOrDefaultAsync(i => i.Id == parentId, ct) is { } parent)
+                label = parent.Label;
+            notifier.InviteOpened(invite.TenantId, label, invite.Source == InviteSources.PdfQr);
         }
 
         // Expiry and view-once window are enforced on every request, not by the cookie lifetime, so the
@@ -143,12 +159,33 @@ public sealed class AccessService(
         if (invite.Source == InviteSources.PdfQr && invite.CodeProtected is { } own)
             return _codeProtector.Unprotect(own);
 
+        // One QR invite per parent, also when several locales render at the same time.
+        var gate = QrLocks.GetOrAdd(invite.Id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            return await GetOrCreateQrCodeLockedAsync(invite, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, SemaphoreSlim> QrLocks = new();
+
+    private async Task<string> GetOrCreateQrCodeLockedAsync(Invite invite, CancellationToken ct)
+    {
         var child = await db.Invites.FirstOrDefaultAsync(i => i.ParentId == invite.Id && i.Source == InviteSources.PdfQr && i.RevokedAt == null, ct);
         if (child?.CodeProtected is { } existing)
         {
-            child.ExpiresAt = invite.ExpiresAt;       // follow the parent if it was changed
-            child.Label = invite.Label;
-            await db.SaveChangesAsync(ct);
+            // Follow the parent if it was changed.
+            if (child.ExpiresAt != invite.ExpiresAt || child.Label != invite.Label)
+            {
+                child.ExpiresAt = invite.ExpiresAt;
+                child.Label = invite.Label;
+                await db.SaveChangesAsync(ct);
+            }
             return _codeProtector.Unprotect(existing);
         }
 
@@ -207,7 +244,8 @@ public sealed class AccessService(
     public AccessGrant? GrantFor(Invite invite)
     {
         var tenant = tenants.Get(invite.TenantId);
-        if (tenant is null || !tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile)) return null;
+        // CVs of blocked users are not shown to anyone (SaaS §6 S6.3).
+        if (tenant is null || !tenant.Config.Profiles.TryGetValue(invite.Profile, out var profile) || owners.IsBlocked(tenant.Id)) return null;
         var overrides = ParseOverrides(invite.OverridesJson);
         return new AccessGrant(tenant, invite.Profile, tenant.PolicyFor(invite.Profile, profile, overrides), invite,
             TemplateResolver.Resolve(tenant.Config, profile, overrides));
@@ -271,8 +309,8 @@ public sealed class AccessService(
             var parts = _protector.Unprotect(raw).Split('.', 2);
             var id = Guid.ParseExact(parts[0], "N");
             var invite = await db.Invites.SingleOrDefaultAsync(i => i.Id == id, ct);
-            if (invite is { IsViewOnce: true } && (invite.ViewOnceToken is null || parts.ElementAtOrDefault(1) != invite.ViewOnceToken))
-                return null;
+            if (invite is { IsViewOnce: true } && invite.ViewOnceToken is null) return null;
+            if (invite?.ViewOnceToken is { } expected && parts.ElementAtOrDefault(1) != expected) return null;
             return invite;
         }
         catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or FormatException)

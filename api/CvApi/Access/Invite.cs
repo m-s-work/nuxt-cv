@@ -59,7 +59,9 @@ public sealed class Invite
     {
         UseCount = 0;
         ViewOnceUntil = null;
-        ViewOnceToken = null;
+        // View once: a fresh token nobody holds ends the session of the browser that opened it. Normal invites keep
+        // their token (if any), so their sessions stay valid and sessions ended earlier stay ended (R4.10, R4.11).
+        if (IsViewOnce) ViewOnceToken = InviteCodes.Generate();
     }
 
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && (ExpiresAt is null || ExpiresAt > now)
@@ -102,8 +104,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     /// EnsureCreated does not touch existing databases: adds nullable columns introduced after a database was
     /// created (e.g. <see cref="Invite.ViewOnceMinutes"/>), so deployments keep their invites.
     /// </summary>
-    public void AddMissingColumns()
+    public void AddMissingColumns() => AddMissingColumns(this);
+
+    /// <summary>Adds nullable columns of the model that are missing in an existing SQLite database.</summary>
+    public static void AddMissingColumns(DbContext context)
     {
+        var Database = context.Database;
+        var Model = context.Model;
         var connection = Database.GetDbConnection();
         var opened = connection.State != System.Data.ConnectionState.Open;
         if (opened) connection.Open();

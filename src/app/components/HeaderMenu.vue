@@ -43,15 +43,18 @@ function navigateTo(event: Event, sectionId: string) {
 
 <style scoped>
 .header-menu {
+  /* Left: the language switcher sits fixed in the top right corner. */
   position: absolute;
   top: 2rem;
-  /* Leaves room for the fixed language switcher (top right), which would otherwise be covered. */
-  right: 8.5rem;
+  left: 2rem;
+  /* Keep clear of the language switcher (about 8.5rem incl. its offset); long labels wrap instead. */
+  right: 9rem;
   z-index: 50;
 }
 
 .menu-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   list-style: none;
   margin: 0;
@@ -97,7 +100,7 @@ function navigateTo(event: Event, sectionId: string) {
 }
 
 /* Responsive adjustments */
-/* Phones: sections follow each other in one column, and the menu would collide with the
+/* Phones: sections follow each other in one column and the menu would not fit next to the
    language switcher – hide it. */
 @media (max-width: 640px) {
   .header-menu {

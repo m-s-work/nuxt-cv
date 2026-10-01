@@ -13,6 +13,10 @@ import { chromium } from 'playwright-core'
 const PORT = Number(process.env.PORT || 3000)
 const MAX_CONCURRENT = Number(process.env.MAX_CONCURRENT || 2)
 const DEFAULT_TIMEOUT_MS = Number(process.env.RENDER_TIMEOUT_MS || 45000)
+// Only pages of the app are rendered (the API passes Pdf__AppBaseUrl, http://web in compose):
+// render URLs with any other origin are rejected, so the renderer cannot be used to fetch other sites.
+const ALLOWED_ORIGIN = new URL(process.env.ALLOWED_ORIGIN || 'http://web').origin
+const MAX_BODY_BYTES = 64 * 1024
 
 // Page size and margins come from the page's @page rule (A4, see src/app/app.vue); the print
 // layout (src/app/components/CvPrint.vue) is typeset in pt/mm, so no scaling.
@@ -88,8 +92,10 @@ class RenderError extends Error {
 }
 
 async function render({ url, cookies = [], timeoutMs = DEFAULT_TIMEOUT_MS }) {
-  const target = new URL(url)
+  let target
+  try { target = new URL(url) } catch { throw new RenderError(400, 'invalid url') }
   if (!['http:', 'https:'].includes(target.protocol)) throw new RenderError(400, 'unsupported protocol')
+  if (target.origin !== ALLOWED_ORIGIN) throw new RenderError(400, 'origin not allowed')
 
   const browser = await getBrowser()
   const context = await browser.newContext({ viewport: { width: 1280, height: 1800 }, locale: 'en-US' })
@@ -125,12 +131,21 @@ async function render({ url, cookies = [], timeoutMs = DEFAULT_TIMEOUT_MS }) {
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let body = ''
+    let tooLarge = false
     req.setEncoding('utf8')
     req.on('data', (chunk) => {
+      if (tooLarge) return
       body += chunk
-      if (body.length > 64 * 1024) reject(new RenderError(413, 'body too large'))
+      if (Buffer.byteLength(body) > MAX_BODY_BYTES) {
+        // Stop reading: drop the buffered body and close the connection.
+        tooLarge = true
+        body = ''
+        reject(new RenderError(413, 'body too large'))
+        req.destroy()
+      }
     })
     req.on('end', () => {
+      if (tooLarge) return
       try { resolve(JSON.parse(body || '{}')) } catch { reject(new RenderError(400, 'invalid json')) }
     })
     req.on('error', reject)

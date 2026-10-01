@@ -5,7 +5,8 @@
  * Failures never affect the CV: everything is fire-and-forget.
  */
 import {
-  anchorOf, breakpointOf, collectFingerprint, isInView, isRageClick, linkKind, looksClickable, randomId, relativePosition, scrollDepth
+  anchorOf, breakpointOf, collectFingerprint, isInView, isRageClick, linkKind, looksClickable, PointerDwell, randomId, relativePosition,
+  scrollDepth, sendWithRetry, type PointerSample
 } from '~/utils/tracking'
 
 export interface TrackingVersions {
@@ -34,6 +35,7 @@ const HEARTBEAT_MS = 15_000
 const IDLE_MS = 30_000
 const MAX_QUEUE = 50
 const HOVER_MIN_MS = 800
+const RETRY_DELAY_MS = 2000
 const ENTRY_ANCHOR = /^(experience|study|project|other):/
 
 // Module state: one tracker per tab.
@@ -43,14 +45,14 @@ let session: StoredSession | null = null
 let previousSessionId: string | undefined
 let startPayload: Record<string, unknown> | null = null
 let queue: TrackEvent[] = []
-let pointerSamples: Array<[string, number, number, number]> = []
+let pointerSamples: PointerSample[] = []
 let cleanup: Array<() => void> = []
 let visibleAcc = 0
 let activeAcc = 0
 let lastInput = 0
 let hiddenSince: number | null = null
 let maxScroll = 0
-let lastSample = { t: 0, x: -100, y: -100 }
+let dwell = new PointerDwell()
 let hover: { anchor: string, since: number } | null = null
 let recentClicks: Array<{ t: number, x: number, y: number }> = []
 const inView = new Map<string, number>()        // anchor → accumulated visible ms (not yet sent)
@@ -149,9 +151,11 @@ function flush(beacon = false) {
       return
     }
     const start = startPayload
-    fetch(url, { method: 'POST', body, credentials: 'include', keepalive: true, headers: { 'Content-Type': 'application/json' } })
-      .then((r) => { if (r.ok && startPayload === start) startPayload = null })
-      .catch(() => { /* ignored */ })
+    // One retry with the same body (same seq): the server applies each batch once, in any order (R8.3).
+    sendWithRetry(
+      () => fetch(url, { method: 'POST', body, credentials: 'include', keepalive: true, headers: { 'Content-Type': 'application/json' } }),
+      { retries: 1, delayMs: RETRY_DELAY_MS }
+    ).then((ok) => { if (ok && startPayload === start) startPayload = null })
   } catch { /* ignored */ }
 }
 
@@ -212,15 +216,17 @@ function onPointerMove(event: PointerEvent) {
   onInput()
   if (event.pointerType !== 'mouse' || !session) return
   const t = now()
-  if (t - lastSample.t < 100 || Math.hypot(event.clientX - lastSample.x, event.clientY - lastSample.y) < 8) return
+  if (!dwell.accepts(t, event.clientX, event.clientY)) return
   const target = anchorOf(event.target as Element)
-  const dt = Math.min(t - lastSample.t, 2000)
-  lastSample = { t, x: event.clientX, y: event.clientY }
   const anchor = target?.dataset.track
+  let position: { anchor: string, x: number, y: number } | null = null
   if (target && anchor) {
     const [x, y] = relativePosition(event.clientX, event.clientY, target.getBoundingClientRect())
-    pointerSamples.push([anchor, x, y, dt])
+    position = { anchor, x, y }
   }
+  // The time since the previous sample belongs to where the cursor rested, not to where it moved to.
+  const sample = dwell.move(t, event.clientX, event.clientY, position)
+  if (sample) pointerSamples.push(sample)
   // Lingering on an entry (R5 "hover").
   const entry = (event.target as Element)?.closest?.('[data-track^="experience:"],[data-track^="study:"],[data-track^="project:"],[data-track^="other:"]') as HTMLElement | null
   const entryAnchor = entry?.dataset.track
@@ -304,10 +310,17 @@ function onSelectionChange() {
   }, 1000)
 }
 
+/** Attributes the dwell of the cursor's last position before the page is hidden or closed. */
+function flushDwell() {
+  const sample = dwell.flush(now())
+  if (sample) pointerSamples.push(sample)
+}
+
 function onVisibility() {
   if (!session || !context) return
   if (document.visibilityState === 'hidden') {
     hiddenSince = now()
+    flushDwell()
     trackEvent('visibility', { state: 'hidden' })
     flush(true)
     return
@@ -393,7 +406,7 @@ export function startTracking(options: { apiBase: string, locale: string, versio
   listen(document, 'selectionchange', onSelectionChange)
   listen(document, 'visibilitychange', onVisibility)
   listen(window, 'beforeprint', () => trackEvent('print'))
-  listen(window, 'pagehide', () => { heartbeat(); flush(true) })
+  listen(window, 'pagehide', () => { heartbeat(); flushDwell(); flush(true) })
   flush()
 }
 
@@ -405,6 +418,7 @@ export function stopTracking() {
   cleanup = []
   queue = []
   pointerSamples = []
+  dwell = new PointerDwell()
   inView.clear()
   currentlyVisible.clear()
   session = null

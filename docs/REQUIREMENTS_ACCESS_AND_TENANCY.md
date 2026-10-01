@@ -70,7 +70,8 @@ The tenant is resolved from the **hostname** and/or the **invite code**:
 - R4.1 Invite codes MUST be generated server-side with ≥128 bit entropy, URL-safe (base64url, ~22 chars).
   Exception: the admin MAY choose a code (`code`, 4–64 characters `A-Z a-z 0-9 - _`), e.g. `demo`.
   Such codes are guessable and MUST only be used for demo or otherwise public content. A code can be in use
-  by one active invite at a time; revoking the invite releases the code.
+  by one active invite at a time; revoking the invite releases the code. An expired (not revoked) invite releases it only
+  for its own tenant.
 - R4.2 Codes are looked up by their SHA-256 hash. The plain code is additionally stored encrypted
   (ASP.NET data protection, keys in `/data/keys`) so the owner can view and copy code and link again at any
   time in the admin API/UI; codes are not secret towards the admin. They MUST NOT be sent to anyone else.
@@ -276,8 +277,10 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/events` | cookie / host + consent | Tracking events of one session; always `204`. |
 | `GET/DELETE /api/admin/tenants/{tenant}/analytics/…` | admin key | Tracking reports, heatmap data, CV snapshots, erasure (VISITOR_SESSION_TRACKING.md §8.2). |
 
-- Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey`. If no key is configured,
-  admin endpoints are disabled (`404`).
+- Admin endpoints require header `X-Admin-Key` matching `Admin__ApiKey` (super-admin), **or** the account session of
+  the tenant's owner (`REQUIREMENTS_SAAS.md` §1–§2): a user reaches only their own tenant; other tenants and
+  super-admin-only endpoints (git revisions, user management) answer `404`. Without a configured key and without a
+  session, admin endpoints answer `404`. Plan limits answer `402 { error: "plan_limit", feature, limit }`.
 
 `access` object in `/api/cv`:
 
@@ -297,6 +300,7 @@ the CV, `<sha>-dirty` / `unversioned`) and `consent: { required, state, policyVe
 ```
 /data
 ├── app.db                       # SQLite: invites (all tenants)
+├── accounts.db                  # SQLite: users, sign-in methods, magic links, payments (REQUIREMENTS_SAAS.md)
 ├── tracking.db                  # SQLite: visitor tracking (consents, visitors, sessions, events, heat cells, CV snapshots)
 ├── geo/                         # optional fallback: city.mmdb + asn.mmdb when no geo service is configured
 ├── pdf/<tenant>/                # rendered PDFs: invite-<id>.<locale>.pdf / public-<profile>.<locale>.pdf (+ .sha256)
@@ -319,7 +323,7 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 10. Non-goals (for now)
 
-- No user accounts or passwords for visitors.
+- No user accounts or passwords for **visitors** (CV owners have accounts, see `REQUIREMENTS_SAAS.md`).
 - No analytics without consent: visitor & session tracking ([`VISITOR_SESSION_TRACKING.md`](VISITOR_SESSION_TRACKING.md))
   only runs after the visitor accepted the consent modal; it is owner-only and never shown to invitees (R11.4).
 
@@ -327,8 +331,10 @@ A sample tenant lives in `api/sample-data/`.
 
 ## 11. Showcase (shared host without invite)
 
-- R11.1 Visitors of the shared host see a showcase page at `/`: what the product does,
-  example screenshots, the public feature list and an invite-code form. Visitors who already have access
+- R11.1 Visitors of the shared host see a showcase page at `/`: the product landing page with a top bar
+  ("Pricing", "Sign in" → `/login`), the primary call to action "Create your CV – free" (→ `/login`, localized),
+  example screenshots, the public feature list, a pricing section (Free vs Pro, details on `/pricing`, see
+  `REQUIREMENTS_SAAS.md` §4), the demo link (`NUXT_PUBLIC_DEMO_INVITE_CODE`) and an invite-code form. Visitors who already have access
   additionally get a "Continue to the CV" link to `/cv` (R2.5); the invite is never dropped for this.
   Below it, "Not your invitation? Remove it from this browser" (for shared computers) clears the access cookie
   via `POST /api/access/logout` after a confirmation ("you need the invite link again"). The invite is not revoked;
@@ -343,6 +349,15 @@ A sample tenant lives in `api/sample-data/`.
   feature presentation and is allowed; it describes the recorded data plainly, without marketing it as a feature.
 - R11.5 On a tenant host the showcase is never shown (the neutral page is used), so tenant hosts do not
   advertise the platform.
+- R11.6 **Public pricing and legal pages.** `/pricing` shows Free vs Pro and the prepaid passes from
+  `GET /api/billing/config` (price per week large, total and saving vs the weekly pass small; default prices when the
+  API fails); every button leads to `/login`. `/legal/imprint`, `/legal/privacy` and `/legal/terms` take the operator
+  details from the build variables `NUXT_PUBLIC_LEGAL_NAME`, `_ADDRESS`, `_EMAIL`, `_VAT_ID` (optional) and `_COUNTRY`
+  (default Austria); their texts are templates the operator must review. Showcase and `/pricing` link all three in
+  the footer. R11.4 applies to these pages too; the privacy policy describes the processing of visit data for CV
+  owners who switch it on factually (required disclosure, like the consent modal), without presenting it as a feature.
+- R11.7 `src/scripts/showcase-screenshots.mjs` regenerates the screenshots of R11.2 from the sample tenant
+  (`docs/DEPLOYMENT_COOLIFY.md`, "Showcase screenshots").
 
 ---
 
@@ -404,8 +419,9 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
 ## 13. Admin UI
 
 - R13.1 The SPA contains an owner-only admin page at `/admin`. It is a client of the admin API (§8) and
-  has no privileges of its own: without a valid `X-Admin-Key` it shows only a sign-in form, and if the
-  server has no admin key configured it reports that the admin API is disabled.
+  has no privileges of its own: a signed-in user (account session, `/login`) manages their own tenant there; without
+  session it shows the admin-key sign-in form for the super-admin, and if the server has no admin key configured it
+  reports that the admin API is disabled.
 - R13.2 The admin key is entered by the owner and kept in `sessionStorage` of that tab only (never in
   cookies or `localStorage`, never in the URL). "Log out" clears it.
 - R13.3 Features: select / create tenants; list invites with status (active, revoked, expired, exhausted,
@@ -442,7 +458,16 @@ that invite – never more. PDFs are rendered by a separate container (`pdf`, he
   `tenant.json` (comments kept); "Reset to default" removes it (§7.1).
 - R13.4 The admin page is never linked from the CV, the no-access page or the showcase, is `noindex`,
   and does not show the splash screen or language selector. Its UI theme (Nuxt UI) is loaded only in the
-  admin page's own CSS chunk, so the public pages are unaffected.
+  admin page's own CSS chunk, so the public pages are unaffected. The sign-in page `/login` (SaaS §2) is treated
+  the same way (own language switch, `noindex`, same CSS chunk).
+- R13.8 **Accounts** (`docs/REQUIREMENTS_SAAS.md`): a key stored in the tab means super-admin mode; otherwise
+  `/admin` checks `GET /api/auth/me` and, for a signed-in user, works with the session cookie and
+  `X-Requested-With: cv` (never the key) on the user's own tenant: no tenant selector or new-tenant form, no git
+  fetch, onboarding (handle, language, starter CV / LinkedIn ZIP / CV JSON) while the user has no tenant, and an
+  "Account" tab (plan and usage, Pro passes with Paddle checkout, PDF credit, open notifications, own domain,
+  payments, export, sign out everywhere, deletion). Plan limits (402) and the storage quota (413) show an upgrade
+  hint; heatmaps show a locked state. The super-admin gets a "Users" tab (stats, search, manual plan, block,
+  delete, payments incl. unmatched). Relative invite links (`/cv?c=…`) are completed with the page origin.
 
 ---
 

@@ -54,7 +54,13 @@ public sealed class TrackSession
     public long VisibleMs { get; set; }
     public long ActiveMs { get; set; }
     public int MaxScroll { get; set; }
+    /// <summary>Highest batch sequence number applied.</summary>
     public int LastSeq { get; set; } = -1;
+    /// <summary>
+    /// Batches applied below <see cref="LastSeq"/>: bit i set = batch LastSeq - i was applied (out-of-order batches,
+    /// R8.3). Null for sessions stored before the window existed (then every seq up to LastSeq counts as applied).
+    /// </summary>
+    public long? SeqWindow { get; set; }
     public string? Locale { get; set; }
     public string? Breakpoint { get; set; }
     public int? ViewportW { get; set; }
@@ -83,7 +89,10 @@ public sealed class TrackSession
     public string? AppSha { get; set; }
     public string? ApiSha { get; set; }
     public string? CvSourceSha { get; set; }
+    /// <summary>CV version the heat data is stored under; always one with a CV snapshot when one could be made (R6.12).</summary>
     public string? CvVersion { get; set; }
+    /// <summary>Version reported by the client when it differs from <see cref="CvVersion"/> (R6.10).</summary>
+    public string? ClientCvVersion { get; set; }
     public bool VersionMismatch { get; set; }
 
     public DateTimeOffset EndOrLast => EndedAt ?? LastSeenAt;
@@ -168,8 +177,17 @@ public sealed class ConsentRecord
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed class TrackingDbContext(DbContextOptions<TrackingDbContext> options) : DbContext(options)
+public sealed class TrackingDbContext : DbContext
 {
+    // Databases upgraded in this process (connection string → done), see AddMissingColumns.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> Upgraded = new();
+    private static readonly Lock UpgradeLock = new();
+
+    public TrackingDbContext(DbContextOptions<TrackingDbContext> options) : base(options)
+    {
+        EnsureUpgraded();
+    }
+
     public DbSet<Visitor> Visitors => Set<Visitor>();
     public DbSet<Person> Persons => Set<Person>();
     public DbSet<TrackSession> Sessions => Set<TrackSession>();
@@ -201,5 +219,65 @@ public sealed class TrackingDbContext(DbContextOptions<TrackingDbContext> option
         foreach (var property in b.Model.GetEntityTypes().SelectMany(t => t.GetProperties())
                      .Where(p => p.ClrType == typeof(DateTimeOffset) || p.ClrType == typeof(DateTimeOffset?)))
             property.SetValueConverter(converter);
+    }
+
+    /// <summary>
+    /// EnsureCreated does not touch existing databases: adds nullable columns introduced after a tracking database was
+    /// created (e.g. <see cref="TrackSession.SeqWindow"/>), once per database and process. A database whose tables do
+    /// not exist yet (before EnsureCreated) is checked again by the next context.
+    /// </summary>
+    private void EnsureUpgraded()
+    {
+        try
+        {
+            var key = Database.GetConnectionString();
+            if (key is null || Upgraded.ContainsKey(key)) return;
+            lock (UpgradeLock)
+            {
+                if (Upgraded.ContainsKey(key)) return;
+                if (AddMissingColumns()) Upgraded[key] = true;
+            }
+        }
+        catch (Exception)
+        {
+            // Never block requests; EnsureCreated / the next context tries again.
+        }
+    }
+
+    /// <summary>Adds missing nullable columns; false while the tables do not exist yet.</summary>
+    private bool AddMissingColumns()
+    {
+        var connection = Database.GetDbConnection();
+        var opened = connection.State != System.Data.ConnectionState.Open;
+        if (opened) connection.Open();
+        try
+        {
+            foreach (var entity in Model.GetEntityTypes())
+            {
+                var table = entity.GetTableName();
+                if (table is null) continue;
+                var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = $"PRAGMA table_info(\"{table}\")";
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read()) existing.Add(reader.GetString(1));
+                }
+                if (existing.Count == 0) return false;
+                foreach (var property in entity.GetProperties().Where(p => p.IsNullable))
+                {
+                    var column = property.GetColumnName();
+                    if (existing.Contains(column)) continue;
+                    using var alter = connection.CreateCommand();
+                    alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {property.GetColumnType()} NULL";
+                    alter.ExecuteNonQuery();
+                }
+            }
+            return true;
+        }
+        finally
+        {
+            if (opened) connection.Close();
+        }
     }
 }

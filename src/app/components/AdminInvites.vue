@@ -3,11 +3,16 @@ import {
   REDACTION_FLAGS, buildOverrides, changeSummary, errorMessage, findRevision, formatBytes, groupInvites, inviteStatus, pinStatus, shortSha, viewOnceItems, viewOnceLabel,
   type AdminInvite, type AdminTenant, type CreatedInvite, type CvRevisions, type FlagChoice, type OverridesForm, type PdfOutcome
 } from '~/composables/useAdmin'
+import { completeLink, upgradeReason, type UpgradeReason } from '~/utils/account'
 
 const props = defineProps<{ tenant: AdminTenant, revisions?: CvRevisions | null }>()
 // Pinning can fetch a revision from git, so the page reloads the revision list afterwards.
 const emit = defineEmits<{ 'revisions-changed': [] }>()
 const admin = useAdmin()
+
+// Links are relative ("/cv?c=…") when the API has no shared base URL: complete them for display and copying.
+const origin = import.meta.client ? window.location.origin : ''
+const withFullLink = <T extends { link?: string }>(item: T): T => item.link ? { ...item, link: completeLink(item.link, origin) } : item
 
 const invites = ref<AdminInvite[]>([])
 const loading = ref(false)
@@ -22,7 +27,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    invites.value = await admin.invites(props.tenant.id)
+    invites.value = (await admin.invites(props.tenant.id)).map(withFullLink)
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -86,12 +91,15 @@ const showOverrides = ref(false)
 const creating = ref(false)
 const created = ref<CreatedInvite | null>(null)
 const createError = ref('')
+// Plan limit reached (402 plan_limit, activeInvites): shown as an upgrade hint instead of an error.
+const limit = ref<UpgradeReason | null>(null)
 
 async function create() {
   creating.value = true
   createError.value = ''
+  limit.value = null
   try {
-    created.value = await admin.createInvite(props.tenant.id, {
+    created.value = withFullLink(await admin.createInvite(props.tenant.id, {
       profile: form.profile,
       label: form.label.trim() || undefined,
       // End of the chosen day in the admin's time zone.
@@ -99,13 +107,14 @@ async function create() {
       maxUses: form.viewOnceMinutes || form.maxUses === '' ? undefined : Number(form.maxUses),
       viewOnceMinutes: form.viewOnceMinutes || undefined,
       overrides: withRevision(buildOverrides(form.overrides), form.revision === 'other' ? form.otherRevision.trim() : form.revision)
-    })
+    }))
     if (form.revision !== 'inherit') emit('revisions-changed')
     Object.assign(form, emptyForm())
     showOverrides.value = false
     await load()
   } catch (e) {
-    createError.value = errorMessage(e)
+    limit.value = upgradeReason(e)
+    if (!limit.value) createError.value = errorMessage(e)
   } finally {
     creating.value = false
   }
@@ -349,6 +358,7 @@ onMounted(load)
         </div>
 
         <p v-if="createError" class="text-sm text-red-600 dark:text-red-400">{{ createError }}</p>
+        <AdminUpgradeHint v-if="limit" :reason="limit" />
         <UButton type="submit" icon="i-lucide-plus" label="Create invite" :loading="creating" :disabled="!form.profile || (form.revision === 'other' && !form.otherRevision.trim()) || (form.overrides.tracking === 'prior' && !form.overrides.consentNote.trim())" />
         <span v-if="creating" class="text-sm text-gray-500 ml-3">Rendering PDFs, this can take a few seconds…</span>
       </form>
@@ -446,7 +456,7 @@ onMounted(load)
                       :label="`${shortSha(invite.revision)}${invite.pinnedBy === 'profile' ? ' (profile)' : ''}${pinOf(invite) === 'outdated' ? ' · outdated' : pinOf(invite) === 'missing' ? ' · not stored, shows current CV' : ''}`"
                     />
                     <UButton
-                      v-if="pinOf(invite) === 'missing' && revisions?.source"
+                      v-if="pinOf(invite) === 'missing' && revisions?.source && admin.mode.value !== 'session'"
                       size="xs" color="neutral" variant="ghost" icon="i-lucide-git-branch" label="Fetch from git"
                       :loading="busy === invite.id" @click="fetchPin(invite)"
                     />

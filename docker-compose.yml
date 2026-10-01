@@ -9,10 +9,19 @@ services:
         NUXT_APP_BASE_URL: /
         # Showcase "Try the demo" link (/?c=<code>); leave empty to hide it.
         NUXT_PUBLIC_DEMO_INVITE_CODE: ${CV_DEMO_INVITE_CODE:-}
+        # Operator details for the legal pages (/legal/imprint, /legal/privacy, /legal/terms). Build time.
+        # Address lines separated by "|", e.g. "Hauptstraße 1|1010 Wien". VAT id optional.
+        NUXT_PUBLIC_LEGAL_NAME: ${CV_LEGAL_NAME:-}
+        NUXT_PUBLIC_LEGAL_ADDRESS: ${CV_LEGAL_ADDRESS:-}
+        NUXT_PUBLIC_LEGAL_EMAIL: ${CV_LEGAL_EMAIL:-}
+        NUXT_PUBLIC_LEGAL_VAT_ID: ${CV_LEGAL_VAT_ID:-}
+        NUXT_PUBLIC_LEGAL_COUNTRY: ${CV_LEGAL_COUNTRY:-Austria}
         # Git commit of the build (Coolify: enable "Include Source Commit in Build") -> /version.json
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       API_UPSTREAM: http://api:8080
+      # Shared host whose landing, pricing and legal pages may be indexed by search engines (empty = none).
+      PUBLIC_INDEX_HOST: ${CV_PUBLIC_INDEX_HOST:-}
     expose:
       - "80"
     depends_on:
@@ -34,13 +43,46 @@ services:
       # PDF rendering: the renderer opens the app via the internal "web" service.
       # Set CV_PDF_RENDERER_URL to an empty value to disable PDFs.
       Pdf__RendererUrl: ${CV_PDF_RENDERER_URL-http://pdf:3000}
+      # Must match the pdf service's ALLOWED_ORIGIN.
       Pdf__AppBaseUrl: http://web
       # Bump after layout changes so cached PDFs are re-rendered.
       Pdf__LayoutVersion: ${CV_PDF_LAYOUT_VERSION:-1}
       # Read access to a private CV repository (fetches pinned CV versions again). Empty for public repos.
       Git__Token: ${CV_GIT_TOKEN:-}
+      # Repository hosts the token is sent to (comma separated); never sent to other hosts.
+      Git__TokenHosts: ${CV_GIT_TOKEN_HOSTS:-github.com}
       # Visitor tracking: IP -> location / network via the internal geo service. Empty = no location data.
       Tracking__GeoUrl: ${CV_GEO_URL-http://geo:3100}
+      # --- Accounts (docs/REQUIREMENTS_SAAS.md). Each sign-in provider is enabled when id and secret are set.
+      # Redirect URIs to register at the provider: https://<shared host>/api/signin-google (…-microsoft, -github, -linkedin).
+      Auth__Google__ClientId: ${CV_AUTH_GOOGLE_ID:-}
+      Auth__Google__ClientSecret: ${CV_AUTH_GOOGLE_SECRET:-}
+      Auth__Microsoft__ClientId: ${CV_AUTH_MICROSOFT_ID:-}
+      Auth__Microsoft__ClientSecret: ${CV_AUTH_MICROSOFT_SECRET:-}
+      Auth__GitHub__ClientId: ${CV_AUTH_GITHUB_ID:-}
+      Auth__GitHub__ClientSecret: ${CV_AUTH_GITHUB_SECRET:-}
+      Auth__LinkedIn__ClientId: ${CV_AUTH_LINKEDIN_ID:-}
+      Auth__LinkedIn__ClientSecret: ${CV_AUTH_LINKEDIN_SECRET:-}
+      # Magic-link sign-in by e-mail via the Resend HTTP API (no SMTP). Empty = e-mail sign-in disabled.
+      Email__ResendApiKey: ${CV_RESEND_API_KEY:-}
+      Email__From: ${CV_EMAIL_FROM:-}
+      # Tenant hosts <handle>.<suffix> for new users (needs wildcard DNS + wildcard domain on "web"). Empty = shared host only.
+      Saas__TenantHostSuffix: ${CV_TENANT_HOST_SUFFIX:-}
+      # Own domains (Pro) must resolve to this host's addresses (default: the shared host).
+      Saas__DomainTarget: ${CV_DOMAIN_TARGET:-}
+      # --- Billing: Paddle (merchant of record). Empty = no online payment; plans can still be set by the super-admin.
+      Billing__Paddle__Environment: ${CV_PADDLE_ENVIRONMENT:-sandbox}
+      Billing__Paddle__ClientToken: ${CV_PADDLE_CLIENT_TOKEN:-}
+      Billing__Paddle__WebhookSecret: ${CV_PADDLE_WEBHOOK_SECRET:-}
+      # Paddle price ids (one-time prices) of the Pro passes; amounts/days default to 5 € / 7 d, 17 € / 30 d, 78 € / 182 d, 104 € / 365 d.
+      Billing__Passes__0__Id: week
+      Billing__Passes__0__PaddlePriceId: ${CV_PADDLE_PRICE_WEEK:-}
+      Billing__Passes__1__Id: month
+      Billing__Passes__1__PaddlePriceId: ${CV_PADDLE_PRICE_MONTH:-}
+      Billing__Passes__2__Id: halfyear
+      Billing__Passes__2__PaddlePriceId: ${CV_PADDLE_PRICE_HALFYEAR:-}
+      Billing__Passes__3__Id: year
+      Billing__Passes__3__PaddlePriceId: ${CV_PADDLE_PRICE_YEAR:-}
     volumes:
       - cv-data:/data
     expose:
@@ -55,6 +97,8 @@ services:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-unknown}
     environment:
       MAX_CONCURRENT: "2"
+      # Only render URLs with this origin are accepted; must match the API's Pdf__AppBaseUrl.
+      ALLOWED_ORIGIN: http://web
     expose:
       - "3000"
     restart: unless-stopped

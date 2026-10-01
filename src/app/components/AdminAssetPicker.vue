@@ -4,6 +4,7 @@
  * Images are always assets (versioned with the CV in git), never links to other websites that may go offline.
  */
 import { errorMessage } from '~/composables/useAdmin'
+import { upgradeReason, type UpgradeReason } from '~/utils/account'
 import { ASSET_PREFIX, isImageFile } from '~/composables/useTenantAssets'
 
 const props = defineProps<{ tenantId: string, modelValue: string[], multiple?: boolean }>()
@@ -65,12 +66,15 @@ function confirmPick() {
 }
 
 const uploading = ref(false)
+// Storage quota of the plan exceeded (413 quota_exceeded): upgrade hint instead of an error.
+const quota = ref<UpgradeReason | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 async function onUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const selected = Array.from(input.files ?? [])
   if (!selected.length) return
   uploading.value = true
+  quota.value = null
   try {
     const urls = await upload(selected)
     if (open.value && props.multiple) picked.value = [...picked.value, ...urls]
@@ -79,7 +83,8 @@ async function onUpload(event: Event) {
       open.value = false
     }
   } catch (e) {
-    error.value = errorMessage(e)
+    quota.value = upgradeReason(e)
+    error.value = quota.value ? '' : errorMessage(e)
   } finally {
     uploading.value = false
     input.value = ''
@@ -127,6 +132,7 @@ async function onUpload(event: Event) {
           <span v-if="loading" class="text-sm text-gray-500">Loading…</span>
           <span v-if="error" class="text-sm text-red-600 dark:text-red-400">{{ error }}</span>
         </div>
+        <AdminUpgradeHint v-if="quota" :reason="quota" class="mb-3" />
         <p v-if="!loading && !images.length" class="text-sm text-gray-500">No images yet: upload one.</p>
         <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto" data-testid="asset-grid">
           <button

@@ -55,7 +55,8 @@ public sealed class PdfService(
     TenantStore tenants,
     AccessService access,
     IServiceProvider services,
-    ILogger<PdfService> logger)
+    ILogger<PdfService> logger,
+    Accounts.TenantOwners owners)
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
 
@@ -74,8 +75,10 @@ public sealed class PdfService(
         var renderUrl = await RenderUrlAsync(grant, locale, ct);
         var redacted = CvRedactor.Redact(master, grant.Policy);
         var fileName = PdfFileName.For(redacted["profile"]?["name"]?.GetValue<string>(), locale);
+        // The credit link depends on the plan and the tenant's choice (SaaS §4), so it is part of the hash too.
         var hash = ContentHash(redacted.ToJsonString(), locale, renderUrl,
-            grant.Templates.Pdf + System.Text.Json.JsonSerializer.Serialize(grant.Templates.PdfVars));
+            grant.Templates.Pdf + System.Text.Json.JsonSerializer.Serialize(grant.Templates.PdfVars)
+            + "\ncredit:" + Accounts.Branding.PlatformLink(grant.Tenant, configuration, owners));
         var file = CacheFile(grant, locale);
         var hashFile = file + ".sha256";
 
@@ -176,8 +179,8 @@ public sealed class PdfService(
     /// <summary>Public CV URL: "/" on the tenant's own host, "/cv" on the shared host ("/" is the showcase there).</summary>
     private string? PublicUrl(Tenant tenant, string localePrefix)
     {
-        if (tenant.Config.Hosts.FirstOrDefault() is { } host)
-            return $"https://{TenantStore.NormalizeHost(host)}{(localePrefix == "" ? "/" : localePrefix)}";
+        if (tenants.PrimaryHost(tenant) is { } host)
+            return $"https://{host}{(localePrefix == "" ? "/" : localePrefix)}";
         var shared = configuration["Cv:SharedBaseUrl"]?.TrimEnd('/');
         return string.IsNullOrEmpty(shared) ? null : $"{shared}{localePrefix}/cv";
     }

@@ -169,45 +169,33 @@ function handleTimelineClick(entryId: number | string) {
   activeEntryIds.value = [entryId]
 }
 
+/** Removes the card hover listeners added in onMounted. */
+const cardListenerCleanups: Array<() => void> = []
+
 onMounted(() => {
   if (typeof window === 'undefined') return
   
-  // Add hover listeners to all experience cards
-  experiences.value.forEach(exp => {
-    const element = document.getElementById(`experience-${exp.id}`)
-    if (element) {
-      element.addEventListener('mouseenter', () => handleCardMouseEnter(exp.id, 'exp'))
+  // Add hover listeners to all entry cards (removed again in onUnmounted)
+  const groups: Array<[Array<{ id: number }>, string, 'exp' | 'study' | 'project' | 'other']> = [
+    [experiences.value, 'experience', 'exp'],
+    [studies.value, 'study', 'study'],
+    [projects.value, 'project', 'project'],
+    [otherEntries.value, 'other', 'other']
+  ]
+  for (const [entries, prefix, type] of groups) {
+    for (const entry of entries) {
+      const element = document.getElementById(`${prefix}-${entry.id}`)
+      if (!element) continue
+      const onEnter = () => handleCardMouseEnter(entry.id, type)
+      element.addEventListener('mouseenter', onEnter)
       element.addEventListener('mouseleave', handleCardMouseLeave)
+      cardListenerCleanups.push(() => {
+        element.removeEventListener('mouseenter', onEnter)
+        element.removeEventListener('mouseleave', handleCardMouseLeave)
+      })
     }
-  })
-  
-  // Add hover listeners to all study cards
-  studies.value.forEach(study => {
-    const element = document.getElementById(`study-${study.id}`)
-    if (element) {
-      element.addEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
-      element.addEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
+  }
 
-  // Add hover listeners to all project cards
-  projects.value.forEach(project => {
-    const element = document.getElementById(`project-${project.id}`)
-    if (element) {
-      element.addEventListener('mouseenter', () => handleCardMouseEnter(project.id, 'project'))
-      element.addEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
-
-  // Add hover listeners to all other entry cards
-  otherEntries.value.forEach(entry => {
-    const element = document.getElementById(`other-${entry.id}`)
-    if (element) {
-      element.addEventListener('mouseenter', () => handleCardMouseEnter(entry.id, 'other'))
-      element.addEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
-  
   // Restore scroll position from URL hash AFTER splash screen is hidden
   const { onSplashHidden } = useSplashScreen()
   if (typeof window !== 'undefined' && window.location.hash) {
@@ -250,38 +238,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // Clean up event listeners
-  experiences.value.forEach(exp => {
-    const element = document.getElementById(`experience-${exp.id}`)
-    if (element) {
-      element.removeEventListener('mouseenter', () => handleCardMouseEnter(exp.id, 'exp'))
-      element.removeEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
-  
-  studies.value.forEach(study => {
-    const element = document.getElementById(`study-${study.id}`)
-    if (element) {
-      element.removeEventListener('mouseenter', () => handleCardMouseEnter(study.id, 'study'))
-      element.removeEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
-
-  projects.value.forEach(project => {
-    const element = document.getElementById(`project-${project.id}`)
-    if (element) {
-      element.removeEventListener('mouseenter', () => handleCardMouseEnter(project.id, 'project'))
-      element.removeEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
-
-  otherEntries.value.forEach(entry => {
-    const element = document.getElementById(`other-${entry.id}`)
-    if (element) {
-      element.removeEventListener('mouseenter', () => handleCardMouseEnter(entry.id, 'other'))
-      element.removeEventListener('mouseleave', handleCardMouseLeave)
-    }
-  })
+  // Remove exactly the listeners added in onMounted
+  cardListenerCleanups.forEach(cleanup => cleanup())
+  cardListenerCleanups.length = 0
 })
 
 </script>

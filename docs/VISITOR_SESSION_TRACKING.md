@@ -186,6 +186,9 @@ Positions are therefore stored **relative to anchors**.
   Idle cursors produce no samples; touch devices send taps only (no cursor).
 - R6.5 Each sample is stored as `(anchor, xRel, yRel, dt)` where `xRel`/`yRel` ∈ [0,1] are relative to the
   innermost anchor's bounding box, plus the **layout breakpoint** (`sm`/`md`/`lg`/`xl`).
+  `dt` (≤ 2 s) is the time the cursor **rested** at that position: the time until the next sample is attributed to
+  the previous position, not to the one the cursor moved to. The last position's dwell is flushed when the page is
+  hidden or closed (`visibilitychange → hidden`, `pagehide`); time while hidden never counts.
 - R6.6 Samples are quantised to a 1 % grid before sending; ~1–3 KB per active minute.
 
 ### 6.3 Aggregation and rendering
@@ -193,10 +196,15 @@ Positions are therefore stored **relative to anchors**.
 - R6.7 The API aggregates samples into
   `heat_cells(tenant, group, breakpoint, appSha, cvVersion, anchor, cellX, cellY, weight)`
   where weight = dwell ms. Raw samples MAY be deleted after aggregation (retention §9).
+  The breakpoint is the one sent with **each batch** (`bp`, validated; an invalid value falls back to the session's),
+  so a resized window or rotated tablet puts later cells into the matching layout. A session's own `breakpoint`
+  (used for attention) is the one it started with.
 - R6.8 To render a heatmap, the owner view loads the CV in the matching breakpoint **and version** (§6.4),
   looks up every anchor's bounding box in the live DOM and paints the cells into it (canvas overlay).
 - R6.9 Heatmap types: **move** (cursor dwell), **click**, **attention** (section_view dwell, one colour per
-  section/entry – works for mobile visitors too).
+  section/entry – works for mobile visitors too). The layouts/versions offered for a heatmap include those with
+  attention only (touch devices produce no cursor cells), so attention can be opened for phone-only invites.
+  The heatmap can be shown per visitor group or tenant-wide, with a legend (colour scale and its maximum).
 
 ### 6.4 Versions (git SHA and CV version)
 
@@ -214,7 +222,11 @@ inside an anchor. Every session is therefore stamped with the versions it was re
 
 - R6.10 `session_start` carries `appSha`, `cvSourceSha` and `cvVersion` (as seen by the client; `/api/cv`
   returns the latter two); the server adds `apiSha`
-  and verifies `cvVersion` against its own computation (mismatch → stored anyway, flagged).
+  and verifies `cvVersion` against its own computation (mismatch → stored anyway, flagged). Heat data is always
+  stored under a version that has a CV snapshot (R6.12): on a mismatch (e.g. a CV deploy between `/api/cv` and the
+  first batch) the session keeps the client's version only if a snapshot of it already exists; otherwise it is
+  recorded under the **server's** version, whose snapshot is stored, and the client's value is kept in
+  `clientCvVersion` (shown in the admin session list).
 - R6.11 **Version change → new linked session.** If `appSha`, `cvSourceSha` or `cvVersion` differs from the
   current session's, the session is split (R4.7): pending events are flushed, `session_end`
   (`version_change`) is sent and a new session starts with `previousSessionId`. Cases:
@@ -230,6 +242,9 @@ inside an anchor. Every session is therefore stamped with the versions it was re
   `cv_snapshots(tenant, cvVersion, cvSourceSha, locale, json, firstSeen)` (deduplicated by hash, stored when
   first delivered). The heatmap view renders that snapshot, so a heatmap of an old CV version shows exactly the
   text the visitor read; `cvSourceSha` links it to the commit (`git show <sha>`) for the full history.
+  The snapshot is the exact redacted JSON the server computed the version from. The heatmap facets say whether a
+  snapshot exists (`snapshot`); without one the admin view explains that the version cannot be rendered instead of
+  loading a failing page.
 - R6.13 **App versions.** Old SPA builds are not kept. The heatmap view renders with the current app and
   shows a warning when `appSha` of the selected cells differs; the owner can filter by `appSha`
   (`git log` of that SHA explains what changed). Heatmaps across versions MAY be merged, but only per anchor
@@ -336,7 +351,10 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
   dropped (`204`, nothing stored), so the endpoint reveals nothing.
 - R8.2 Tenant, group and visitor come **only** from the cookies/host, never from the payload.
 - R8.3 Batches are flushed every 10 s, at 50 events, and on `visibilitychange → hidden` / `pagehide` via
-  `navigator.sendBeacon`. `seq` makes retries idempotent.
+  `navigator.sendBeacon`. `seq` makes retries idempotent: the server applies every `seq` once, **in any order**
+  (a slow fetch may arrive after the page-hide beacon). It keeps the highest applied `seq` and a window of the 64
+  below it; a batch older than that window is dropped. A failed fetch (network error, 408, 429, 5xx) is retried
+  once after 2 s with the same body and `seq`.
 - R8.4 Limits: body ≤ 64 KB, ≤ 1 request/s per session, unknown event types ignored, rate-limited per IP.
 - R8.6 The API MUST only trust `X-Forwarded-For` from the configured reverse proxy (Coolify/Traefik);
   otherwise the socket address is used, so visitors cannot spoof the stored IP.
@@ -347,15 +365,20 @@ Rage clicks, dead clicks and sections with zero attention show layout problems, 
 
 | Method & path | Purpose |
 |---|---|
-| `GET /api/admin/tenants/{tenant}/analytics/groups` | Per visitor group (invite / public profile): label, visitors, persons, sessions, visits, active time, last visit, consent counts (R9.15), interest score. |
-| `GET /api/admin/tenants/{tenant}/analytics/groups/{groupKey}` | Visitors, sessions, attention per anchor (with reading ratio), technology intent, actions, networks, versions, score breakdown. |
+| `GET /api/admin/tenants/{tenant}/analytics/overview?from=&to=&tz=` | Tenant-wide overview of a period: totals (visitors, persons, sessions, visits, invites, active / visible time and averages per session), consent counts, sessions per day (in the owner's time zone, `tz` = `getTimezoneOffset()`, at most 366 days) and visitors / sessions by device, browser, OS and country. |
+| `GET /api/admin/tenants/{tenant}/analytics/groups?from=&to=` | Per visitor group (invite / public profile): label, visitors, persons, sessions, visits, active and visible time, last visit, consent counts (R9.15), interest score, sections viewed (`sectionsSeen` of `sectionsKnown`). |
+| `GET /api/admin/tenants/{tenant}/analytics/groups/{groupKey}?from=&to=&limit=` | Visitors, sessions, attention per anchor (with reading ratio), technology intent, actions, networks, versions, score breakdown, coverage. Aggregates cover all sessions of the period (events are counted in SQL); `sessions` lists the most recent `limit` (default 200, max 1000) of `sessionsTotal`. |
 | `GET /api/admin/tenants/{tenant}/analytics/sessions/{sid}` | Event timeline of a session, incl. IPs, network info, fingerprint and linked sessions. |
 | `GET /api/admin/tenants/{tenant}/analytics/persons` | Probable persons (visitors linked by cookie or fingerprint + network, R3.10). |
-| `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&appSha=&cvVersion=&type=move\|click\|attention` | Aggregated heat cells (or attention per anchor) for rendering (R6.8), plus the available breakpoint/version combinations. |
+| `GET /api/admin/tenants/{tenant}/analytics/heatmap?group=&bp=&appSha=&cvVersion=&type=move\|click\|attention` | Aggregated heat cells (or attention per anchor) for rendering (R6.8), plus the available breakpoint/version combinations (`facets`: cell weights `move` / `click`, `attentionMs`, `snapshot`). Without `group`: tenant-wide. |
 | `GET /api/admin/tenants/{tenant}/analytics/cv-snapshots/{cvVersion}` | Redacted CV as the visitor saw it (R6.12). |
 | `GET /api/admin/tenants/{tenant}/analytics/consent` | Consent counts, rate per `policyVersion`, decisions of browsers with DNT/GPC (R9.15). |
 | `GET /api/admin/tenants/{tenant}/analytics/settings` | Effective tracking settings: controller, tenant/profile switches, retention, geo database, policy version. |
 | `DELETE /api/admin/tenants/{tenant}/analytics/visitors/{vid}` | Erase a visitor (data subject request). |
+
+`from` / `to` are ISO date-times (sessions started, consents given in `[from, to)`); without them: all time. Every
+endpoint answers `404` for an unknown tenant. All of them require the admin key and are never reachable for invitees
+(R11.4).
 
 Anchor labels in responses are resolved from the master CV (unredacted – the owner may see everything).
 
@@ -621,7 +644,8 @@ sessions        (id, visitor_id, tenant, invite_id, tab_id, previous_session_id,
                  locale, breakpoint, end_reason,
                  ip, ip_country, ip_region, ip_city, asn, as_org,          -- §3.2, IP truncated per R9.2
                  fp, fp_parts_json, fp_server,                             -- removed per R9.2
-                 app_sha, api_sha, cv_source_sha, cv_version, version_mismatch) -- §6.4
+                 app_sha, api_sha, cv_source_sha, cv_version, client_cv_version, version_mismatch,
+                 last_seq, seq_window) -- §6.4, R8.3
 session_ips     (session_id, ip, first_seen, last_seen)                    -- IP changes within a session
 persons         (id, tenant, first_seen, last_seen)                        -- probable person (R3.10); last_seen drives retention (R9.2)
 person_links    (person_id, session_id, reason: cookie|fp|fp_similar+net)
@@ -693,7 +717,7 @@ API tests (`api/CvApi.Tests`) plus frontend tests for the composable.
 | Storage | `/data/tracking.db` (own SQLite file, `Tracking/TrackingModels.cs`) |
 | Consent modal, footer "Privacy" link | `src/app/components/CvConsentModal.vue`, `CvFooter.vue` |
 | Tracker | `src/app/composables/useVisitorTracking.ts`, helpers + fingerprint in `src/app/utils/tracking.ts` |
-| Admin | `src/app/components/AdminAnalytics.vue`, `AdminHeatmap.vue`, heatmap overlay `CvHeatmapOverlay.vue` (`/cv?heatmap=1`) |
+| Admin | `src/app/components/AdminAnalytics.vue` (overview with period filter, invites, group detail), `AdminHeatmap.vue` (per group or tenant-wide, legend), heatmap overlay `CvHeatmapOverlay.vue` (`/cv?heatmap=1`, colour scale) |
 
 **Configuration**
 
@@ -723,6 +747,8 @@ API settings: `Tracking__EventsPerMinute` (rate limit per IP, default 120), `Tra
 - `expand` is accepted by the API but not emitted yet (no expandable entries in the current layout).
 - A session that is not ended explicitly ends at its last heartbeat (no `session_end` on page close, because a reload
   of the same tab continues the session).
-- Coverage in the interest score counts the sections seen by the group against all sections seen by any visitor of
-  the tenant.
+- Coverage in the interest score (and the "sections viewed" column) counts the sections seen by the group against all
+  sections seen by any visitor of the tenant.
+- `tracking.db` is created with `EnsureCreated`; nullable columns added later (`SeqWindow`, `ClientCvVersion`) are
+  added to existing files automatically when the API starts using the database.
 
