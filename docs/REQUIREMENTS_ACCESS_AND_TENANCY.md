@@ -224,6 +224,16 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
   reveal the company).
 - R7.E3 `cvHash` / `cvVersion` of `/api/cv` are computed before the links are replaced (as tracking and
   `cv-sync.sh --verify` compute them). The admin preview gets the original links.
+- R7.E5 PDF: the template variable `links` (all templates, Design tab per tenant / profile / invite) sets how links
+  are printed: `qr` (default) – the readable address (opens the website directly) plus a small QR code to the
+  tracked link; `tracked` – the readable address, opening the tracked link; `clear` – the address, untracked;
+  `off` – none. The renderer gets the original link (`urlTarget`, only for render tickets) and the tracked base
+  `https://<public host>/api/go/{key}?c=<QR code of the PDF>`.
+  - `/api/go/<key>?c=<code>` works without cookie and does not redeem the code (no use counted, no cookie set);
+    only for active, non-view-once codes whose redacted CV contains the link. Each click is counted for that PDF
+    (`Invite.LinkClicksJson` of the PDF's QR invite: url, count, last click; no visitor data, so no consent is
+    needed) and shown in the admin's invite list.
+  - Without such a code (public profile, view-once invite, admin preview) links are printed untracked.
 - R7.E4 Images are always tenant assets (versioned in git with the CV), never links to other websites, which can
   go offline.
 
@@ -237,7 +247,7 @@ the hidden precision); the frontend formats periods from the (reduced) dates.
 | `POST /api/access/logout` | – | Clear access cookie. |
 | `GET /api/cv?locale=de` | cookie / host | `200 { access, host, cv }` or `403 { error: "no_access", host: "shared" \| "tenant" }`. `host` lets the frontend choose showcase vs. neutral page and `/` vs. `/cv` (R2.5); it never names a tenant. |
 | `GET /api/assets/{file}` | cookie / host | Asset if referenced by the visitor's redacted CV, else `404`. |
-| `GET /api/go/{key}` | cookie / host | Redirect to a website linked in the visitor's redacted CV (§7.2), else `404`. |
+| `GET /api/go/{key}[?c=<pdf code>]` | cookie / host / PDF code | Redirect to a website linked in the visitor's redacted CV (§7.2), else `404`; with the code of a printed PDF: counted per PDF, not redeemed. |
 | `GET /api/pdf?locale=de` | cookie / host | PDF of exactly the visitor's view (§12). `X-Pdf-Cache: hit\|miss`. `404 pdf_disabled` without renderer, `502 pdf_failed` on render errors. |
 | `GET /api/favicon.svg` | cookie / host (optional) | Favicon of the visitor's tenant, else the default (§7.1). `Cache-Control: private, no-cache`. |
 | `GET /api/health` | – | Liveness for Coolify. |

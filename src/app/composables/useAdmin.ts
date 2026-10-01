@@ -111,6 +111,8 @@ export interface AdminInvite {
   viewOnceUntil?: string
   parentId?: string
   source?: string
+  /** Clicks on website links printed into this PDF (pdf-qr invites), most clicked first. */
+  linkClicks?: Array<{ url: string, count: number, lastAt?: string }>
   /** Effective CV pin (the invite's own or its profile's); undefined = follows the current CV. */
   revision?: string
   pinnedBy?: 'invite' | 'profile'

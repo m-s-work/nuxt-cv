@@ -71,7 +71,8 @@ public static partial class PublicEndpoints
             // Hashes and versions are of the redacted CV itself (as tracking and cv-sync compute them); only then are
             // website links replaced by /api/go paths (§7.2).
             var redactedJson = redacted.ToJsonString();
-            ExternalLinks.Rewrite(redacted);
+            // The PDF renderer also gets the original links (printed as text / clear links, §7.2).
+            ExternalLinks.Rewrite(redacted, keepTarget: grant.ViaRenderTicket);
             return Results.Ok(new
             {
                 access = new
@@ -150,11 +151,21 @@ public static partial class PublicEndpoints
         });
 
 
-        // Link to a live website in the visitor's CV: redirects there (the frontend records the click as link_out).
-        app.MapGet("/go/{key}", async (string key, HttpContext ctx, AccessService access, TenantStore tenants, CancellationToken ct) =>
+        // Link to a live website in the visitor's CV: redirects there (§7.2). On the web page the frontend records the
+        // click as link_out; links printed into a PDF carry the PDF's QR code (c) and are counted here per PDF.
+        app.MapGet("/go/{key}", async (string key, string? c, HttpContext ctx, AccessService access, TenantStore tenants,
+            CancellationToken ct) =>
         {
             NoStore(ctx);
             ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+            if (!string.IsNullOrEmpty(c))
+            {
+                // No redeem and no cookie: following a printed link is not a visit of the CV.
+                if (await access.FindActiveByCodeAsync(c, ct) is not { } invite || access.GrantFor(invite) is not { } printed
+                    || FindLink(printed, tenants, key) is not { } printedUrl) return Results.NotFound();
+                await access.CountLinkClickAsync(invite, key, printedUrl, ct);
+                return Results.Redirect(printedUrl);
+            }
             var grant = await access.ResolveAsync(ctx, ct);
             if (grant is null || FindLink(grant, tenants, key) is not { } url) return Results.NotFound();
             return Results.Redirect(url);

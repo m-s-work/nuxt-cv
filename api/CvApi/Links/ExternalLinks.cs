@@ -28,8 +28,11 @@ public static class ExternalLinks
         return host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? host[4..] : host;
     }
 
-    /// <summary>Replaces website links (in place) by their /api/go path and adds <c>urlHost</c> for the link text.</summary>
-    public static void Rewrite(JsonNode? node)
+    /// <summary>
+    /// Replaces website links (in place) by their /api/go path and adds <c>urlHost</c> for the link text; with
+    /// <paramref name="keepTarget"/> (PDF rendering) also <c>urlTarget</c>, the original link.
+    /// </summary>
+    public static void Rewrite(JsonNode? node, bool keepTarget = false)
     {
         switch (node)
         {
@@ -40,12 +43,13 @@ public static class ExternalLinks
                     {
                         obj[key] = GoPrefix + Key(url);
                         if (obj["urlHost"] is null) obj["urlHost"] = Host(url);
+                        if (keepTarget) obj["urlTarget"] = url;
                     }
-                    else Rewrite(value);
+                    else Rewrite(value, keepTarget);
                 }
                 break;
             case JsonArray arr:
-                foreach (var item in arr) Rewrite(item);
+                foreach (var item in arr) Rewrite(item, keepTarget);
                 break;
         }
     }

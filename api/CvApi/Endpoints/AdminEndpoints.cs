@@ -515,6 +515,9 @@ public static partial class AdminEndpoints
         viewOnceUntil = i.ViewOnceUntil,
         parentId = i.ParentId,
         source = i.Source,
+        // Clicks on website links printed into this PDF (pdf-qr invites, §7.2).
+        linkClicks = LinkClicks.Parse(i.LinkClicksJson).Values.OrderByDescending(e => e.Count)
+            .Select(e => new { url = e.Url, count = e.Count, lastAt = e.LastAt }),
     };
 
     /// <summary>
