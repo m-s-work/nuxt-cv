@@ -47,11 +47,14 @@ function navigateTo(event: Event, sectionId: string) {
   position: absolute;
   top: 2rem;
   left: 2rem;
+  /* Keep clear of the language switcher (about 8.5rem incl. its offset); long labels wrap instead. */
+  right: 9rem;
   z-index: 50;
 }
 
 .menu-list {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   list-style: none;
   margin: 0;
