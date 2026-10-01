@@ -5,6 +5,7 @@
  */
 import { errorMessage, shortSha, type AdminTenant, type HeatmapFacet, type HeatmapType } from '~/composables/useAdmin'
 import { BREAKPOINT_WIDTH, type Breakpoint } from '~/utils/tracking'
+import { upgradeReason, type UpgradeReason } from '~/utils/account'
 
 const props = defineProps<{ tenant: AdminTenant, group: string }>()
 const admin = useAdmin()
@@ -13,6 +14,8 @@ const facets = ref<HeatmapFacet[]>([])
 const type = ref<HeatmapType>('move')
 const selection = ref('')
 const error = ref('')
+// Heatmaps are Pro (402 plan_limit, feature "heatmaps"): locked state with an upgrade hint.
+const locked = ref<UpgradeReason | null>(null)
 
 const facetKey = (f: HeatmapFacet) => `${f.breakpoint}|${f.appSha}|${f.cvVersion}`
 const facetItems = computed(() => facets.value
@@ -42,7 +45,8 @@ async function load() {
     facets.value = (await admin.heatmap(props.tenant.id, { group: props.group, type: 'move' })).facets
     if (!facets.value.some(f => facetKey(f) === selection.value)) selection.value = facetItems.value[0]?.value ?? ''
   } catch (e) {
-    error.value = errorMessage(e)
+    locked.value = upgradeReason(e)
+    if (!locked.value) error.value = errorMessage(e)
   }
 }
 
@@ -50,7 +54,8 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-2" data-testid="admin-heatmap">
+  <AdminUpgradeHint v-if="locked" :reason="locked" locked data-testid="admin-heatmap-locked" />
+  <div v-else class="space-y-2" data-testid="admin-heatmap">
     <div class="flex gap-2 flex-wrap items-center">
       <USelect v-model="type" :items="typeItems" class="min-w-56" aria-label="Heatmap type" />
       <USelect v-model="selection" :items="facetItems" class="min-w-72" aria-label="Layout and version" :disabled="!facetItems.length" />

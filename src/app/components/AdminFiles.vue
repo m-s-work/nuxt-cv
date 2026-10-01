@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { errorMessage, formatBytes, parseJsonc, type AdminFile } from '~/composables/useAdmin'
+import { upgradeReason, type UpgradeReason } from '~/utils/account'
 
 const props = defineProps<{ tenantId: string, isNew?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -126,6 +127,8 @@ function newCvFile() {
 // --- Assets -------------------------------------------------------------------------------
 
 const uploading = ref(false)
+// Storage quota of the plan exceeded (413 quota_exceeded): upgrade hint instead of an error.
+const quota = ref<UpgradeReason | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 async function upload(event: Event) {
@@ -134,6 +137,7 @@ async function upload(event: Event) {
   if (!selected.length) return
   uploading.value = true
   error.value = ''
+  quota.value = null
   try {
     for (const file of selected) {
       const name = file.name.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^[^A-Za-z0-9]+/, '')
@@ -142,7 +146,8 @@ async function upload(event: Event) {
     emit('changed')
     await load()
   } catch (e) {
-    error.value = errorMessage(e)
+    quota.value = upgradeReason(e)
+    if (!quota.value) error.value = errorMessage(e)
   } finally {
     uploading.value = false
     input.value = ''
@@ -246,6 +251,7 @@ onMounted(() => {
         <p class="text-xs text-gray-500 mt-2">Reference assets in the CV as <code>/api/assets/&lt;file&gt;</code>.</p>
       </section>
       <p v-if="error" class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+      <AdminUpgradeHint v-if="quota" :reason="quota" />
     </aside>
 
     <section class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 min-w-0">

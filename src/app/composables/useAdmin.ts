@@ -1,9 +1,11 @@
 /**
  * Admin API client (`/api/admin/*`, see docs/REQUIREMENTS_ACCESS_AND_TENANCY.md §8).
  *
- * The admin key is kept in sessionStorage only (per tab, gone when the tab closes) and sent as
- * `X-Admin-Key`. Nothing here is used by the public CV pages.
+ * Two ways to sign in (docs/REQUIREMENTS_SAAS.md §1): the super-admin key, kept in sessionStorage only (per tab,
+ * gone when the tab closes) and sent as `X-Admin-Key`; or a user's account session (`cv_session` cookie), sent
+ * with `X-Requested-With: cv` and never with the key. Nothing here is used by the public CV pages.
  */
+import { adminAuthHeaders, type AdminAuthMode, type BillingConfig } from '~/utils/account'
 
 export const ADMIN_KEY_STORAGE = 'cv-admin-key'
 
@@ -39,6 +41,76 @@ export interface AdminTenant {
   locales: string[]
   /** Profiles pinned to a CV revision in tenant.json. */
   pins: Record<string, string>
+  /** "free", "pro" or "managed" (no owner). */
+  plan?: string
+}
+
+// --- Accounts (docs/REQUIREMENTS_SAAS.md) ---------------------------------------------------------
+
+export interface PlanInfo {
+  name: 'free' | 'pro'
+  proUntil?: string | null
+  proForever?: boolean
+  limits: { activeInvites?: number | null, assetBytes: number, hideCredit: boolean, heatmaps: boolean, customDomain: boolean }
+}
+
+/** GET /api/auth/me. Null fields are omitted by the API, so `tenantId` is missing until onboarding. */
+export interface AccountUser {
+  id: string
+  email: string
+  name?: string
+  avatarUrl?: string | null
+  tenantId?: string | null
+  createdAt?: string
+  logins?: string[]
+  customDomain?: string | null
+  plan: PlanInfo
+}
+
+export interface AccountInfo {
+  user: AccountUser
+  usage?: { activeInvites: number, assetBytes: number, hideCredit: boolean, hosts: string[] } | null
+}
+
+export interface Payment {
+  id: string
+  provider: string
+  externalId?: string
+  userId?: string | null
+  email?: string | null
+  pass?: string | null
+  days: number
+  amount: number
+  currency?: string | null
+  status: 'completed' | 'unmatched' | 'refunded' | 'chargeback' | 'manual' | string
+  note?: string | null
+  createdAt: string
+}
+
+export interface LinkedInImport {
+  applied: boolean
+  locale: string
+  cv: unknown
+  warnings: string[]
+  filesRead: string[]
+  counts: { experiences: number, studies: number, skills: number, languages: number, projects: number, certifications: number }
+}
+
+/** Super-admin view of a user (GET /api/admin/users). */
+export interface AdminUser {
+  id: string
+  email: string
+  name?: string
+  tenantId?: string | null
+  providers: string[]
+  createdAt: string
+  lastLoginAt?: string | null
+  blockedAt?: string | null
+  plan: 'free' | 'pro'
+  proUntil?: string | null
+  proForever?: boolean
+  planNote?: string | null
+  customDomain?: string | null
 }
 
 export interface CvRevision {
@@ -451,6 +523,8 @@ function readStoredKey(): string {
 
 export function useAdmin() {
   const key = useState<string>('admin-key', readStoredKey)
+  /** null until the page decided (no stored key and GET /auth/me not answered yet). */
+  const mode = useState<AdminAuthMode | null>('admin-mode', () => null)
   const apiBase = useRuntimeConfig().public.apiBase as string
 
   function setKey(value: string) {
@@ -461,11 +535,16 @@ export function useAdmin() {
     } catch { /* storage unavailable: key stays in memory */ }
   }
 
-  function request<T>(path: string, options: Parameters<typeof $fetch>[1] = {}): Promise<T> {
-    return $fetch<T>(`${apiBase}/admin${path}`, {
+  function api<T>(path: string, options: Parameters<typeof $fetch>[1] = {}, auth: Record<string, string> = { 'X-Requested-With': 'cv' }): Promise<T> {
+    return $fetch<T>(`${apiBase}${path}`, {
+      credentials: 'same-origin',
       ...options,
-      headers: { ...(options.headers as Record<string, string> | undefined), 'X-Admin-Key': key.value }
+      headers: { ...(options.headers as Record<string, string> | undefined), ...auth }
     } as Parameters<typeof $fetch>[1]) as Promise<T>
+  }
+
+  function request<T>(path: string, options: Parameters<typeof $fetch>[1] = {}): Promise<T> {
+    return api<T>(`/admin${path}`, options, adminAuthHeaders(mode.value, key.value))
   }
 
   const t = (tenant: string) => `/tenants/${encodeURIComponent(tenant)}`
@@ -473,6 +552,36 @@ export function useAdmin() {
   return {
     key,
     setKey,
+    mode,
+    apiBase,
+    // Account session (SaaS §2, §3, §5, §8); always cookie + CSRF header, never the admin key.
+    me: () => api<AccountUser>('/auth/me'),
+    logout: () => api<void>('/auth/logout', { method: 'POST' }),
+    account: () => api<AccountInfo>('/account'),
+    updateAccount: (body: { name?: string, hideCredit?: boolean }) => api<void>('/account', { method: 'PATCH', body }),
+    checkHandle: (handle: string) => api<{ handle: string, error?: string | null }>(`/account/handle/${encodeURIComponent(handle)}`),
+    createTenant: (body: { handle: string, locale: string, name?: string }) =>
+      api<{ tenantId: string }>('/account/tenant', { method: 'POST', body }),
+    importLinkedIn: (file: File, locale: string, apply: boolean) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api<LinkedInImport>('/account/import/linkedin', { method: 'POST', body: form, query: { locale, apply: apply || undefined } })
+    },
+    setDomain: (domain: string) => api<{ domain: string }>('/account/domain', { method: 'PUT', body: { domain } }),
+    removeDomain: () => api<void>('/account/domain', { method: 'DELETE' }),
+    payments: () => api<Payment[]>('/account/payments'),
+    exportUrl: () => `${apiBase}/account/export`,
+    revokeSessions: () => api<void>('/account/sessions/revoke', { method: 'POST' }),
+    deleteAccount: (confirm: string) => api<void>('/account', { method: 'DELETE', body: { confirm } }),
+    billingConfig: () => api<BillingConfig>('/billing/config'),
+    // Super-admin user management (SaaS §6).
+    users: (q?: string) => request<AdminUser[]>('/users', { query: { q: q || undefined } }),
+    user: (id: string) => request<{ user: AdminUser, payments: Payment[] }>(`/users/${id}`),
+    setPlan: (id: string, body: { proUntil?: string | null, addDays?: number | null, proForever: boolean, note?: string }) =>
+      request<AdminUser>(`/users/${id}/plan`, { method: 'PUT', body }),
+    blockUser: (id: string, blocked: boolean) => request<void>(`/users/${id}/${blocked ? 'block' : 'unblock'}`, { method: 'POST' }),
+    deleteUser: (id: string) => request<void>(`/users/${id}`, { method: 'DELETE' }),
+    allPayments: () => request<Payment[]>('/payments'),
     tenants: () => request<AdminTenant[]>('/tenants'),
     profiles: (tenant: string) => request<Record<string, AccessPolicy>>(`${t(tenant)}/profiles`),
     invites: (tenant: string) => request<AdminInvite[]>(`${t(tenant)}/invites`),

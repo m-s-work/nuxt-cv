@@ -2,8 +2,9 @@
 const { setSplashType, hideSplash } = useSplashScreen()
 const route = useRoute()
 
-// Owner admin page (/admin, /de/admin): no splash screen, no CV chrome.
-const isAdmin = computed(() => /^(\/[a-z]{2})?\/admin\/?$/.test(route.path))
+// Owner admin page and the sign-in page (/admin, /login, /de/…): no splash screen, no CV chrome
+// (the login page has its own language switch).
+const isAdmin = computed(() => /^(\/[a-z]{2})?\/(admin|login)\/?$/.test(route.path))
 if (isAdmin.value) hideSplash()
 
 // PDF renderer mode (?print=1) and the owner's heatmap view (?heatmap=1): no splash screen.
